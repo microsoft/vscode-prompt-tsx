@@ -1,21 +1,47 @@
-    MIT License
+GITHUB LICENSE TERMS FOR EXTENSIONS
 
-    Copyright (c) Microsoft Corporation.
+© GitHub, Inc. (“GitHub”). All rights reserved. 
 
-    Permission is hereby granted, free of charge, to any person obtaining a copy
-    of this software and associated documentation files (the "Software"), to deal
-    in the Software without restriction, including without limitation the rights
-    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-    copies of the Software, and to permit persons to whom the Software is
-    furnished to do so, subject to the following conditions:
+These license terms are an agreement between you and GitHub. They apply to the extensions (“Extensions”) published by GitHub or its affiliates that enable access to services provided by GitHub, Inc. (“GitHub Services). If you comply with these license terms, you have the rights below. By using the Extensions, you accept these terms.
 
-    The above copyright notice and this permission notice shall be included in all
-    copies or substantial portions of the Software.
+1.	INSTALLATION AND USE RIGHTS.
+	a)	General. You may install and use any number of copies of Extensions only with GitHub approved software to develop and test your applications.
+	b)	GitHub Components. The Extensions contain libraries that enable you to interact with GitHub Services. You must separately obtain access to the desired functionality, and your use of GitHub Services is pursuant to the separate agreement(s) between you and GitHub, including any data collection provisions. Extensions may also include third-party components with separate legal notices or governed by other agreements, as may be described in the notices file(s) accompanying the software.
 
-    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-    SOFTWARE
+2.	FEEDBACK. If you give feedback about Extensions to GitHub, you give to GitHub, without charge, the right to use, share and commercialize your feedback in any way and for any purpose. You will not give feedback that is subject to a license that requires GitHub to license its software or documentation to third parties because we include your feedback in them. These rights survive this license.
+
+3.	SCOPE OF LICENSE. Extensions are licensed, not sold. This license only gives you some rights to use Extensions. GitHub reserves all other rights.  For clarification, GitHub or any applicable licensors retain ownership of all aspects of Extensions. Unless applicable law gives you more rights despite this limitation, you may use Extensions only as expressly permitted in this license. In doing so, you must comply with any technical limitations in Extensions that only allow you to use them in certain ways. You may not:
+	a)	work around any technical limitations in Extensions that only allow you to use them in certain ways;
+	b)	reverse engineer, decompile or disassemble Extensions, or otherwise attempt to derive the source code for Extensions, except and to the extent required by third party licensing terms governing use of certain open source components that may be included in Extensions;
+	c)	remove, minimize, block, or modify any notices of GitHub or its suppliers in Extensions;
+	d)	use Extensions in any way that is against the law or to create or propagate malware;
+	e)	share, publish, distribute, or lease Extensions; or
+	f)	provide Extensions as a stand-alone offering or combine it with any of your applications for others to use, or transfer Extensions or this license to any third party.
+
+4.	DATA.
+	a)	Data Collection. Extensions may collect information about you and your use of the software, and send that to GitHub or its affiliates (including Microsoft). GitHub or its affiliates may use this information to provide and improve the extensions and GitHub Services and their delivery to the software enabled by the Extensions and as otherwise described in the GitHub Privacy Statement at https://docs.github.com/en/site-policy/privacy-policies/github-privacy-statement.
+	b)	Processing of Personal Data. To the extent GitHub is a processor or subprocessor of personal data in connection with the Extensions, GitHub makes the commitments in the GitHub Data Protection Agreement available at https://gh.io/dpa.
+
+5.	EXPORT RESTRICTIONS. You must comply with all domestic and international export laws and regulations that apply to Extensions, which include restrictions on destinations, end users, and end use.
+
+6.	SUPPORT SERVICES. GitHub is not obligated under this license to provide any support services for Extensions. Any support provided is “as is”, “with all faults”, and without warranty of any kind.
+
+7.	ENTIRE AGREEMENT. Without limiting Section 1(b), this license, and any other terms GitHub may provide for supplements, updates, or third-party applications, is the entire agreement for Extensions.
+
+8.	APPLICABLE LAW AND PLACE TO RESOLVE DISPUTES. If you acquired Extensions in the United States or Canada, the laws of the state or province where you live (or, if a business, where your principal place of business is located) govern the interpretation of this license, claims for its breach, and all other claims (including consumer protection, unfair competition, and tort claims), regardless of conflict of laws principles. If you acquired Extensions in any other country, its laws apply. If U.S. federal jurisdiction exists, you and GitHub consent to exclusive jurisdiction and venue in the federal court in King County, Washington; if not, you and GitHub consent to exclusive jurisdiction and venue in the Superior Court of King County, Washington.
+
+9.	CONSUMER RIGHTS; REGIONAL VARIATIONS. This license describes certain legal rights. You may have other rights, including consumer rights, under the laws of your state or country. This Extensions License does not change those other rights if the laws of your state or country do not permit it to do so. For example, if you acquired Extensions in one of the below regions, or mandatory country law applies, then the following provisions apply to you:
+	a)	Australia. You have statutory guarantees under the Australian Consumer Law and nothing in this license is intended to affect those rights.
+	b)	Canada. You may stop receiving updates by turning off any applicable automatic update feature, disconnecting your device from the Internet (if and when you re-connect to the Internet, however, the Extensions will resume checking for and installing updates), or uninstalling Extensions. The product documentation, if any, may also specify how to turn off updates for your specific device or software.
+	c)	Germany and Austria.
+		i.	Warranty. The properly licensed Extensions will perform substantially as described in any GitHub materials that accompany them. However, GitHub gives no contractual guarantee in relation to the licensed Extensions.
+		ii.	Limitation of Liability. In case of intentional conduct, gross negligence, claims based on the Product Liability Act, as well as in case of death or personal or physical injury, GitHub is liable according to the statutory law.
+		Subject to the foregoing clause ii., GitHub will only be liable for slight negligence if GitHub is in breach of such material contractual obligations, the fulfillment of which facilitate the due performance of this license, the breach of which would endanger the purpose of this license and the compliance with which a party may constantly trust in (so-called "cardinal obligations"). In other cases of slight negligence, GitHub will not be liable for slight negligence.
+
+10.	DISCLAIMER OF WARRANTY. EXTENSIONS ARE LICENSED “AS IS.” YOU BEAR THE RISK OF USING THEM. GITHUB GIVES NO EXPRESS WARRANTIES, GUARANTEES, OR CONDITIONS. TO THE EXTENT PERMITTED UNDER APPLICABLE LAWS, GITHUB EXCLUDES ALL IMPLIED WARRANTIES, INCLUDING MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT.
+
+11.	LIMITATION ON AND EXCLUSION OF DAMAGES. IF YOU HAVE ANY BASIS FOR RECOVERING DAMAGES DESPITE THE PRECEDING DISCLAIMER OF WARRANTY, YOU CAN RECOVER FROM GITHUB AND ITS SUPPLIERS ONLY DIRECT DAMAGES UP TO $5.00 USD. YOU CANNOT RECOVER ANY OTHER DAMAGES, INCLUDING CONSEQUENTIAL, LOST PROFITS, SPECIAL, INDIRECT, OR INCIDENTAL DAMAGES.
+
+	This limitation applies to (a) anything related to Extensions, services, content (including code) on third party Internet sites, or third party applications; and (b) claims for breach of contract, warranty, guarantee, or condition; strict liability, negligence, or other tort; or any other claim; in each case to the extent permitted by applicable law.
+
+	It also applies even if GitHub knew or should have known about the possibility of the damages. The above limitation or exclusion may not apply to you because your state, province, or country may not allow the exclusion or limitation of incidental, consequential, or other damages.

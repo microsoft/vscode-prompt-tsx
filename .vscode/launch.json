@@ -1,0 +1,18 @@
+{
+    "configurations": [
+        {
+			"name": "Extension tests",
+			"type": "extensionHost",
+			"request": "launch",
+			"testConfiguration": "${workspaceFolder}/.vscode-test.mjs",
+			"sourceMaps": true,
+			"preLaunchTask": "watch",
+			"smartStep": true,
+			"internalConsoleOptions": "openOnSessionStart",
+			"outFiles": [
+				"${workspaceFolder}/dist/**/*.js",
+				"!**/node_modules/**"
+			],
+		},
+    ]
+}

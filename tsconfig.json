@@ -1,0 +1,17 @@
+{
+	"exclude": ["build"],
+	"include": ["src"],
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es2020",
+		"outDir": "dist",
+		"rootDir": "src",
+		"strict": true,
+		"jsx": "react",
+		"jsxFactory": "vscpp",
+		"declaration": true,
+		"jsxFragmentFactory": "vscppf",
+		"moduleResolution": "node",
+		"types": ["vscode", "node", "mocha"]
+	}
+}

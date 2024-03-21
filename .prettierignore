@@ -1,0 +1,9 @@
+dist/**
+.vscode/**
+.vscode-test/**
+test/.vscode-test/**
+.git-blame-ignore-revs
+**/*.md
+**/*.ts
+**/*.js
+**/*.yml
