@@ -12,10 +12,11 @@ import { ITokenizer } from "./tokenizer/tokenizer";
 
 export * from './types';
 export * from './tsx-globals';
+export { ITokenizer, Cl100KBaseTokenizerImpl } from "./tokenizer/tokenizer";
 
 export { TextChunk, UserMessage, AssistantMessage, SystemMessage } from './promptElements';
 
-export { PromptRenderer } from './promptRenderer';
+export { PromptRenderer, RenderPromptResult } from './promptRenderer';
 export { PromptElement } from './promptElement';
 
 /**
