@@ -2,10 +2,8 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Uri, Location } from 'vscode';
-import { PromptReference } from './results';
-
-export type ChatResponsePart = { value: string | Uri | Location } | PromptReference;
+import type { Uri } from 'vscode';
+export type { ChatResponsePart } from 'vscode';
 
 export interface ChatDocumentContext {
 	uri: Uri;

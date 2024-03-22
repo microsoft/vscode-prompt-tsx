@@ -12,11 +12,13 @@ import { ITokenizer } from "./tokenizer/tokenizer";
 
 export * from './types';
 export * from './tsx-globals';
+export * from './results';
+export { ChatMessage } from './openai';
 export { ITokenizer, Cl100KBaseTokenizerImpl } from "./tokenizer/tokenizer";
 
 export { TextChunk, UserMessage, AssistantMessage, SystemMessage } from './promptElements';
 
-export { PromptRenderer, RenderPromptResult } from './promptRenderer';
+export { PromptRenderer, RenderPromptResult, QueueItem, MetadataMap } from './promptRenderer';
 export { PromptElement } from './promptElement';
 
 /**
