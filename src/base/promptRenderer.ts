@@ -98,6 +98,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return getUniqueReferences(this._references);
 	}
 
+	public getReplyInterpreterFactory(): ReplyInterpreterFactory | null {
+		return this._replyInterpreterFactory;
+	}
+
 	private async _processPromptPieces(progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
 		while (this._queue.length > 0) {
 
