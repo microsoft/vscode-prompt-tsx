@@ -50,7 +50,7 @@ export interface BasePromptElementProps {
 
 export interface PromptElementCtor<P extends BasePromptElementProps, S> {
 	isFragment?: boolean;
-	new(props: P): PromptElement<P, S>;
+	new(props: P, ...args: any[]): PromptElement<P, S>;
 }
 
 export interface RuntimePromptElementProps {

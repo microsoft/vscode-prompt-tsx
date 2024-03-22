@@ -20,9 +20,9 @@ export interface RenderPromptResult {
 	readonly hasIgnoredFiles: boolean;
 }
 
-type QueueItem<P extends BasePromptElementProps> = {
+export type QueueItem<C, P> = {
 	node: PromptTreeElement;
-	ctor: PromptElementCtor<P, any>;
+	ctor: C;
 	props: P;
 	children: PromptPieceChild[];
 };
@@ -50,7 +50,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _references: PromptReference[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private _replyInterpreterFactory: ReplyInterpreterFactory | null = null;
-	private readonly _queue: QueueItem<P>[] = [];
+	private readonly _queue: QueueItem<PromptElementCtor<P, any>, P>[] = [];
 	private readonly _root = new PromptTreeElement(null, 0, {
 		tokenBudget: this._endpoint.modelMaxPromptTokens,
 		endpoint: this._endpoint
@@ -102,6 +102,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return this._replyInterpreterFactory;
 	}
 
+	protected createElement(element: QueueItem<PromptElementCtor<P, any>, P>) {
+		return new element.ctor(element.props);
+	}
+
 	private async _processPromptPieces(progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
 		while (this._queue.length > 0) {
 
@@ -119,7 +123,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					throw new Error(`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`);
 				}
 
-				const promptElement = new element.ctor(element.props);
+				const promptElement = this.createElement(element);
 				element.node.setObj(promptElement);
 
 				// Prepare rendering
@@ -259,7 +263,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return chatMessages;
 	}
 
-	private _handlePromptPiece(element: QueueItem<P>, piece: ProcessedPromptPiece, siblingflexSum: number, parentTokenBudget: number) {
+	private _handlePromptPiece(element: QueueItem<PromptElementCtor<P, any>, P>, piece: ProcessedPromptPiece, siblingflexSum: number, parentTokenBudget: number) {
 		if (piece.kind === 'literal') {
 			element.node.appendStringChild(piece.value, element.props.priority ?? Number.MAX_SAFE_INTEGER);
 			return;
