@@ -10,7 +10,6 @@ import { PromptMetadata, PromptReference, ReplyInterpreterFactory } from "./resu
 import { Cl100KBaseTokenizerImpl, ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
-import { getUniqueReferences } from "./util/references";
 import { URI } from "./util/vs/common/uri";
 import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
 
@@ -95,7 +94,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 
 	public getReferences(): PromptReference[] {
-		return getUniqueReferences(this._references);
+		return this._references;
 	}
 
 	public getReplyInterpreterFactory(): ReplyInterpreterFactory | null {
