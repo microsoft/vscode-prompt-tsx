@@ -16,7 +16,7 @@ resources:
 
 parameters:
   - name: publishPackage
-    displayName: 🚀 Publish @vscode/prompt-tsx-base
+    displayName: 🚀 Publish @vscode/prompt-tsx
     type: boolean
     default: false
 
@@ -24,7 +24,7 @@ extends:
   template: azure-pipelines/npm-package/pipeline.yml@templates
   parameters:
     npmPackages:
-      - name: prompt-tsx-base
+      - name: prompt-tsx
 
         buildSteps:
           - script: npm ci
