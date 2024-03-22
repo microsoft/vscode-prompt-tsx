@@ -1,2 +1,11 @@
 src/
 build/
+.vscode/
+.gitignore
+.prettierignore
+.prettierrc.json
+.vscode-test.mjs
+.vscode-test/
+*.tgz
+tsconfig.json
+*.md
