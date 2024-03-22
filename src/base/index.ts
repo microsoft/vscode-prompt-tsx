@@ -16,7 +16,7 @@ export { Cl100KBaseTokenizerImpl, ITokenizer } from "./tokenizer/tokenizer";
 export * from './tsx-globals';
 export * from './types';
 
-export { AssistantMessage, PrioritizedList, SystemMessage, TextChunk, UserMessage } from './promptElements';
+export { AssistantMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, UserMessage } from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
