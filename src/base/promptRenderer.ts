@@ -7,7 +7,7 @@ import { BaseTokensPerCompletion, BaseTokensPerMessage, BaseTokensPerName, ChatM
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference, ReplyInterpreterFactory } from "./results";
-import { Cl100KBaseTokenizerImpl, ITokenizer } from "./tokenizer/tokenizer";
+import { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
@@ -68,7 +68,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _props: P,
 		_tokenizer?: ITokenizer
 	) {
-		this._tokenizer = _tokenizer ?? new Cl100KBaseTokenizerImpl();
+		this._tokenizer = _tokenizer ?? new Cl100KBaseTokenizer();
 		this._queue.push({ node: this._root, ctor: this._ctor, props: this._props, children: [] });
 	}
 

@@ -41,7 +41,7 @@ export interface ITokenizer {
  *
  * See https://github.com/microsoft/Tokenizer
  */
-export class Cl100KBaseTokenizerImpl implements ITokenizer {
+export class Cl100KBaseTokenizer implements ITokenizer {
 	declare readonly _serviceBrand: undefined;
 	private _cl100kTokenizer: TikTokenizer | undefined;
 
