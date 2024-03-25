@@ -20,7 +20,7 @@ async function main() {
 	// Ship the tiktoken file in the dist bundle
 	await copyStaticAssets([
 		'src/base/tokenizer/cl100k_base.tiktoken',
-	], 'dist');
+	], 'dist/base/tokenizer');
 }
 
 main();

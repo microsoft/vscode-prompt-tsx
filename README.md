@@ -119,7 +119,7 @@ You'll also want to vendor the `cl100k_base.tiktoken` file that ships with this 
   plugins: [
     new CopyWebpackPlugin({
       patterns: [
-        { from: 'node_modules/@vscode/prompt-tsx/dist/cl100k_base.tiktoken' }
+        { from: 'node_modules/@vscode/prompt-tsx/dist/base/tokenizer/cl100k_base.tiktoken' }
       ]
     })
   ],
