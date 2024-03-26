@@ -110,6 +110,11 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
 
 ```
 
+Please note:
+- If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
+- Newlines are not preserved in string literals when rendered, and must be explicitly declared with the builtin `<br />` attribute.
+- For now, if two prompt messages _with the same priority_ are up for eviction due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to evict a subtree of the prompt message declared later.
+
 ### Building your extension with `@vscode/prompt-tsx`
 
 You'll also want to vendor the `cl100k_base.tiktoken` file that ships with this library when you build and publish your VS Code extension. You can either do this with a `postinstall` script or, if you use `webpack`, a plugin like `CopyWebpackPlugin`:
@@ -124,8 +129,3 @@ You'll also want to vendor the `cl100k_base.tiktoken` file that ships with this 
     })
   ],
 ```
-
-Please note:
-- If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
-- Newlines are not preserved in string literals when rendered, and must be explicitly declared with the builtin `<br />` attribute.
-- For now, if two prompt messages _with the same priority_ are up for eviction due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to evict a subtree of the prompt message declared later.
