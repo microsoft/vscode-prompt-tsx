@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Progress, LanguageModelChatMessage } from "vscode";
+import type { CancellationToken, LanguageModelChatMessage, Progress } from "vscode";
 import { ChatMessage, ChatRole } from "./openai";
 import { MetadataMap, PromptRenderer } from "./promptRenderer";
 import { PromptReference } from "./results";
@@ -12,7 +12,7 @@ import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
 
 export { ChatMessage } from './openai';
 export * from './results';
-export { Cl100KBaseTokenizerImpl, ITokenizer } from "./tokenizer/tokenizer";
+export { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
 export * from './tsx-globals';
 export * from './types';
 

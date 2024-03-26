@@ -13,7 +13,7 @@ import {
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
-import { Cl100KBaseTokenizerImpl } from '../tokenizer/tokenizer';
+import { Cl100KBaseTokenizer } from '../tokenizer/tokenizer';
 import {
 	BasePromptElementProps,
 	IChatEndpointInfo,
@@ -25,7 +25,7 @@ suite('PromptRenderer', async function () {
 	const fakeEndpoint: any = {
 		modelMaxPromptTokens: 8192,
 	} satisfies Partial<IChatEndpointInfo>;
-	const tokenizer = new Cl100KBaseTokenizerImpl();
+	const tokenizer = new Cl100KBaseTokenizer();
 
 	test('token counting', async () => {
 		class Prompt1 extends PromptElement {
