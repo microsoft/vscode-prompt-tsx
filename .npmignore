@@ -10,5 +10,3 @@ build/
 tsconfig.json
 *.md
 dist/base/test/
-*.d.ts
-!index.d.ts
