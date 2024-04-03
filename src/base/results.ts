@@ -19,7 +19,7 @@ export abstract class PromptMetadata {
  */
 export class PromptReference {
 	constructor(
-		readonly anchor: Uri | Location,
+		readonly anchor: Uri | Location | { variableName: string; value?: Uri | Location },
 	) { }
 }
 
