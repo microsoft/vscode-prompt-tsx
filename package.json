@@ -10,7 +10,7 @@
 		"watch": "tsc --watch",
 		"test": "vscode-test",
 		"prettier": "prettier --list-different --write --cache .",
-		"postinstall": "tsx ./build/postinstall.ts"
+		"prepare": "tsx ./build/postinstall.ts"
 	},
 	"keywords": [],
 	"author": "Microsoft Corporation",
