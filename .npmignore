@@ -9,3 +9,4 @@ build/
 *.tgz
 tsconfig.json
 *.md
+dist/base/test/
