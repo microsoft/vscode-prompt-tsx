@@ -27,7 +27,11 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	public readonly props: PromptElementProps<P>;
 
 	get priority(): number {
-		return this.props.priority ?? 0;
+		return this.props.priority ?? Number.MAX_SAFE_INTEGER;
+	}
+
+	get insertLineBreakBefore(): boolean {
+		return true;
 	}
 
 	constructor(props: PromptElementProps<P>) {

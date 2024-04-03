@@ -569,8 +569,10 @@ class PromptTreeElement {
 		if (this._obj instanceof BaseChatMessage) {
 			throw new Error(`Cannot have a ChatMessage nested inside a ChatMessage!`);
 		}
-		// Add an implicit <br/> before the element
-		result.push(new PromptLineBreak(this, false));
+		if (this._obj?.insertLineBreakBefore) {
+			// Add an implicit <br/> before the element
+			result.push(new PromptLineBreak(this, false));
+		}
 		for (const child of this._children) {
 			child.collectLeafs(result);
 		}
