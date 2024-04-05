@@ -13,6 +13,10 @@ export interface ITokenizer {
 
 	readonly _serviceBrand: undefined;
 
+	readonly baseTokensPerMessage: number;
+	readonly baseTokensPerName: number;
+	readonly baseTokensPerCompletion: number;
+
 	/**
 	 * Return the length of `text` in number of tokens.
 	 *
@@ -45,7 +49,11 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	declare readonly _serviceBrand: undefined;
 	private _cl100kTokenizer: TikTokenizer | undefined;
 
-	public readonly models = ['gpt-4', 'gpt-3.5-turbo', 'text-embedding-ada-002']
+	public readonly models = ['gpt-4', 'gpt-3.5-turbo', 'text-embedding-ada-002'];
+
+	public readonly baseTokensPerMessage = BaseTokensPerMessage;
+	public readonly baseTokensPerName = BaseTokensPerName;
+	public readonly baseTokensPerCompletion = BaseTokensPerCompletion;
 
 	constructor() { }
 
@@ -94,14 +102,14 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	 * **Note**: The result does not include base tokens for the completion itself.
 	 */
 	countMessageTokens(message: ChatMessage): number {
-		let numTokens = BaseTokensPerMessage;
+		let numTokens = this.baseTokensPerMessage;
 		for (const [key, value] of Object.entries(message)) {
 			if (!value) {
 				continue;
 			}
 			numTokens += this.tokenLength(value);
 			if (key === 'name') {
-				numTokens += BaseTokensPerName;
+				numTokens += this.baseTokensPerName;
 			}
 		}
 

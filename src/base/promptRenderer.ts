@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Progress } from "vscode";
-import { BaseTokensPerCompletion, BaseTokensPerMessage, BaseTokensPerName, ChatMessage, ChatRole } from "./openai";
+import { ChatMessage, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference, ReplyInterpreterFactory } from "./results";
@@ -172,7 +172,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		prioritizedChunks.sort((a, b) => cmp(things[a.index], things[b.index]));
 
-		let remainingBudget = this._endpoint.modelMaxPromptTokens - BaseTokensPerCompletion;
+		let remainingBudget = this._endpoint.modelMaxPromptTokens - this._tokenizer.baseTokensPerCompletion;
 		while (prioritizedChunks.length > 0) {
 			const prioritizedChunk = prioritizedChunks.shift()!;
 			const index = prioritizedChunk.index;
@@ -400,9 +400,9 @@ function computeTokenBudgetForPieces(tokenizer: ITokenizer, element: any, instan
 	let flexChildrenSum = 0;
 	let parentTokenBudgetWithoutLiterals = element.node.sizing.tokenBudget;
 	if (isChatMessagePromptElement(instance)) {
-		parentTokenBudgetWithoutLiterals -= BaseTokensPerMessage;
+		parentTokenBudgetWithoutLiterals -= tokenizer.baseTokensPerMessage;
 		if (element.props.name) {
-			parentTokenBudgetWithoutLiterals -= BaseTokensPerName;
+			parentTokenBudgetWithoutLiterals -= tokenizer.baseTokensPerName;
 		}
 		if (element.props.role) {
 			parentTokenBudgetWithoutLiterals -= tokenizer.tokenLength(element.props.role);

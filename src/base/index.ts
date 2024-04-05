@@ -10,7 +10,7 @@ import { ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from "./types";
 import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
 
-export { ChatMessage } from './openai';
+export { ChatMessage, ChatRole } from './openai';
 export * from './results';
 export { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
 export * from './tsx-globals';
