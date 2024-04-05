@@ -261,9 +261,22 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		// Then finalize the chat messages
 		const messageResult = prioritizedMaterializedChatMessages.map(message => message?.toChatMessage());
-		const references = coalesce(prioritizedMaterializedChatMessages.reduce<PromptReference[]>((acc, message) => acc.concat(message.references), []));
 
-		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references };
+		// Remove undefined and duplicate references
+		const { references } = prioritizedMaterializedChatMessages.reduce<{ references: PromptReference[], names: Set<string> }>((acc, message) => {
+			message.references.forEach((ref) => {
+				const isVariableName = 'variableName' in ref.anchor;
+				if (isVariableName && !acc.names.has(ref.anchor.variableName)) {
+					acc.references.push(ref);
+					acc.names.add(ref.anchor.variableName);
+				} else if (!isVariableName) {
+					acc.references.push(ref);
+				}
+			});
+			return acc;
+		}, { references: [], names: new Set<string>() });
+
+		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
 	}
 
 	private _validate(chatMessages: ChatMessage[]) {
