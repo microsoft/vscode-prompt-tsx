@@ -17,6 +17,10 @@ export interface RenderPromptResult {
 	readonly messages: ChatMessage[];
 	readonly tokenCount: number;
 	readonly hasIgnoredFiles: boolean;
+	/**
+	 * The references that survived prioritization in the rendered {@link RenderPromptResult.messages messages}.
+	 */
+	readonly references: PromptReference[];
 }
 
 export type QueueItem<C, P> = {
@@ -93,6 +97,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return this._usedContext;
 	}
 
+	/**
+	 *
+	 * @deprecated Use {@link RenderPromptResult.references} instead.
+	 */
 	public getReferences(): PromptReference[] {
 		return this._references;
 	}
@@ -195,7 +203,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			remainingBudget -= tokenCount;
 		}
 
-		return { result: chunkResult, tokenCount: this._endpoint.modelMaxPromptTokens - remainingBudget };
+		return { result: coalesce(chunkResult), tokenCount: this._endpoint.modelMaxPromptTokens - remainingBudget };
 	}
 
 	/**
@@ -208,7 +216,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		await this._processPromptPieces(progress, token);
 
 		// Convert prompt pieces to message chunks (text and linebreaks)
-		const { result: messages, resultChunks } = this._root.materialize();
+		const { result: messageChunks, resultChunks } = this._root.materialize();
 
 		// First pass: sort message chunks by priority. Note that this can yield an imprecise result due to token boundaries within a single chat message
 		// so we also need to do a second pass over the full chat messages later
@@ -235,10 +243,15 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		// Collect chat messages with surviving prioritized chunks in the order they were declared
 		const chatMessages: MaterializedChatMessage[] = [];
-		for (const message of messages) {
+		for (const message of messageChunks) {
 			const chunks = chatMessagesToChunks.get(message);
 			if (chunks) {
 				message.chunks = coalesce(chunks);
+				for (const chunk of chunks) {
+					if (chunk && chunk.references.length > 0) {
+						message.references.push(...chunk.references);
+					}
+				}
 				chatMessages.push(message);
 			}
 		}
@@ -248,8 +261,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		// Then finalize the chat messages
 		const messageResult = prioritizedMaterializedChatMessages.map(message => message?.toChatMessage());
+		const references = coalesce(prioritizedMaterializedChatMessages.reduce<PromptReference[]>((acc, message) => acc.concat(message.references), []));
 
-		return { messages: this._validate(coalesce(messageResult)), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount };
+		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references };
 	}
 
 	private _validate(chatMessages: ChatMessage[]) {
@@ -333,6 +347,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		if (children.length > 0) {
 			throw new Error(`<reference /> must not have children!`);
 		}
+		node.addReferences(props.value);
 		this._references.push(...props.value);
 	}
 
@@ -473,6 +488,7 @@ class PromptTreeElement {
 	private _obj: PromptElement | null = null;
 	private _state: any | undefined = undefined;
 	private _children: PromptNode[] = [];
+	private _references: PromptReference[] = [];
 
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
@@ -541,7 +557,7 @@ class PromptTreeElement {
 			let childIndex = resultChunks.length;
 			leafNodes.forEach((node, index) => {
 				if (node.kind === PromptNodeType.Text) {
-					chunks.push(new MaterializedChatMessageTextChunk(parent, node.text, node.priority, childIndex++));
+					chunks.push(new MaterializedChatMessageTextChunk(parent, node.text, node.priority, childIndex++, false, this._references));
 				} else {
 					if (node.isExplicit) {
 						chunks.push(new MaterializedChatMessageTextChunk(parent, '\n', node.priority, childIndex++));
@@ -577,6 +593,10 @@ class PromptTreeElement {
 			child.collectLeafs(result);
 		}
 	}
+
+	public addReferences(references: PromptReference[]): void {
+		this._references.push(...references);
+	}
 }
 
 interface Countable {
@@ -590,7 +610,8 @@ class MaterializedChatMessageTextChunk implements Countable {
 		public readonly text: string,
 		private readonly priority: number | undefined,
 		public readonly childIndex: number,
-		public readonly isImplicitLinebreak = false
+		public readonly isImplicitLinebreak = false,
+		public readonly references: PromptReference[] = []
 	) { }
 
 	public static cmp(a: MaterializedChatMessageTextChunk, b: MaterializedChatMessageTextChunk): number {
@@ -626,7 +647,8 @@ class MaterializedChatMessage implements Countable {
 		public readonly name: string | undefined,
 		private readonly priority: number | undefined,
 		private readonly childIndex: number,
-		private _chunks: MaterializedChatMessageTextChunk[]
+		private _chunks: MaterializedChatMessageTextChunk[],
+		public references: PromptReference[] = []
 	) { }
 
 	public set chunks(chunks: MaterializedChatMessageTextChunk[]) {
@@ -665,7 +687,8 @@ class PromptText {
 	constructor(
 		public readonly parent: PromptTreeElement,
 		public readonly text: string,
-		public readonly priority?: number
+		public readonly priority?: number,
+		public readonly references?: PromptReference[]
 	) { }
 
 	public collectLeafs(result: LeafPromptNode[]) {
