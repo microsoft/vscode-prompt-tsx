@@ -75,10 +75,9 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	mode: 'vscode' | 'none' = 'vscode',
 ): Promise<{ messages: (ChatMessage | LanguageModelChatMessage)[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }> {
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
-	let { messages, tokenCount } = await renderer.render(progress, token);
+	let { messages, tokenCount, references } = await renderer.render(progress, token);
 	const metadatas = renderer.getAllMeta();
 	const usedContext = renderer.getUsedContext();
-	const references = renderer.getReferences();
 
 	if (mode === 'vscode') {
 		messages = toVsCodeChatMessages(messages);
