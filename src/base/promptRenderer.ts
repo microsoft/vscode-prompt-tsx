@@ -50,7 +50,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	// map the constructor to the meta data instances
 	private readonly _meta: Map<new () => PromptMetadata, PromptMetadata> = new Map();
 	private readonly _usedContext: ChatDocumentContext[] = [];
-	private readonly _references: PromptReference[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private _replyInterpreterFactory: ReplyInterpreterFactory | null = null;
 	private readonly _queue: QueueItem<PromptElementCtor<P, any>, P>[] = [];
@@ -95,14 +94,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	public getUsedContext(): ChatDocumentContext[] {
 		return this._usedContext;
-	}
-
-	/**
-	 *
-	 * @deprecated Use {@link RenderPromptResult.references} instead.
-	 */
-	public getReferences(): PromptReference[] {
-		return this._references;
 	}
 
 	public getReplyInterpreterFactory(): ReplyInterpreterFactory | null {
@@ -361,7 +352,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			throw new Error(`<reference /> must not have children!`);
 		}
 		node.addReferences(props.value);
-		this._references.push(...props.value);
 	}
 
 
