@@ -13,6 +13,7 @@ import {
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
+import { PromptReference } from '../results';
 import { Cl100KBaseTokenizer } from '../tokenizer/tokenizer';
 import {
 	BasePromptElementProps,
@@ -799,4 +800,57 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			});
 		}
 	);
+
+	suite('tracks surviving prompt references', async () => {
+		const variableReference = { variableName: 'foo' };
+		class PromptWithReference extends PromptElement {
+			render() {
+				return (
+					<>
+						<UserMessage>
+							<references value={[new PromptReference(variableReference)]} />
+							Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+						</UserMessage>
+						<UserMessage>
+							Foo
+						</UserMessage>
+					</>
+				);
+			}
+		}
+
+		test('reports reference that survived prioritization', async () => {
+			const endpoint: any = {
+				modelMaxPromptTokens: 4096,
+			} satisfies Partial<IChatEndpointInfo>;
+
+			const inst = new PromptRenderer(
+				endpoint,
+				PromptWithReference,
+				{},
+				tokenizer
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.equal(res.messages.length, 2);
+			assert.equal(res.references.length, 1);
+			assert.equal(res.references[0].anchor, variableReference);
+		});
+
+		test('does not report reference that did not survive prioritization', async () => {
+			const endpoint: any = {
+				modelMaxPromptTokens: 10,
+			} satisfies Partial<IChatEndpointInfo>;
+
+			const inst = new PromptRenderer(
+				endpoint,
+				PromptWithReference,
+				{},
+				tokenizer
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.equal(res.messages.length, 1);
+			assert.equal(res.references.length, 0);
+
+		});
+	});
 });
