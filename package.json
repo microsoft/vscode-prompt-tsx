@@ -19,7 +19,7 @@
 		"url": "https://github.com/Microsoft/vscode/issues"
 	},
 	"dependencies": {
-		"@microsoft/tiktokenizer": "^1.0.3"
+		"@microsoft/tiktokenizer": "^1.0.6"
 	},
 	"devDependencies": {
 		"@types/node": "^20.11.30",
