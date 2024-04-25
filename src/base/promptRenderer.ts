@@ -371,6 +371,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	private _handleExtrinsicTextChunk(node: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {
 		const content: string[] = [];
+		const references: PromptReference[] = [];
 
 		for (const child of children) {
 			if (child.kind === 'extrinsic') {
@@ -385,6 +386,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				if (child.name === 'br') {
 					// Preserve newlines
 					content.push('\n');
+				} else if (child.name === 'references') {
+					// For TextChunks, references must be propagated through the PromptText element that is appended to the node
+					references.push(...child.props.value);
 				} else {
 					this._handleIntrinsic(node, child.name, child.props, flattenAndReduceArr(child.children));
 				}
@@ -392,7 +396,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 
 		node.appendLineBreak(false);
-		node.appendStringChild(content.join(''), props?.priority ?? Number.MAX_SAFE_INTEGER);
+		node.appendStringChild(content.join(''), props?.priority ?? Number.MAX_SAFE_INTEGER, references);
 	}
 }
 
@@ -525,8 +529,8 @@ class PromptTreeElement {
 		return child;
 	}
 
-	public appendStringChild(text: string, priority?: number): void {
-		this._children.push(new PromptText(this, text, priority));
+	public appendStringChild(text: string, priority?: number, references?: PromptReference[]) {
+		this._children.push(new PromptText(this, text, priority, references));
 	}
 
 	public appendLineBreak(explicit = true, priority?: number): void {
@@ -560,7 +564,7 @@ class PromptTreeElement {
 			let childIndex = resultChunks.length;
 			leafNodes.forEach((node, index) => {
 				if (node.kind === PromptNodeType.Text) {
-					chunks.push(new MaterializedChatMessageTextChunk(parent, node.text, node.priority, childIndex++, false, this._references));
+					chunks.push(new MaterializedChatMessageTextChunk(parent, node.text, node.priority, childIndex++, false, node.references ?? this._references));
 				} else {
 					if (node.isExplicit) {
 						chunks.push(new MaterializedChatMessageTextChunk(parent, '\n', node.priority, childIndex++));
