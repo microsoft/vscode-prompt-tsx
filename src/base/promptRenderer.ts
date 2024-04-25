@@ -58,6 +58,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		endpoint: this._endpoint
 	});
 	private readonly _tokenizer: ITokenizer;
+	private readonly _references: PromptReference[] = [];
 
 	/**
 	 *
@@ -265,7 +266,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				}
 			});
 			return acc;
-		}, { references: [], names: new Set<string>() });
+		}, { references: this._references, names: new Set<string>() });
 
 		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
 	}
@@ -352,6 +353,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			throw new Error(`<reference /> must not have children!`);
 		}
 		node.addReferences(props.value);
+		this._references.push(...props.value);
 	}
 
 
