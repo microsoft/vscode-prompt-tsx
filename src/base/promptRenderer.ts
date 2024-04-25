@@ -256,7 +256,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		// Remove undefined and duplicate references
 		const { references } = prioritizedMaterializedChatMessages.reduce<{ references: PromptReference[], names: Set<string> }>((acc, message) => {
-			message.references.forEach((ref) => {
+			[...this._references, ...message.references].forEach((ref) => {
 				const isVariableName = 'variableName' in ref.anchor;
 				if (isVariableName && !acc.names.has(ref.anchor.variableName)) {
 					acc.references.push(ref);
@@ -266,7 +266,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				}
 			});
 			return acc;
-		}, { references: this._references, names: new Set<string>() });
+		}, { references: [], names: new Set<string>() });
 
 		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
 	}
