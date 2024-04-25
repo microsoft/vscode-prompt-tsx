@@ -858,5 +858,49 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			assert.equal(res.references.length, 0);
 
 		});
+
+		test('reports references under nested extrinsics', async () => {
+			const variableReference1 = { variableName: 'foo' };
+			const variableReference2 = { variableName: 'bar' };
+			class NestedTextChunkComponent extends PromptElement {
+				render() {
+					return (
+						<TextChunk>
+							<references value={[new PromptReference(variableReference2)]} />
+							Bar
+						</TextChunk>
+					);
+				}
+			}
+			class PromptWithReferences extends PromptElement {
+				render() {
+					return (
+						<>
+							<UserMessage>
+								<references value={[new PromptReference(variableReference1)]} />
+								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+							</UserMessage>
+							<UserMessage>
+								<NestedTextChunkComponent />
+							</UserMessage>
+						</>
+					);
+				}
+			}
+
+			const endpoint: any = {
+				modelMaxPromptTokens: 4096,
+			} satisfies Partial<IChatEndpointInfo>;
+
+			const inst = new PromptRenderer(
+				endpoint,
+				PromptWithReferences,
+				{},
+				tokenizer
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.equal(res.messages.length, 2);
+			assert.equal(res.references.length, 2);
+		});
 	});
 });
