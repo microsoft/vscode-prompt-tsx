@@ -1,6 +1,6 @@
 # Prompt Builder
 
-This library enables you to declare prompts using TSX when you develop VS Code extensions that integrate with Copilot Chat. To learn more, check out our [documentation](https://code.visualstudio.com/api/extension-guides/chat) or fork our quickstart [sample](https://github.com/microsoft/vscode-extension-samples/tree/main/vscode-chat-sample).
+This library enables you to declare prompts using TSX when you develop VS Code extensions that integrate with Copilot Chat. To learn more, check out our [documentation](https://code.visualstudio.com/api/extension-guides/chat) or fork our quickstart [sample](https://github.com/microsoft/vscode-extension-samples/tree/main/chat-sample).
 
 ## Why TSX?
 
