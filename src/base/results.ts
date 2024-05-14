@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, InteractiveEditorProgressItem, InteractiveEditorReplyFollowup, Location, Progress, Range, TextEdit, Uri, WorkspaceEdit } from "vscode";
+import type { CancellationToken, ChatFollowup, ChatResponsePart, Location, Progress, Range, TextEdit, Uri, WorkspaceEdit } from "vscode";
 
 /**
  * Arbitrary metadata which can be retrieved after the prompt is rendered.
@@ -24,7 +24,7 @@ export class PromptReference {
 }
 
 export type ReplyInterpreterFactory = (progress: ReplyInterpreterProgress, streamEdits: boolean) => ReplyInterpreter;
-export type ReplyInterpreterProgress = Progress<InteractiveEditorProgressItem>;
+export type ReplyInterpreterProgress = Progress<ChatResponsePart>;
 export interface ReplyInterpreter {
 	update(newText: string): { shouldFinish: boolean };
 	finish(): Promise<IParsedReply>;
@@ -62,4 +62,4 @@ export interface ISessionTurnStorage {
 	lastWholeRange: Range;
 }
 
-export type GenerateFollowups = (token: CancellationToken) => Promise<InteractiveEditorReplyFollowup[] | undefined>;
+export type GenerateFollowups = (token: CancellationToken) => Promise<ChatFollowup[] | undefined>;
