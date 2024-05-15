@@ -1,6 +1,6 @@
 {
 	"exclude": ["build"],
-	"include": ["src"],
+	"include": ["src", "vscode.d.ts"],
 	"compilerOptions": {
 		"module": "commonjs",
 		"target": "es2020",
