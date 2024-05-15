@@ -12,6 +12,6 @@
 		"declaration": true,
 		"jsxFragmentFactory": "vscppf",
 		"moduleResolution": "node",
-		"types": ["vscode", "node", "mocha"]
+		"types": ["node", "mocha"]
 	}
 }
