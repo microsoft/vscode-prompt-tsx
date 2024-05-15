@@ -25,18 +25,6 @@ export interface ITokenizer {
 	 */
 	tokenLength(text: string): number;
 
-	/**
-	 * Returns the tokens created from tokenizing `text`.
-	 * @param text The text to tokenize
-	 */
-	tokenize(text: string): number[];
-
-	/**
-	 * This function returns the substring such that the return string has maxTokenCount tokens when encoded.
-	 * If the input text has more than maxTokenCount tokens, the return string will be the first maxTokenCount tokens.
-	 */
-	encodeTrimSuffix(text: string, maxTokenCount: number): string;
-
 	countMessageTokens(message: ChatMessage): number;
 }
 
@@ -67,19 +55,6 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 			this._cl100kTokenizer = this.initTokenizer();
 		}
 		return this._cl100kTokenizer.encode(text);
-	}
-
-	/**
-	 * Encodes the given text and trims the suffix to the specified maximum token count.
-	 * @param text The text to encode and trim.
-	 * @param maxTokenCount The maximum number of tokens to include in the trimmed text.
-	 * @returns The encoded and trimmed text.
-	 */
-	encodeTrimSuffix(text: string, maxTokenCount: number): string {
-		if (!this._cl100kTokenizer) {
-			this._cl100kTokenizer = this.initTokenizer();
-		}
-		return this._cl100kTokenizer.encodeTrimSuffix(text, maxTokenCount, []).text;
 	}
 
 	/**

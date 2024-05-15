@@ -95,12 +95,10 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 	const vscode = require('vscode');
 	return messages.map((m) => {
 		switch (m.role) {
-			case ChatRole.System:
-				return new vscode.LanguageModelChatSystemMessage(m.content);
 			case ChatRole.Assistant:
-				return new vscode.LanguageModelChatAssistantMessage(m.content, m.name);
+				return vscode.LanguageModelChatMessage.Assistant(m.content, m.name);
 			case ChatRole.User:
-				return new vscode.LanguageModelChatUserMessage(m.content, m.name);
+				return vscode.LanguageModelChatMessage.User(m.content, m.name);
 		}
 	});
 }
