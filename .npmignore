@@ -10,3 +10,4 @@ build/
 tsconfig.json
 *.md
 dist/base/test/
+*.map

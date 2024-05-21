@@ -52,11 +52,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private _replyInterpreterFactory: ReplyInterpreterFactory | null = null;
-	private readonly _queue: QueueItem<PromptElementCtor<P, any>, P>[] = [];
-	private readonly _root = new PromptTreeElement(null, 0, {
-		tokenBudget: this._endpoint.modelMaxPromptTokens,
-		endpoint: this._endpoint
-	});
+	private readonly _root = new PromptTreeElement(null, 0);
 	private readonly _tokenizer: ITokenizer;
 	private readonly _references: PromptReference[] = [];
 
@@ -73,7 +69,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		_tokenizer?: ITokenizer
 	) {
 		this._tokenizer = _tokenizer ?? new Cl100KBaseTokenizer();
-		this._queue.push({ node: this._root, ctor: this._ctor, props: this._props, children: [] });
 	}
 
 	public getAllMeta(): MetadataMap {
@@ -105,39 +100,79 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return new element.ctor(element.props);
 	}
 
-	private async _processPromptPieces(progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
-		while (this._queue.length > 0) {
-
-			// Collect all prompt elements to render
-			const promptElements: { element: any; promptElementInstance: PromptElement<any, any> }[] = [];
-			for (const element of this._queue.values()) {
-				// Set any jsx children as the props.children
-				if (Array.isArray(element.children)) {
-					element.props = (element.props ?? {});
-					(element.props as any).children = element.children; // todo@joyceerhl clean up any
-				}
-
-				// Instantiate the prompt part
-				if (!element.ctor) {
-					throw new Error(`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`);
-				}
-
-				const promptElement = this.createElement(element);
-				element.node.setObj(promptElement);
-
-				// Prepare rendering
-				promptElements.push({ element, promptElementInstance: promptElement });
+	private async _processPromptPieces(sizing: PromptSizingContext, pieces: QueueItem<PromptElementCtor<P, any>, P>[], progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
+		// Collect all prompt elements in the next flex group to render, grouping
+		// by the flex order in which they're renderered.
+		const promptElements = new Map<number, { order: number; element: QueueItem<PromptElementCtor<P, any>, P>; promptElementInstance: PromptElement<any, any> }[]>();
+		for (const [i, element] of pieces.entries()) {
+			// Set any jsx children as the props.children
+			if (Array.isArray(element.children)) {
+				element.props = (element.props ?? {});
+				(element.props as any).children = element.children; // todo@joyceerhl clean up any
 			}
 
-			// Clear the queue
-			this._queue.splice(0, this._queue.length);
+			// Instantiate the prompt part
+			if (!element.ctor) {
+				throw new Error(`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`);
+			}
 
-			// Prepare all currently known prompt elements in parallel
-			await Promise.all(promptElements.map(({ element, promptElementInstance }) => promptElementInstance.prepare?.(element.node.sizing, progress, token).then((state) => element.node.setState(state))));
+			const promptElement = this.createElement(element);
+			element.node.setObj(promptElement);
+
+			// Prepare rendering
+			const flexGroupValue = element.props.flexGrow ?? Infinity;
+			let flexGroup = promptElements.get(flexGroupValue);
+			if (!flexGroup) {
+				flexGroup = [];
+				promptElements.set(flexGroupValue, flexGroup);
+			}
+
+			flexGroup.push({ order: i, element, promptElementInstance: promptElement });
+		}
+
+		const flexGroups = [...promptElements.entries()].sort(([a], [b]) => b - a).map(([_, group]) => group);
+		const setReserved = (groupIndex: number, reserved: boolean) => {
+			const sign = reserved ? 1 : -1;
+			for (let i = groupIndex + 1; i < flexGroups.length; i++) {
+				for (const { element } of flexGroups[i]) {
+					if (element.props.flexReserve) {
+						sizing.consume(sign * element.props.flexReserve);
+					}
+				}
+			}
+		};
+
+		// Prepare all currently known prompt elements in parallel
+		for (const [groupIndex, promptElements] of flexGroups.entries()) {
+			// Temporarily consume any reserved budget for later elements so that the sizing is calculated correctly here.
+			setReserved(groupIndex, true);
+
+			// Calculate the flex basis for dividing the budget amongst siblings in this group.
+			let flexBasisSum = 0
+			for (const { element } of promptElements) {
+				// todo@connor4312: remove `flex` after transition
+				flexBasisSum += (element.props.flex || element.props.flexBasis) ?? 1;
+			}
+
+			// Finally calculate the final sizing for each element in this group.
+			const elementSizings: PromptSizing[] = promptElements.map(e => {
+				const proportion = (e.element.props.flexBasis ?? 1) / flexBasisSum!;
+				return { tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion), endpoint: sizing.endpoint };
+			});
+
+
+			// Free the previously-reserved budget now that we calculated sizing
+			setReserved(groupIndex, false);
+
+			await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
+				const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token)
+				element.node.setState(state);
+			}));
 
 			// Render
-			for (const { element, promptElementInstance } of promptElements) {
-				const template = promptElementInstance.render(element.node.getState(), element.node.sizing);
+			for (const [i, { element, promptElementInstance, order }] of promptElements.entries()) {
+				const elementSizing = elementSizings[i];
+				const template = promptElementInstance.render(element.node.getState(), elementSizing);
 
 				if (!template) {
 					// it doesn't want to render anything
@@ -147,11 +182,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				const pieces = flattenAndReduce(template);
 
 				// Compute token budget for the pieces that this child wants to render
-				const { flexChildrenSum, parentTokenBudgetWithoutLiterals } = computeTokenBudgetForPieces(this._tokenizer, element, promptElementInstance, pieces);
+				const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
+				const { tokensConsumed } = computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
+				childSizing.consume(tokensConsumed);
+				await this._handlePromptChildren(element, pieces, childSizing, progress, token);
 
-				for (const piece of pieces) {
-					this._handlePromptPiece(element, piece, flexChildrenSum, parentTokenBudgetWithoutLiterals);
-				}
+				// Tally up the child consumption into the parent context for any subsequent flex group
+				sizing.consume(childSizing.consumed);
 			}
 		}
 	}
@@ -205,7 +242,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 */
 	public async render(progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<RenderPromptResult> {
 		// Convert root prompt element to prompt pieces
-		await this._processPromptPieces(progress, token);
+		await this._processPromptPieces(
+			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
+			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
+			progress,
+			token,
+		);
 
 		// Convert prompt pieces to message chunks (text and linebreaks)
 		const { result: messageChunks, resultChunks } = this._root.materialize();
@@ -281,28 +323,29 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return chatMessages;
 	}
 
-	private _handlePromptPiece(element: QueueItem<PromptElementCtor<P, any>, P>, piece: ProcessedPromptPiece, siblingflexSum: number, parentTokenBudget: number) {
-		if (piece.kind === 'literal') {
-			element.node.appendStringChild(piece.value, element.props.priority ?? Number.MAX_SAFE_INTEGER);
-			return;
-		}
-		if (piece.kind === 'intrinsic') {
-			// intrinsic element
-			this._handleIntrinsic(element.node, piece.name, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
-			return;
-		}
-		if (piece.ctor === TextChunk) {
-			// text chunk
-			this._handleExtrinsicTextChunk(element.node, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
-			return;
+	private _handlePromptChildren(element: QueueItem<PromptElementCtor<P, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
+		let todo: QueueItem<PromptElementCtor<P, any>, P>[] = [];
+		for (const piece of pieces) {
+			if (piece.kind === 'literal') {
+				element.node.appendStringChild(piece.value, element.props.priority ?? Number.MAX_SAFE_INTEGER);
+				continue;
+			}
+			if (piece.kind === 'intrinsic') {
+				// intrinsic element
+				this._handleIntrinsic(element.node, piece.name, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
+				continue;
+			}
+			if (piece.ctor === TextChunk) {
+				// text chunk
+				this._handleExtrinsicTextChunk(element.node, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
+				continue;
+			}
+
+			const childNode = element.node.createChild();
+			todo.push({ node: childNode, ctor: piece.ctor, props: { priority: element.props.priority, ...piece.props }, children: piece.children });
 		}
 
-		const childNode = element.node.createChild({
-			tokenBudget: Math.floor(parentTokenBudget * (piece.props?.flex ?? 1) / siblingflexSum),
-			endpoint: this._endpoint
-		});
-
-		this._queue.push({ node: childNode, ctor: piece.ctor, props: { priority: element.props.priority, ...piece.props }, children: piece.children });
+		return this._processPromptPieces(sizing, todo, progress, token);
 	}
 
 	private _handleIntrinsic(node: PromptTreeElement, name: string, props: any, children: ProcessedPromptPiece[]): void {
@@ -402,27 +445,25 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 }
 
-function computeTokenBudgetForPieces(tokenizer: ITokenizer, element: any, instance: PromptElement<any, any>, pieces: ProcessedPromptPiece[]) {
-	let flexChildrenSum = 0;
-	let parentTokenBudgetWithoutLiterals = element.node.sizing.tokenBudget;
+function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: QueueItem<PromptElementCtor<any, any>, any>
+	, instance: PromptElement<any, any>, pieces: ProcessedPromptPiece[]) {
+	let tokensConsumed = 0;
 	if (isChatMessagePromptElement(instance)) {
-		parentTokenBudgetWithoutLiterals -= tokenizer.baseTokensPerMessage;
+		tokensConsumed += tokenizer.baseTokensPerMessage;
 		if (element.props.name) {
-			parentTokenBudgetWithoutLiterals -= tokenizer.baseTokensPerName;
+			tokensConsumed += tokenizer.baseTokensPerName;
 		}
 		if (element.props.role) {
-			parentTokenBudgetWithoutLiterals -= tokenizer.tokenLength(element.props.role);
+			tokensConsumed += tokenizer.tokenLength(element.props.role);
 		}
 	}
 	for (const piece of pieces) {
 		if (piece.kind === 'literal') {
-			parentTokenBudgetWithoutLiterals -= tokenizer.tokenLength(piece.value);
-		} else {
-			flexChildrenSum += piece.props?.flex ?? 1;
+			tokensConsumed += tokenizer.tokenLength(piece.value);
 		}
 	}
 
-	return { parentTokenBudgetWithoutLiterals, flexChildrenSum };
+	return { tokensConsumed };
 }
 
 // Flatten nested fragments and normalize children
@@ -490,6 +531,32 @@ const enum PromptNodeType {
 type PromptNode = PromptTreeElement | PromptText | PromptLineBreak;
 type LeafPromptNode = PromptText | PromptLineBreak;
 
+/**
+ * A shared instance given to each PromptTreeElement that contains information
+ * about the parent sizing and its children.
+ */
+class PromptSizingContext implements PromptSizing {
+	private _consumed = 0;
+
+	constructor(
+		public readonly tokenBudget: number,
+		public readonly endpoint: IChatEndpointInfo,
+	) { }
+
+	public get consumed() {
+		return this._consumed > this.tokenBudget ? this.tokenBudget : this._consumed;
+	}
+
+	public get remainingTokenBudget() {
+		return Math.max(0, this.tokenBudget - this._consumed);
+	}
+
+	/** Marks part of the budget as having been consumed by a render() call. */
+	public consume(budget: number) {
+		this._consumed += budget;
+	}
+}
+
 class PromptTreeElement {
 
 	public readonly kind = PromptNodeType.Piece;
@@ -502,16 +569,7 @@ class PromptTreeElement {
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
 		public readonly childIndex: number,
-		private _sizing: PromptSizing
 	) { }
-
-	public set sizing(sizing: PromptSizing) {
-		this._sizing = sizing;
-	}
-
-	public get sizing() {
-		return this._sizing;
-	}
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
@@ -525,8 +583,8 @@ class PromptTreeElement {
 		return this._state;
 	}
 
-	public createChild(sizing: PromptSizing): PromptTreeElement {
-		const child = new PromptTreeElement(this, this._children.length, sizing);
+	public createChild(): PromptTreeElement {
+		const child = new PromptTreeElement(this, this._children.length);
 		this._children.push(child);
 		return child;
 	}

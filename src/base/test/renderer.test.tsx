@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChatRole } from '../openai';
+import { ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
@@ -14,15 +14,16 @@ import {
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
 import { PromptReference } from '../results';
-import { Cl100KBaseTokenizer } from '../tokenizer/tokenizer';
+import { Cl100KBaseTokenizer, ITokenizer } from '../tokenizer/tokenizer';
 import {
 	BasePromptElementProps,
 	IChatEndpointInfo,
 	PromptElementCtor,
-	PromptSizing,
+	PromptPiece,
+	PromptSizing
 } from '../types';
 
-suite('PromptRenderer', async function () {
+suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
 		modelMaxPromptTokens: 8192,
 	} satisfies Partial<IChatEndpointInfo>;
@@ -442,14 +443,14 @@ suite('PromptRenderer', async function () {
 			render() {
 				return (
 					<>
-						<SystemMessage flex={2}>
-							<FooPromptElement flex={2} text={'Foo'} />
-							<FooPromptElement flex={3} text={'Bar'} />
+						<SystemMessage flexBasis={2}>
+							<FooPromptElement flexBasis={2} text={'Foo'} />
+							<FooPromptElement flexBasis={3} text={'Bar'} />
 						</SystemMessage>
-						<UserMessage flex={1}>
+						<UserMessage flexBasis={1}>
 							<FooPromptElement text={'Foo'} />
 						</UserMessage>
-						<UserMessage flex={4}>
+						<UserMessage flexBasis={4}>
 							<FooPromptElement text={'Foo'} />
 						</UserMessage>
 					</>
@@ -650,7 +651,7 @@ suite('PromptRenderer', async function () {
 					render() {
 						return (
 							<>
-								<SystemMessage flex={1} priority={2001}>
+								<SystemMessage flexBasis={1} priority={2001}>
 									<TextChunk>
 										00 01 02 03 04 05 06 07 08 09
 										<br />
@@ -658,7 +659,7 @@ suite('PromptRenderer', async function () {
 										<br />
 									</TextChunk>
 								</SystemMessage>
-								<UserMessage flex={1} priority={1000}>
+								<UserMessage flexBasis={1} priority={1000}>
 									<TextChunk priority={1000}>
 										HI HI 00 01 02 03 04 05 06 07 08 09
 										<br />
@@ -678,7 +679,7 @@ suite('PromptRenderer', async function () {
 										<br />
 									</TextChunk>
 								</UserMessage>
-								<UserMessage flex={1} priority={2000}>
+								<UserMessage flexBasis={1} priority={2000}>
 									<TextChunk priority={2000}>
 										LOW HI 00 01 02 03 04 05 06 07 08 09
 										<br />
@@ -903,4 +904,201 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			assert.equal(res.references.length, 2);
 		});
 	});
+
+	suite('flex behavior', () => {
+		const consumeRe = /consume=(\d+)/g;
+
+		class FakeTokenizer implements ITokenizer {
+			_serviceBrand: undefined;
+			baseTokensPerMessage = 0;
+			baseTokensPerName = 0;
+			baseTokensPerCompletion = 0;
+
+			tokenLength(text: string): number {
+				let n = 0;
+				for (const match of text.matchAll(consumeRe)) {
+					n += Number(match[1]);
+				}
+				return n;
+			}
+
+			countMessageTokens(message: ChatMessage): number {
+				return this.tokenLength(message.content);
+			}
+		}
+
+		interface IProps extends BasePromptElementProps {
+			name: string;
+			useBudget?: number;
+		}
+		class EchoBudget extends PromptElement<IProps, number> {
+			prepare(sizing: PromptSizing): Promise<number> {
+				return Promise.resolve(sizing.tokenBudget);
+			}
+
+			render(budget: number) {
+				return (
+					<UserMessage>
+						{this.props.useBudget ? `consume=${this.props.useBudget}, ` : ''}
+						{this.props.name}={budget}
+					</UserMessage>
+				);
+			}
+		}
+
+		async function flexTest(elements: PromptPiece, expected: ChatMessage[]) {
+			const inst = new PromptRenderer(
+				{ modelMaxPromptTokens: 100 } satisfies Partial<IChatEndpointInfo> as IChatEndpointInfo,
+				class extends PromptElement {
+					render() {
+						return elements;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, expected);
+		}
+
+		test('passes budget to children based on declared flex', async () => {
+			await flexTest(<>
+				<EchoBudget name='content' useBudget={10} />
+				<EchoBudget name='grow' flexGrow={1} />
+			</>,
+				[
+					{
+						content: 'consume=10, content=100',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow=90',
+						role: ChatRole.User,
+					}
+				]
+			);
+		});
+
+		test('applies flex reserve', async () => {
+			await flexTest(<>
+				<EchoBudget name='content' useBudget={10} />
+				<EchoBudget name='grow' flexGrow={1} flexReserve={20} />
+			</>,
+				[
+					{
+						content: 'consume=10, content=80',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow=90',
+						role: ChatRole.User,
+					}
+				]
+			);
+		});
+
+		test('shared between multiple in flex groups', async () => {
+			await flexTest(<>
+				<EchoBudget name='content' useBudget={10} />
+				<EchoBudget name='grow1' flexGrow={1} />
+				<EchoBudget name='grow2' flexGrow={1} />
+			</>,
+				[
+					{
+						content: 'consume=10, content=100',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow1=45',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow2=45',
+						role: ChatRole.User,
+					}
+				]
+			);
+		});
+
+		test('counts budget used in nested elements', async () => {
+			class Nested extends PromptElement {
+				render() {
+					return (
+						<NestedB />
+					);
+				}
+			}
+			class NestedB extends PromptElement<BasePromptElementProps, number> {
+				async prepare() {
+					return Promise.resolve(42);
+				}
+				render(consume: number) {
+					return (
+						<SystemMessage>{`consume=${consume}`}</SystemMessage>
+					);
+				}
+			}
+			await flexTest(<>
+				<Nested />
+				<EchoBudget name='grow1' flexGrow={1} />
+				<EchoBudget name='grow2' flexGrow={1} />
+			</>,
+				[
+					{
+						content: 'consume=42',
+						role: ChatRole.System,
+					},
+					{
+						content: 'grow1=29',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow2=29',
+						role: ChatRole.User,
+					}
+				]
+			);
+		});
+
+		test('all together now 🙌', async () => {
+			await flexTest(<>
+				<EchoBudget name='content1' useBudget={10} />
+				<EchoBudget name='content2' useBudget={20} flexBasis={2} />
+				<EchoBudget name='grow2a' flexGrow={2} flexReserve={20} useBudget={15} />
+				<EchoBudget name='grow1a' flexGrow={1} flexReserve={10} />
+				<EchoBudget name='grow1b' flexGrow={1} flexReserve={10} flexBasis={2} />
+				<EchoBudget name='grow2b' flexGrow={2} flexReserve={20} useBudget={20} />
+			</>,
+				[
+					{
+						content: 'consume=10, content1=13', // non-flex elements have 40 unreserved budget, #2 uses flex=2 to get a bigger share
+						role: ChatRole.User,
+					},
+					{
+						content: 'consume=20, content2=26',
+						role: ChatRole.User,
+					},
+
+					{
+						content: 'consume=15, grow2a=25', // 70 budget left over, 20 reserved, shared between flexGrow=2
+						role: ChatRole.User,
+					},
+
+					{
+						content: 'grow1a=11', // 35 used, b asked for a larger share
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow1b=23',
+						role: ChatRole.User,
+					},
+
+					{
+						content: 'consume=20, grow2b=25',
+						role: ChatRole.User,
+					},
+				]
+			);
+		});
+	})
 });

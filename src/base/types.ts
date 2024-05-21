@@ -20,7 +20,7 @@ export interface IChatEndpointInfo {
 export interface PromptSizing {
 	/**
 	 * The computed token allocation for this prompt element to adhere to when rendering,
-	 * if it specified {@link BasePromptElementProps.flex}.
+	 * if it specified {@link BasePromptElementProps.flexBasis}.
 	 */
 	readonly tokenBudget: number;
 	/**
@@ -45,7 +45,22 @@ export interface BasePromptElementProps {
 	 *
 	 * Defaults to 1.
 	 */
+	flexBasis?: number;
+
+	/** @deprecated renamed to {@link flexBasis} */
 	flex?: number;
+
+	/**
+	 * If set, sibling elements will be rendered first, followed by this element. The remaining {@link PromptSizing.tokenBudget token budget} from the container will be distributed among the elements with `flexGrow` set.
+	 *
+	 * If multiple elements are present with different values of `flexGrow` set, this process is repeated for each value of `flexGrow` in descending order.
+	 */
+	flexGrow?: number;
+
+	/**
+	 * If set with {@link flexGrow}, this defines the number of tokens this element will reserve of the container {@link PromptSizing.tokenBudget token budget} for sizing purposes in elements rendered before it.
+	 */
+	flexReserve?: number;
 }
 
 export interface PromptElementCtor<P extends BasePromptElementProps, S> {
