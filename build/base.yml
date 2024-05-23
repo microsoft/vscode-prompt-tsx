@@ -36,13 +36,13 @@ extends:
         testPlatforms:
           - name: Linux
             nodeVersions:
-              - 16.x
+              - 20.x
           - name: MacOS
             nodeVersions:
-              - 16.x
+              - 20.x
           - name: Windows
             nodeVersions:
-              - 16.x
+              - 20.x
 
         testSteps:
           - script: npm ci
