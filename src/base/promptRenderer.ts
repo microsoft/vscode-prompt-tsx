@@ -102,7 +102,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	private async _processPromptPieces(sizing: PromptSizingContext, pieces: QueueItem<PromptElementCtor<P, any>, P>[], progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
 		// Collect all prompt elements in the next flex group to render, grouping
-		// by the flex order in which they're renderered.
+		// by the flex order in which they're rendered.
 		const promptElements = new Map<number, { order: number; element: QueueItem<PromptElementCtor<P, any>, P>; promptElementInstance: PromptElement<any, any> }[]>();
 		for (const [i, element] of pieces.entries()) {
 			// Set any jsx children as the props.children
@@ -148,7 +148,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			setReserved(groupIndex, true);
 
 			// Calculate the flex basis for dividing the budget amongst siblings in this group.
-			let flexBasisSum = 0
+			let flexBasisSum = 0;
 			for (const { element } of promptElements) {
 				// todo@connor4312: remove `flex` after transition
 				flexBasisSum += (element.props.flex || element.props.flexBasis) ?? 1;
@@ -156,7 +156,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 			// Finally calculate the final sizing for each element in this group.
 			const elementSizings: PromptSizing[] = promptElements.map(e => {
-				const proportion = (e.element.props.flexBasis ?? 1) / flexBasisSum!;
+				const proportion = (e.element.props.flexBasis ?? 1) / flexBasisSum;
 				return { tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion), endpoint: sizing.endpoint };
 			});
 
