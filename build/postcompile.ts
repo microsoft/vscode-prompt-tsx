@@ -2,11 +2,14 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Uri, Range } from 'vscode';
-export type { ChatResponsePart } from 'vscode';
+import * as path from 'path';
+import { copyStaticAssets } from './postinstall';
 
-export interface ChatDocumentContext {
-	uri: Uri;
-	version: number;
-	ranges: Range[];
+async function main() {
+	// Ship the vscodeTypes.d.ts file in the dist bundle
+	await copyStaticAssets([
+		'src/base/vscodeTypes.d.ts',
+	], 'dist/base/');
 }
+
+main();
