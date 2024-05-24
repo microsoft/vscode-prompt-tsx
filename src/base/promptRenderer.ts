@@ -6,7 +6,7 @@ import type { CancellationToken, Progress } from "vscode";
 import { ChatMessage, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
-import { PromptMetadata, PromptReference, ReplyInterpreterFactory } from "./results";
+import { PromptMetadata, PromptReference } from "./results";
 import { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
@@ -51,7 +51,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _meta: Map<new () => PromptMetadata, PromptMetadata> = new Map();
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
-	private _replyInterpreterFactory: ReplyInterpreterFactory | null = null;
 	private readonly _root = new PromptTreeElement(null, 0);
 	private readonly _tokenizer: ITokenizer;
 	private readonly _references: PromptReference[] = [];
@@ -90,10 +89,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	public getUsedContext(): ChatDocumentContext[] {
 		return this._usedContext;
-	}
-
-	public getReplyInterpreterFactory(): ReplyInterpreterFactory | null {
-		return this._replyInterpreterFactory;
 	}
 
 	protected createElement(element: QueueItem<PromptElementCtor<P, any>, P>) {
@@ -360,8 +355,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return this._handleIntrinsicReferences(node, props, children);
 			case 'ignoredFiles':
 				return this._handleIntrinsicIgnoredFiles(node, props, children);
-			case 'replyInterpreter':
-				return this._handleIntrinsicReplyInterpreter(node, props, children);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
 	}
@@ -405,13 +398,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			throw new Error(`<ignoredFiles /> must not have children!`);
 		}
 		this._ignoredFiles.push(...props.value);
-	}
-
-	private _handleIntrinsicReplyInterpreter(node: PromptTreeElement, props: JSX.IntrinsicElements['replyInterpreter'], children: ProcessedPromptPiece[]) {
-		if (children.length > 0) {
-			throw new Error(`<replyInterpreter /> must not have children!`);
-		}
-		this._replyInterpreterFactory = props.value;
 	}
 
 	private _handleExtrinsicTextChunk(node: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {

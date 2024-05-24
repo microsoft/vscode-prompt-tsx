@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { PromptMetadata, PromptReference, ReplyInterpreterFactory } from './results';
+import { PromptMetadata, PromptReference } from './results';
 import { URI } from './util/vs/common/uri';
 import { ChatDocumentContext } from './vscodeTypes';
 
@@ -24,12 +24,6 @@ declare global {
 			 */
 			"usedContext": {
 				value: ChatDocumentContext[];
-			};
-			/**
-			 * Create a reply interpreter for the prompt.
-			 */
-			"replyInterpreter": {
-				value: ReplyInterpreterFactory;
 			};
 			/**
 			 * Expose the references used for creating the prompt.
