@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Command, MarkdownString, Range, ThemeIcon, Uri } from 'vscode';
+import type { Command, Location, MarkdownString, Range, ThemeIcon, Uri } from 'vscode';
 
 /**
  * Represents a part of a chat response that is formatted as Markdown.
