@@ -58,6 +58,10 @@ const participant = vscode.chat.createChatParticipant(
       tokenizer
     );
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4' });
+    if (models.length === 0) {
+      // No models available, return early
+      return;
+    }
     const chatRequest = await models[0].sendChatRequest(
       messages,
       {},
