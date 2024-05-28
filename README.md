@@ -27,9 +27,13 @@ This library exports a `renderPrompt` utility for rendering a TSX component to `
 To enable TSX use in your extension, add the following configuration options to your `tsconfig.json`:
 ```json
 {
-  "jsx": "react",
-  "jsxFactory": "vscpp",
-  "jsxFragmentFactory": "vscppf"
+	"compilerOptions": {
+    // ...
+    "jsx": "react",
+    "jsxFactory": "vscpp",
+    "jsxFragmentFactory": "vscppf"
+  }
+  // ...
 }
 ```
 
