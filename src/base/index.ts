@@ -99,6 +99,8 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				return vscode.LanguageModelChatMessage.Assistant(m.content, m.name);
 			case ChatRole.User:
 				return vscode.LanguageModelChatMessage.User(m.content, m.name);
+			default:
+				throw new Error(`Converting chat message with role ${m.role} to VS Code chat message is not supported.`);
 		}
 	});
 }
