@@ -57,8 +57,8 @@ const participant = vscode.chat.createChatParticipant(
       { modelMaxPromptTokens: 4096 },
       tokenizer
     );
-    const chatRequest = await vscode.lm.sendChatRequest(
-      "copilot-gpt-4",
+    const models = await vscode.lm.selectChatModels({ family: 'gpt-4' });
+    const chatRequest = await models[0].sendChatRequest(
       messages,
       {},
       token
