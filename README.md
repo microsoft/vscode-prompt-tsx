@@ -86,7 +86,7 @@ const participant = vscode.chat.createChatParticipant(
 Here is how you would declare the TSX prompt rendered above:
 
 ```tsx
-import { BasePromptElementProps, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
+import { BasePromptElementProps, PromptElement, PromptSizing, AssistantMessage, UserMessage } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 
 export interface PromptProps extends BasePromptElementProps {
@@ -106,12 +106,12 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
     render(state: PromptState, sizing: PromptSizing) {
         return (
             <>
-                <SystemMessage>
+                <AssistantMessage>
                     You are a SQL expert.<br />
                     Your task is to help the user craft SQL queries that perform their task.<br />
                     You should suggest SQL queries that are performant and correct.<br />
                     Return your suggested SQL query in a Markdown code block that begins with ```sql and ends with ```.<br />
-                </SystemMessage>
+                </AssistantMessage>
                 <UserMessage>
                     Here are the creation scripts that were used to create the tables in my database. Pay close attention to the tables and columns that are available in my database:<br />
                     {state.creationScript}<br />
@@ -137,7 +137,7 @@ In the above example, each message had the same priority, so they would be prune
 
 ```jsx
 <>
-  <SystemMessage priority={300}>You are a SQL expert...</SystemMessage>
+  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
   <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
   <UserMessage priority={100}>{this.props.userQuery}</UserMessage>
 </>
@@ -147,20 +147,20 @@ In this case, a very long `userQuery` would get pruned from the output first if 
 
 But, this is not ideal. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
 
-`prompt-tsx` provides a utility component for just this use case: `BudgetedText`. Given input text, and optionally a delimiting string or regular expression, it'll include as much of the text as possible to fit within its budget:
+`prompt-tsx` provides a utility component that supports this use case: `TextChunk`. Given input text, and optionally a delimiting string or regular expression, it'll include as much of the text as possible to fit within its budget:
 
 ```tsx
 <>
-  <SystemMessage priority={300}>You are a SQL expert...</SystemMessage>
+  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
   <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
-  <UserMessage priority={100}><BudgetedText text={this.props.userQuery} breakOn={/\s/} /></UserMessage>
+  <UserMessage priority={100}><TextChunk breakOn=' '>{this.props.userQuery}</TextChunk></UserMessage>
 </>
 ```
 
-When `flexGrow` is set for an element, other elements are rendered first, and then the `flexGrow` element is rendered and given the remaining unused token budget from its container as a parameter in the `PromptSizing` passed to its `prepare` and `render` methods. Here's a simplified version of the `BudgetedText` component:
+When `flexGrow` is set for an element, other elements are rendered first, and then the `flexGrow` element is rendered and given the remaining unused token budget from its container as a parameter in the `PromptSizing` passed to its `prepare` and `render` methods. Here's a simplified version of the `TextChunk` component:
 
 ```tsx
-class SimpleBudgetedText extends PromptElement<{ text: string }, string> {
+class SimpleTextChunk extends PromptElement<{ text: string }, string> {
 	prepare(sizing: PromptSizing): Promise<string> {
     const words = text.split(' ');
     let str = '';

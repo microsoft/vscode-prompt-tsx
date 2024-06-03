@@ -4,7 +4,8 @@
 
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { BasePromptElementProps } from './types';
+import { ITokenizer } from './tokenizer/tokenizer';
+import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
 
 export type ChatMessagePromptElement =
 	| SystemMessage
@@ -68,16 +69,104 @@ export class AssistantMessage extends BaseChatMessage {
 	}
 }
 
+export interface TextChunkProps extends BasePromptElementProps {
+	/**
+	 * A tokenizer is required when setting {@link breakOn} or {@link breakOnWhitespace}.
+	 */
+	tokenizer?: ITokenizer;
+
+	/**
+	 * If defined, the text chunk will potentially truncate its contents at the
+	 * last occurrence of the string or regular expression to ensure its content
+	 * fits within in token budget.
+	 *
+	 * {@see BasePromptElementProps} for options to control how the token budget
+	 * is allocated.
+	 */
+	breakOn?: RegExp | string;
+
+	/** A shortcut for setting {@link breakOn} to `/\s/g` */
+	breakOnWhitespace?: boolean;
+}
+
+const WHITESPACE_RE = /\s/g;
+
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
  * TextChunks can only have text literals or intrinsic attributes as children.
+ * It supports truncating text to fix the token budget if passed a {@link TextChunkProps.tokenizer} and {@link TextChunkProps.breakOn} behavior.
  * Like other {@link PromptElement}s, it can specify `priority` to determine how it should be prioritized.
  */
-export class TextChunk extends PromptElement {
-	render() {
-		return <>{this.props.children}</>;
+export class TextChunk extends PromptElement<TextChunkProps> {
+	render(_state: void, sizing: PromptSizing) {
+		const breakOn = this.props.breakOnWhitespace ? WHITESPACE_RE : this.props.breakOn;
+		if (!breakOn) {
+			return <>{this.props.children}</>;
+		}
+
+		const tokenizer = this.props.tokenizer;
+		if (!tokenizer) {
+			throw new Error('A tokenizer is required in <TextChunk /> when setting breakOn or breakOnWhitespace.');
+		}
+
+		let fullText = '';
+		const instrinics: PromptPiece[] = [];
+		for (const child of this.props.children || []) {
+			if (child && typeof child === 'object') {
+				if (typeof child.ctor !== 'string') {
+					throw new Error('TextChunk children must be text literals or intrinsic attributes.');
+				} else {
+					instrinics.push(child);
+				}
+			}
+
+			if (child != null) {
+				fullText += child;
+			}
+		}
+
+		const text = getTextContentBelowBudget(tokenizer, breakOn, fullText, sizing.tokenBudget);
+
+		// Note: TextChunk is treated specially in the renderer to preserve references
+		// correctly. Changing this structure also requires changes in PromptRendere._handlePromptChildren
+		return <>{instrinics}{text}</>;
 	}
+}
+
+function getTextContentBelowBudget(tokenizer: ITokenizer, breakOn: string | RegExp, fullText: string, budget: number) {
+	if (breakOn instanceof RegExp) {
+		if (!breakOn.global) {
+			throw new Error(`\`breakOn\` expression must have the global flag set (got ${breakOn})`);
+		}
+
+		breakOn.lastIndex = 0;
+	}
+
+	let outputText = '';
+	let lastIndex = -1;
+	while (lastIndex < fullText.length) {
+		let index: number;
+		if (typeof breakOn === 'string') {
+			index = fullText.indexOf(breakOn, lastIndex === -1 ? 0 : lastIndex + breakOn.length);
+		} else {
+			index = breakOn.exec(fullText)?.index ?? -1;
+		}
+
+		if (index === -1) {
+			index = fullText.length;
+		}
+
+		const next = outputText + fullText.slice(Math.max(0, lastIndex), index);
+		if (tokenizer.tokenLength(next) > budget) {
+			return outputText;
+		}
+
+		outputText = next;
+		lastIndex = index;
+	}
+
+	return outputText;
 }
 
 export interface PrioritizedListProps extends BasePromptElementProps {

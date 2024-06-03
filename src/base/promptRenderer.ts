@@ -319,6 +319,11 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<P, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
+		if (element.ctor === TextChunk) {
+			this._handleExtrinsicTextChunkChildren(element.node.parent!, element.props, pieces);
+			return;
+		}
+
 		let todo: QueueItem<PromptElementCtor<P, any>, P>[] = [];
 		for (const piece of pieces) {
 			if (piece.kind === 'literal') {
@@ -328,11 +333,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			if (piece.kind === 'intrinsic') {
 				// intrinsic element
 				this._handleIntrinsic(element.node, piece.name, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
-				continue;
-			}
-			if (piece.ctor === TextChunk) {
-				// text chunk
-				this._handleExtrinsicTextChunk(element.node, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
 				continue;
 			}
 
@@ -400,7 +400,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		this._ignoredFiles.push(...props.value);
 	}
 
-	private _handleExtrinsicTextChunk(node: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {
+	/**
+	 * @param node Parent of the <TextChunk />
+	 * @param props Props of the <TextChunk />
+	 * @param children Rendered children of the <TextChunk />
+	 */
+	private _handleExtrinsicTextChunkChildren(node: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {
 		const content: string[] = [];
 		const references: PromptReference[] = [];
 
