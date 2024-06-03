@@ -305,17 +305,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			return acc;
 		}, { references: [], names: new Set<string>() });
 
-		return { messages: this._validate(messageResult), hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
-	}
-
-	private _validate(chatMessages: ChatMessage[]) {
-		const lastMessage = chatMessages[chatMessages.length - 1];
-		if (lastMessage && lastMessage.role !== ChatRole.User) {
-			// User message was dropped, which will result in a 400 error from the server
-			console.error('Sorry, this message is too long. Please try a shorter question.');
-		}
-
-		return chatMessages;
+		return { messages: messageResult, hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<P, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
