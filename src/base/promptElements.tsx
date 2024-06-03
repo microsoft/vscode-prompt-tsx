@@ -85,11 +85,11 @@ export interface TextChunkProps extends BasePromptElementProps {
 	 */
 	breakOn?: RegExp | string;
 
-	/** A shortcut for setting {@link breakOn} to `/\s/g` */
+	/** A shortcut for setting {@link breakOn} to `/\s+/g` */
 	breakOnWhitespace?: boolean;
 }
 
-const WHITESPACE_RE = /\s/g;
+const WHITESPACE_RE = /\s+/g;
 
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
@@ -116,12 +116,12 @@ export class TextChunk extends PromptElement<TextChunkProps> {
 			if (child && typeof child === 'object') {
 				if (typeof child.ctor !== 'string') {
 					throw new Error('TextChunk children must be text literals or intrinsic attributes.');
+				} else if (child.ctor === 'br') {
+					fullText += '\n';
 				} else {
 					instrinics.push(child);
 				}
-			}
-
-			if (child != null) {
+			} else if (child != null) {
 				fullText += child;
 			}
 		}

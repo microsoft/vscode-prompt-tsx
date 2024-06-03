@@ -21,7 +21,7 @@ suite('PromptElements', () => {
 			baseTokensPerCompletion = 0;
 
 			tokenLength(text: string): number {
-				return text.split(' ').length;
+				return text.trim() === '' ? 1 : text.split(/\s+/g).length;
 			}
 
 			countMessageTokens(message: ChatMessage): number {
@@ -46,7 +46,7 @@ suite('PromptElements', () => {
 				class extends PromptElement {
 					render() {
 						return <UserMessage>
-							<TextChunk tokenizer={tokenizer} breakOnWhitespace>1a 1b 1c 1d 1e 1f 1g 1h 1i 1j 1k 1l 1m 1n 1o 1p 1q 1r 1s 1t 1u 1v 1w 1x 1y 1z</TextChunk>
+							<TextChunk tokenizer={tokenizer} breakOnWhitespace>1a<br />1b 1c 1d 1e 1f 1g 1h 1i 1j 1k 1l 1m 1n 1o 1p 1q 1r 1s 1t 1u 1v 1w 1x 1y 1z</TextChunk>
 							<TextChunk tokenizer={tokenizer} breakOn=" ">2a 2b 2c 2d 2e 2f 2g 2h 2i 2j 2k 2l 2m 2n 2o 2p 2q 2r 2s 2t 2u 2v 2w 2x 2y 2z</TextChunk>
 						</UserMessage>;
 					}
@@ -57,7 +57,7 @@ suite('PromptElements', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					content: '1a 1b 1c 1d 1e\n2a 2b 2c 2d 2e',
+					content: '1a\n1b 1c 1d 1e\n2a 2b 2c 2d 2e',
 					role: ChatRole.User,
 				},
 			]);
