@@ -7,7 +7,7 @@ import { ChatMessage, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
-import { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
+import { ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
@@ -52,7 +52,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
-	private readonly _tokenizer: ITokenizer;
 	private readonly _references: PromptReference[] = [];
 
 	/**
@@ -65,10 +64,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _endpoint: IChatEndpointInfo,
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
-		_tokenizer?: ITokenizer
-	) {
-		this._tokenizer = _tokenizer ?? new Cl100KBaseTokenizer();
-	}
+		private readonly _tokenizer: ITokenizer
+	) { }
 
 	public getAllMeta(): MetadataMap {
 		const metadataMap = this._meta;
@@ -426,14 +423,13 @@ async function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: Q
 	let tokensConsumed = 0;
 
 	if (isChatMessagePromptElement(instance)) {
-		const allLiterals = pieces.reduce<string[]>((acc, p) => {
-			if (p.kind === 'literal') {
-				acc.push(p.value);
-			}
-			return acc;
-		}, []);
+		tokensConsumed += await tokenizer.countMessageTokens({ role: element.props.role, content: '', ...(element.props.name ? { name: element.props.name } : undefined) });
 
-		tokensConsumed += await tokenizer.countMessageTokens({ role: element.props.role, content: allLiterals.join(''), ...(element.props.name ? { name: element.props.name } : undefined) });
+		for (const piece of pieces) {
+			if (piece.kind === 'literal') {
+				tokensConsumed += await tokenizer.tokenLength(piece.value);
+			}
+		}
 	}
 
 	return { tokensConsumed };

@@ -12,7 +12,7 @@ import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModel
 
 export { ChatMessage, ChatRole } from './openai';
 export * from './results';
-export { Cl100KBaseTokenizer, ITokenizer } from './tokenizer/tokenizer';
+export { ITokenizer } from './tokenizer/tokenizer';
 export * from './tsx-globals';
 export * from './types';
 
