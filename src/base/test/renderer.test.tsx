@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChatMessage, ChatRole } from '../openai';
+import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
@@ -26,7 +26,7 @@ import {
 
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
-		modelMaxPromptTokens: 8192,
+		modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
 	} satisfies Partial<IChatEndpointInfo>;
 	const tokenizer = new Cl100KBaseTokenizer();
 
@@ -98,7 +98,7 @@ suite('PromptRenderer', () => {
 					"This late pivot means we don't have time to boil the ocean for the client deliverable.",
 			},
 		]);
-		assert.deepStrictEqual(res.tokenCount, 129);
+		assert.deepStrictEqual(res.tokenCount, 129  - BaseTokensPerCompletion);
 	});
 
 	test('runs async prepare in parallel', async () => {
@@ -270,7 +270,7 @@ suite('PromptRenderer', () => {
 				{ role: 'assistant', content: 'I am terrific, how are you?' },
 				{ role: 'user', content: 'What time is it?' },
 			]);
-			assert.deepStrictEqual(res.tokenCount, 130);
+			assert.deepStrictEqual(res.tokenCount, 130 - BaseTokensPerCompletion);
 		});
 
 		test('no shaving at limit', async () => {
@@ -315,11 +315,11 @@ suite('PromptRenderer', () => {
 				{ role: 'assistant', content: 'I am terrific, how are you?' },
 				{ role: 'user', content: 'What time is it?' },
 			]);
-			assert.deepStrictEqual(res.tokenCount, 130);
+			assert.deepStrictEqual(res.tokenCount, 130 - BaseTokensPerCompletion);
 		});
 
 		test('shaving one', async () => {
-			const res = await renderWithMaxPromptTokens(129, Prompt1, {});
+			const res = await renderWithMaxPromptTokens(129 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
@@ -355,11 +355,11 @@ suite('PromptRenderer', () => {
 				{ role: 'assistant', content: 'I am terrific, how are you?' },
 				{ role: 'user', content: 'What time is it?' },
 			]);
-			assert.deepStrictEqual(res.tokenCount, 118);
+			assert.deepStrictEqual(res.tokenCount, 118 - BaseTokensPerCompletion);
 		});
 
 		test('shaving two', async () => {
-			const res = await renderWithMaxPromptTokens(110, Prompt1, {});
+			const res = await renderWithMaxPromptTokens(110 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
@@ -390,11 +390,11 @@ suite('PromptRenderer', () => {
 				{ role: 'assistant', content: 'I am terrific, how are you?' },
 				{ role: 'user', content: 'What time is it?' },
 			]);
-			assert.deepStrictEqual(res.tokenCount, 102);
+			assert.deepStrictEqual(res.tokenCount, 102 - BaseTokensPerCompletion);
 		});
 
 		test('shaving a lot', async () => {
-			const res = await renderWithMaxPromptTokens(54, Prompt1, {});
+			const res = await renderWithMaxPromptTokens(54 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
@@ -413,7 +413,7 @@ suite('PromptRenderer', () => {
 				},
 				{ role: 'user', content: 'What time is it?' },
 			]);
-			assert.deepStrictEqual(res.tokenCount, 53);
+			assert.deepStrictEqual(res.tokenCount, 53 - BaseTokensPerCompletion);
 		});
 	});
 	suite('renders prompts based on dynamic token budget', function () {
@@ -461,7 +461,7 @@ suite('PromptRenderer', () => {
 
 		test('passes budget to children based on declared flex', async () => {
 			const fakeEndpoint: any = {
-				modelMaxPromptTokens: 100, // Total allowed tokens
+				modelMaxPromptTokens: 100 - BaseTokensPerCompletion, // Total allowed tokens
 			} satisfies Partial<IChatEndpointInfo>;
 			const inst = new PromptRenderer(
 				fakeEndpoint,
@@ -564,7 +564,7 @@ suite('PromptRenderer', () => {
 			test('are rendered to chat messages', async () => {
 				// First render with large token budget so nothing gets dropped
 				const largeTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 8192,
+					modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
 				} satisfies Partial<IChatEndpointInfo>;
 				const inst1 = new PromptRenderer(
 					largeTokenBudgetEndpoint,
@@ -604,13 +604,13 @@ suite('PromptRenderer', () => {
 					},
 					{ role: 'user', content: 'What is your name?' },
 				]);
-				assert.deepStrictEqual(res1.tokenCount, 165);
+				assert.deepStrictEqual(res1.tokenCount, 165 - BaseTokensPerCompletion);
 			});
 
 			test('are prioritized and fit within token budget', async () => {
 				// Render with smaller token budget and ensure that messages are reduced in size
 				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 140,
+					modelMaxPromptTokens: 140 - BaseTokensPerCompletion,
 				} satisfies Partial<IChatEndpointInfo>;
 				const inst2 = new PromptRenderer(
 					smallTokenBudgetEndpoint,
@@ -619,7 +619,7 @@ suite('PromptRenderer', () => {
 					tokenizer
 				);
 				const res2 = await inst2.render(undefined, undefined);
-				assert.equal(res2.tokenCount, 120);
+				assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
 				assert.deepStrictEqual(res2.messages, [
 					{
 						role: 'system',
@@ -706,7 +706,7 @@ suite('PromptRenderer', () => {
 				}
 
 				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 150,
+					modelMaxPromptTokens: 150 - BaseTokensPerCompletion,
 				} satisfies Partial<IChatEndpointInfo>;
 				const inst2 = new PromptRenderer(
 					smallTokenBudgetEndpoint,
@@ -775,7 +775,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 				}
 
 				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 150,
+					modelMaxPromptTokens: 150 - BaseTokensPerCompletion,
 				} satisfies Partial<IChatEndpointInfo>;
 				const inst2 = new PromptRenderer(
 					smallTokenBudgetEndpoint,
@@ -829,7 +829,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 
 		test('reports reference that survived prioritization', async () => {
 			const endpoint: any = {
-				modelMaxPromptTokens: 4096,
+				modelMaxPromptTokens: 4096 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 
 			const inst = new PromptRenderer(
@@ -891,7 +891,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			}
 
 			const endpoint: any = {
-				modelMaxPromptTokens: 4096,
+				modelMaxPromptTokens: 4096 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 
 			const inst = new PromptRenderer(

@@ -75,7 +75,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	mode: 'vscode' | 'none' = 'vscode',
 ): Promise<{ messages: (ChatMessage | LanguageModelChatMessage)[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }> {
 	let tokenizer = 'countTokens' in tokenizerMetadata
-		? new AnyTokenizer(tokenizerMetadata.countTokens)
+		? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
 		: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	let { messages, tokenCount, references } = await renderer.render(progress, token);

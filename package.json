@@ -9,7 +9,8 @@
 		"compile": "tsc -p tsconfig.json && tsx ./build/postcompile.ts",
 		"watch": "tsc --watch --sourceMap",
 		"test": "vscode-test",
-		"prettier": "prettier --list-different --write --cache ."
+		"prettier": "prettier --list-different --write --cache .",
+		"prepare": "tsx ./build/postinstall.ts"
 	},
 	"keywords": [],
 	"author": "Microsoft Corporation",
