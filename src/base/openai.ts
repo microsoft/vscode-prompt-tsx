@@ -28,7 +28,8 @@ export declare interface ChatMessage {
 export enum ChatRole {
 	System = 'system',
 	User = 'user',
-	Assistant = 'assistant'
+	Assistant = 'assistant',
+	Function = 'function'
 }
 
 /**
