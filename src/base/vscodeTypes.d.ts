@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Command, Location, MarkdownString, Range, ThemeIcon, Uri } from 'vscode';
+import type { CancellationToken, Command, Location, MarkdownString, Range, ThemeIcon, Uri } from 'vscode';
 
 /**
  * Represents a part of a chat response that is formatted as Markdown.
@@ -178,7 +178,18 @@ export enum LanguageModelChatMessageRole {
 	/**
 	 * The assistant role, e.g. the language model generating responses.
 	 */
-	Assistant = 2
+	Assistant = 2,
+
+	/**
+	 * The tool role, e.g. the language model using a tool.
+	 */
+	Tool = 4,
+
+	/**
+	 * The function role, e.g. the language model calling a function.
+	 */
+	Function = 5,
+
 }
 
 /**
@@ -225,4 +236,130 @@ export class LanguageModelChatMessage {
 	 * @param name The optional name of a user for the message.
 	 */
 	constructor(role: LanguageModelChatMessageRole, content: string, name?: string);
+}
+
+/**
+ * Options for making a chat request using a language model.
+ *
+ * @see {@link LanguageModelChat.sendRequest}
+ */
+export interface LanguageModelChatRequestOptions {
+
+	/**
+	 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
+	 */
+	justification?: string;
+
+	/**
+	 * A set of options that control the behavior of the language model. These options are specific to the language model
+	 * and need to be lookup in the respective documentation.
+	 */
+	modelOptions?: { [name: string]: any };
+}
+
+
+/**
+ * Represents a language model response.
+ *
+ * @see {@link LanguageModelAccess.chatRequest}
+*/
+export interface LanguageModelChatResponse {
+
+	/**
+	 * An async iterable that is a stream of text chunks forming the overall response.
+	 *
+	 * *Note* that this stream will error when during data receiving an error occurs. Consumers of
+	 * the stream should handle the errors accordingly.
+	 *
+	 * To cancel the stream, the consumer can {@link CancellationTokenSource.cancel cancel} the token that was used to make the request
+	 * or break from the for-loop.
+	 *
+	 * @example
+	 * ```ts
+	 * try {
+	 *   // consume stream
+	 *   for await (const chunk of response.text) {
+	 *    console.log(chunk);
+	 *   }
+	 *
+	 * } catch(e) {
+	 *   // stream ended with an error
+	 *   console.error(e);
+	 * }
+	 * ```
+	 */
+	text: AsyncIterable<string>;
+}
+
+/**
+	 * Represents a language model for making chat requests.
+	 *
+	 * @see {@link lm.selectChatModels}
+	 */
+export interface LanguageModelChat {
+
+	/**
+	 * Human-readable name of the language model.
+	 */
+	readonly name: string;
+
+	/**
+	 * Opaque identifier of the language model.
+	 */
+	readonly id: string;
+
+	/**
+	 * A well-known identifier of the vendor of the language model. An example is `copilot`, but
+	 * values are defined by extensions contributing chat models and need to be looked up with them.
+	 */
+	readonly vendor: string;
+
+	/**
+	 * Opaque family-name of the language model. Values might be `gpt-3.5-turbo`, `gpt4`, `phi2`, or `llama`
+	 * but they are defined by extensions contributing languages and subject to change.
+	 */
+	readonly family: string;
+
+	/**
+	 * Opaque version string of the model. This is defined by the extension contributing the language model
+	 * and subject to change.
+	 */
+	readonly version: string;
+
+	/**
+	 * The maximum number of tokens that can be sent to the model in a single request.
+	 */
+	readonly maxInputTokens: number;
+
+	/**
+	 * Make a chat request using a language model.
+	 *
+	 * *Note* that language model use may be subject to access restrictions and user consent. Calling this function
+	 * for the first time (for a extension) will show a consent dialog to the user and because of that this function
+	 * must _only be called in response to a user action!_ Extension can use {@link LanguageModelAccessInformation.canSendRequest}
+	 * to check if they have the necessary permissions to make a request.
+	 *
+	 * This function will return a rejected promise if making a request to the language model is not
+	 * possible. Reasons for this can be:
+	 *
+	 * - user consent not given, see {@link LanguageModelError.NoPermissions `NoPermissions`}
+	 * - model does not exist anymore, see {@link LanguageModelError.NotFound `NotFound`}
+	 * - quota limits exceeded, see {@link LanguageModelError.Blocked `Blocked`}
+	 * - other issues in which case extension must check {@link LanguageModelError.cause `LanguageModelError.cause`}
+	 *
+	 * @param messages An array of message instances.
+	 * @param options Options that control the request.
+	 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
+	 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
+	 */
+	sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+
+	/**
+	 * Count the number of tokens in a message using the model specific tokenizer-logic.
+
+	 * @param text A string or a message instance.
+	 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+	 * @returns A thenable that resolves to the number of tokens.
+	 */
+	countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
 }

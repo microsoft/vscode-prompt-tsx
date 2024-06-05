@@ -14,7 +14,8 @@ import {
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
 import { PromptReference } from '../results';
-import { Cl100KBaseTokenizer, ITokenizer } from '../tokenizer/tokenizer';
+import { Cl100KBaseTokenizer } from '../tokenizer/cl100kBaseTokenizer';
+import { ITokenizer } from '../tokenizer/tokenizer';
 import {
 	BasePromptElementProps,
 	IChatEndpointInfo,

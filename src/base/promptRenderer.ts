@@ -7,7 +7,7 @@ import { ChatMessage, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
-import { Cl100KBaseTokenizer, ITokenizer } from "./tokenizer/tokenizer";
+import { ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
@@ -52,7 +52,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
-	private readonly _tokenizer: ITokenizer;
 	private readonly _references: PromptReference[] = [];
 
 	/**
@@ -65,10 +64,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _endpoint: IChatEndpointInfo,
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
-		_tokenizer?: ITokenizer
-	) {
-		this._tokenizer = _tokenizer ?? new Cl100KBaseTokenizer();
-	}
+		private readonly _tokenizer: ITokenizer
+	) { }
 
 	public getAllMeta(): MetadataMap {
 		const metadataMap = this._meta;
@@ -178,7 +175,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 				// Compute token budget for the pieces that this child wants to render
 				const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
-				const { tokensConsumed } = computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
+				const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
 				childSizing.consume(tokensConsumed);
 				await this._handlePromptChildren(element, pieces, childSizing, progress, token);
 
@@ -188,7 +185,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 	}
 
-	private _prioritize<T extends Countable>(things: T[], cmp: (a: T, b: T) => number, count: (thing: T) => number) {
+	private async _prioritize<T extends Countable>(things: T[], cmp: (a: T, b: T) => number, count: (thing: T) => Promise<number>) {
 		const prioritizedChunks: { index: number; precedingLinebreak?: number }[] = []; // sorted by descending priority
 		const chunkResult: (T | null)[] = [];
 
@@ -205,16 +202,16 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		prioritizedChunks.sort((a, b) => cmp(things[a.index], things[b.index]));
 
-		let remainingBudget = this._endpoint.modelMaxPromptTokens - this._tokenizer.baseTokensPerCompletion;
+		let remainingBudget = this._endpoint.modelMaxPromptTokens;
 		while (prioritizedChunks.length > 0) {
 			const prioritizedChunk = prioritizedChunks.shift()!;
 			const index = prioritizedChunk.index;
 			const chunk = things[index];
-			let tokenCount = count(chunk);
+			let tokenCount = await count(chunk);
 			let precedingLinebreak;
 			if (prioritizedChunk.precedingLinebreak) {
 				precedingLinebreak = things[prioritizedChunk.precedingLinebreak];
-				tokenCount += count(precedingLinebreak);
+				tokenCount += await count(precedingLinebreak);
 			}
 			if (tokenCount > remainingBudget) {
 				// Wouldn't fit anymore
@@ -250,14 +247,14 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		// First pass: sort message chunks by priority. Note that this can yield an imprecise result due to token boundaries within a single chat message
 		// so we also need to do a second pass over the full chat messages later
 		const chunkMessages = new Set<MaterializedChatMessage>();
-		const { result: prioritizedChunks } = this._prioritize(
+		const { result: prioritizedChunks } = await this._prioritize(
 			resultChunks,
 			(a, b) => MaterializedChatMessageTextChunk.cmp(a, b),
-			(chunk) => {
-				let tokenLength = this._tokenizer.tokenLength(chunk.text);
+			async (chunk) => {
+				let tokenLength = await this._tokenizer.tokenLength(chunk.text);
 				if (!chunkMessages.has(chunk.message)) {
 					chunkMessages.add(chunk.message);
-					tokenLength = this._tokenizer.countMessageTokens(chunk.toChatMessage());
+					tokenLength = await this._tokenizer.countMessageTokens(chunk.toChatMessage());
 				}
 				return tokenLength;
 			});
@@ -286,7 +283,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 
 		// Second pass: make sure the chat messages will fit within the token budget
-		const { result: prioritizedMaterializedChatMessages, tokenCount } = this._prioritize(chatMessages, (a, b) => MaterializedChatMessage.cmp(a, b), (message) => this._tokenizer.countMessageTokens(message.toChatMessage()));
+		const { result: prioritizedMaterializedChatMessages, tokenCount } = await this._prioritize(chatMessages, (a, b) => MaterializedChatMessage.cmp(a, b), async (message) => this._tokenizer.countMessageTokens(message.toChatMessage()));
 
 		// Then finalize the chat messages
 		const messageResult = prioritizedMaterializedChatMessages.map(message => message?.toChatMessage());
@@ -421,21 +418,17 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 }
 
-function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: QueueItem<PromptElementCtor<any, any>, any>
+async function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: QueueItem<PromptElementCtor<any, any>, any>
 	, instance: PromptElement<any, any>, pieces: ProcessedPromptPiece[]) {
 	let tokensConsumed = 0;
+
 	if (isChatMessagePromptElement(instance)) {
-		tokensConsumed += tokenizer.baseTokensPerMessage;
-		if (element.props.name) {
-			tokensConsumed += tokenizer.baseTokensPerName;
-		}
-		if (element.props.role) {
-			tokensConsumed += tokenizer.tokenLength(element.props.role);
-		}
-	}
-	for (const piece of pieces) {
-		if (piece.kind === 'literal') {
-			tokensConsumed += tokenizer.tokenLength(piece.value);
+		tokensConsumed += await tokenizer.countMessageTokens({ role: element.props.role, content: '', ...(element.props.name ? { name: element.props.name } : undefined) });
+
+		for (const piece of pieces) {
+			if (piece.kind === 'literal') {
+				tokensConsumed += await tokenizer.tokenLength(piece.value);
+			}
 		}
 	}
 
