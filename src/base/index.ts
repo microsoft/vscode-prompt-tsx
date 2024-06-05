@@ -6,9 +6,9 @@ import type { CancellationToken, Progress } from 'vscode';
 import { ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
-import { ITokenizer } from './tokenizer/tokenizer';
+import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
-import { ChatDocumentContext, ChatResponsePart, LanguageModelChatMessage } from './vscodeTypes.d';
+import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModelChatMessage } from './vscodeTypes.d';
 
 export { ChatMessage, ChatRole } from './openai';
 export * from './results';
@@ -38,7 +38,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizer: ITokenizer,
+	tokenizerMetadata: ITokenizer | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode?: 'vscode',
@@ -60,7 +60,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizer: ITokenizer,
+	tokenizerMetadata: ITokenizer,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode?: 'none',
@@ -69,11 +69,14 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizer: ITokenizer,
+	tokenizerMetadata: ITokenizer | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode: 'vscode' | 'none' = 'vscode',
 ): Promise<{ messages: (ChatMessage | LanguageModelChatMessage)[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }> {
+	let tokenizer = 'countTokens' in tokenizerMetadata
+		? new AnyTokenizer(tokenizerMetadata.countTokens)
+		: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	let { messages, tokenCount, references } = await renderer.render(progress, token);
 	const metadatas = renderer.getAllMeta();
