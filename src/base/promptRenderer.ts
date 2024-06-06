@@ -149,7 +149,11 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			// Finally calculate the final sizing for each element in this group.
 			const elementSizings: PromptSizing[] = promptElements.map(e => {
 				const proportion = (e.element.props.flexBasis ?? 1) / flexBasisSum;
-				return { tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion), endpoint: sizing.endpoint };
+				return {
+					tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion),
+					endpoint: sizing.endpoint,
+					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation)
+				};
 			});
 
 
@@ -305,7 +309,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return { messages: messageResult, hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
 	}
 
-	private _handlePromptChildren(element: QueueItem<PromptElementCtor<P, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
+	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		if (element.ctor === TextChunk) {
 			this._handleExtrinsicTextChunkChildren(element.node.parent!, element.props, pieces);
 			return;
@@ -509,7 +513,7 @@ type LeafPromptNode = PromptText | PromptLineBreak;
  * A shared instance given to each PromptTreeElement that contains information
  * about the parent sizing and its children.
  */
-class PromptSizingContext implements PromptSizing {
+class PromptSizingContext {
 	private _consumed = 0;
 
 	constructor(

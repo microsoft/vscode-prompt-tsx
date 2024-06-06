@@ -46,8 +46,8 @@ suite('PromptElements', () => {
 				class extends PromptElement {
 					render() {
 						return <UserMessage>
-							<TextChunk tokenizer={tokenizer} breakOnWhitespace>1a<br />1b 1c 1d 1e 1f 1g 1h 1i 1j 1k 1l 1m 1n 1o 1p 1q 1r 1s 1t 1u 1v 1w 1x 1y 1z</TextChunk>
-							<TextChunk tokenizer={tokenizer} breakOn=" ">2a 2b 2c 2d 2e 2f 2g 2h 2i 2j 2k 2l 2m 2n 2o 2p 2q 2r 2s 2t 2u 2v 2w 2x 2y 2z</TextChunk>
+							<TextChunk breakOnWhitespace>1a<br />1b 1c 1d 1e 1f 1g 1h 1i 1j 1k 1l 1m 1n 1o 1p 1q 1r 1s 1t 1u 1v 1w 1x 1y 1z</TextChunk>
+							<TextChunk breakOn=" ">2a 2b 2c 2d 2e 2f 2g 2h 2i 2j 2k 2l 2m 2n 2o 2p 2q 2r 2s 2t 2u 2v 2w 2x 2y 2z</TextChunk>
 						</UserMessage>;
 					}
 				},
@@ -63,29 +63,13 @@ suite('PromptElements', () => {
 			]);
 		});
 
-		test('throws on no tokenizer', async () => {
-			await assertThrows(/A tokenizer is required/, async () => {
-				const inst = new PromptRenderer(
-					{ modelMaxPromptTokens: 11 } satisfies Partial<IChatEndpointInfo> as IChatEndpointInfo,
-					class extends PromptElement {
-						render() {
-							return <UserMessage><TextChunk breakOnWhitespace>hello!</TextChunk></UserMessage>;
-						}
-					},
-					{},
-					tokenizer
-				);
-				await inst.render(undefined, undefined);
-			});
-		});
-
 		test('throws on extrinsic', async () => {
 			await assertThrows(/must be text literals/, async () => {
 				const inst = new PromptRenderer(
 					{ modelMaxPromptTokens: 11 } satisfies Partial<IChatEndpointInfo> as IChatEndpointInfo,
 					class Foo extends PromptElement {
 						render() {
-							return <UserMessage><TextChunk tokenizer={tokenizer} breakOnWhitespace><Foo /></TextChunk></UserMessage>;
+							return <UserMessage><TextChunk breakOnWhitespace><Foo /></TextChunk></UserMessage>;
 						}
 					},
 					{},

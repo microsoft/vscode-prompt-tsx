@@ -2,9 +2,9 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from 'vscode';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
 
 export type ChatMessagePromptElement =
@@ -69,26 +69,6 @@ export class AssistantMessage extends BaseChatMessage {
 	}
 }
 
-export interface TextChunkProps extends BasePromptElementProps {
-	/**
-	 * A tokenizer is required when setting {@link breakOn} or {@link breakOnWhitespace}.
-	 */
-	tokenizer?: ITokenizer;
-
-	/**
-	 * If defined, the text chunk will potentially truncate its contents at the
-	 * last occurrence of the string or regular expression to ensure its content
-	 * fits within in token budget.
-	 *
-	 * {@see BasePromptElementProps} for options to control how the token budget
-	 * is allocated.
-	 */
-	breakOn?: RegExp | string;
-
-	/** A shortcut for setting {@link breakOn} to `/\s+/g` */
-	breakOnWhitespace?: boolean;
-}
-
 const WHITESPACE_RE = /\s+/g;
 
 /**
@@ -103,6 +83,22 @@ export class FunctionMessage extends BaseChatMessage {
 	}
 }
 
+export interface TextChunkProps extends BasePromptElementProps {
+	/**
+	 * If defined, the text chunk will potentially truncate its contents at the
+	 * last occurrence of the string or regular expression to ensure its content
+	 * fits within in token budget.
+	 *
+	 * {@see BasePromptElementProps} for options to control how the token budget
+	 * is allocated.
+	 */
+	breakOn?: RegExp | string;
+
+	/** A shortcut for setting {@link breakOn} to `/\s+/g` */
+	breakOnWhitespace?: boolean;
+}
+
+
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
@@ -110,20 +106,15 @@ export class FunctionMessage extends BaseChatMessage {
  * It supports truncating text to fix the token budget if passed a {@link TextChunkProps.tokenizer} and {@link TextChunkProps.breakOn} behavior.
  * Like other {@link PromptElement}s, it can specify `priority` to determine how it should be prioritized.
  */
-export class TextChunk extends PromptElement<TextChunkProps> {
-	render(_state: void, sizing: PromptSizing) {
+export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
+	async prepare(sizing: PromptSizing, _progress?: unknown, token?: CancellationToken): Promise<PromptPiece> {
 		const breakOn = this.props.breakOnWhitespace ? WHITESPACE_RE : this.props.breakOn;
 		if (!breakOn) {
 			return <>{this.props.children}</>;
 		}
 
-		const tokenizer = this.props.tokenizer;
-		if (!tokenizer) {
-			throw new Error('A tokenizer is required in <TextChunk /> when setting breakOn or breakOnWhitespace.');
-		}
-
 		let fullText = '';
-		const instrinics: PromptPiece[] = [];
+		const intrinsics: PromptPiece[] = [];
 		for (const child of this.props.children || []) {
 			if (child && typeof child === 'object') {
 				if (typeof child.ctor !== 'string') {
@@ -131,22 +122,23 @@ export class TextChunk extends PromptElement<TextChunkProps> {
 				} else if (child.ctor === 'br') {
 					fullText += '\n';
 				} else {
-					instrinics.push(child);
+					intrinsics.push(child);
 				}
 			} else if (child != null) {
 				fullText += child;
 			}
 		}
 
-		const text = getTextContentBelowBudget(tokenizer, breakOn, fullText, sizing.tokenBudget);
+		const text = await getTextContentBelowBudget(sizing, breakOn, fullText, token);
+		return <>{intrinsics}{text}</>;
+	}
 
-		// Note: TextChunk is treated specially in the renderer to preserve references
-		// correctly. Changing this structure also requires changes in PromptRendere._handlePromptChildren
-		return <>{instrinics}{text}</>;
+	render(piece: PromptPiece) {
+		return piece;
 	}
 }
 
-function getTextContentBelowBudget(tokenizer: ITokenizer, breakOn: string | RegExp, fullText: string, budget: number) {
+async function getTextContentBelowBudget(sizing: PromptSizing, breakOn: string | RegExp, fullText: string, cancellation: CancellationToken | undefined) {
 	if (breakOn instanceof RegExp) {
 		if (!breakOn.global) {
 			throw new Error(`\`breakOn\` expression must have the global flag set (got ${breakOn})`);
@@ -170,7 +162,7 @@ function getTextContentBelowBudget(tokenizer: ITokenizer, breakOn: string | RegE
 		}
 
 		const next = outputText + fullText.slice(Math.max(0, lastIndex), index);
-		if (tokenizer.tokenLength(next) > budget) {
+		if (await sizing.countTokens(next, cancellation) > sizing.tokenBudget) {
 			return outputText;
 		}
 
