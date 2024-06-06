@@ -46,7 +46,7 @@ export class AnyTokenizer implements ITokenizer {
 			case ChatRole.User: return 1;
 			case ChatRole.Assistant: return 2;
 			case ChatRole.System: return 1;
-			case ChatRole.Function: return 5;
+			case ChatRole.Function: return 1;
 		}
 	}
 }

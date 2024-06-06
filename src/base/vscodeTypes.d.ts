@@ -179,17 +179,6 @@ export enum LanguageModelChatMessageRole {
 	 * The assistant role, e.g. the language model generating responses.
 	 */
 	Assistant = 2,
-
-	/**
-	 * The tool role, e.g. the language model using a tool.
-	 */
-	Tool = 4,
-
-	/**
-	 * The function role, e.g. the language model calling a function.
-	 */
-	Function = 5,
-
 }
 
 /**
