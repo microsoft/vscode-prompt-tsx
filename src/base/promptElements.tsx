@@ -92,6 +92,18 @@ export interface TextChunkProps extends BasePromptElementProps {
 const WHITESPACE_RE = /\s+/g;
 
 /**
+ * A {@link PromptElement} which can be rendered to an OpenAI function chat message.
+ *
+ * See {@link https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages}
+ */
+export class FunctionMessage extends BaseChatMessage {
+	constructor(props: ChatMessageProps & { name: string }) {
+		props.role = ChatRole.Function;
+		super(props);
+	}
+}
+
+/**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
  * TextChunks can only have text literals or intrinsic attributes as children.

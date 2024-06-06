@@ -2,7 +2,6 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import { copyStaticAssets } from './postinstall';
 
 async function main() {

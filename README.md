@@ -35,9 +35,13 @@ This library exports a `renderPrompt` utility for rendering a TSX component to `
 To enable TSX use in your extension, add the following configuration options to your `tsconfig.json`:
 ```json
 {
-  "jsx": "react",
-  "jsxFactory": "vscpp",
-  "jsxFragmentFactory": "vscppf"
+	"compilerOptions": {
+    // ...
+    "jsx": "react",
+    "jsxFactory": "vscpp",
+    "jsxFragmentFactory": "vscppf"
+  }
+  // ...
 }
 ```
 
@@ -127,7 +131,7 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
 Please note:
 - If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
 - Newlines are not preserved in JSX text or between JSX elements when rendered, and must be explicitly declared with the builtin `<br />` attribute.
-- For now, if two prompt messages _with the same priority_ are candidates for pruning due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to prune a subtree of the prompt message declared later.
+- For now, if two prompt messages _with the same priority_ are up for pruning due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to prune a subtree of the prompt message declared later.
 
 ### Managing your budget
 
