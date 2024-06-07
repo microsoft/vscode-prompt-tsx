@@ -22,6 +22,14 @@ TSX components at the root level must render to `ChatMessage`s at the root level
 
 ## Usage
 
+### Workspace Setup
+
+You can install this library in your extension using the command
+
+```
+npm install --save @vscode/prompt-tsx
+```
+
 This library exports a `renderPrompt` utility for rendering a TSX component to `vscode.LanguageModelChatMessage`s.
 
 To enable TSX use in your extension, add the following configuration options to your `tsconfig.json`:
@@ -36,6 +44,8 @@ To enable TSX use in your extension, add the following configuration options to 
   // ...
 }
 ```
+
+### Rendering a Prompt
 
 Next, your extension can use `renderPrompt` to render a TSX prompt. Here is an example of using TSX prompts in a Copilot chat participant that suggests SQL queries based on database context:
 ```ts
@@ -80,7 +90,7 @@ const participant = vscode.chat.createChatParticipant(
 Here is how you would declare the TSX prompt rendered above:
 
 ```tsx
-import { BasePromptElementProps, PromptElement, PromptSizing, SystemMessage, UserMessage } from '@vscode/prompt-tsx';
+import { BasePromptElementProps, PromptElement, PromptSizing, AssistantMessage, UserMessage } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 
 export interface PromptProps extends BasePromptElementProps {
@@ -100,12 +110,12 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
     render(state: PromptState, sizing: PromptSizing) {
         return (
             <>
-                <SystemMessage>
+                <AssistantMessage>
                     You are a SQL expert.<br />
                     Your task is to help the user craft SQL queries that perform their task.<br />
                     You should suggest SQL queries that are performant and correct.<br />
                     Return your suggested SQL query in a Markdown code block that begins with ```sql and ends with ```.<br />
-                </SystemMessage>
+                </AssistantMessage>
                 <UserMessage>
                     Here are the creation scripts that were used to create the tables in my database. Pay close attention to the tables and columns that are available in my database:<br />
                     {state.creationScript}<br />
@@ -121,4 +131,79 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
 Please note:
 - If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
 - Newlines are not preserved in JSX text or between JSX elements when rendered, and must be explicitly declared with the builtin `<br />` attribute.
-- For now, if two prompt messages _with the same priority_ are up for eviction due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to evict a subtree of the prompt message declared later.
+- For now, if two prompt messages _with the same priority_ are up for pruning due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to prune a subtree of the prompt message declared later.
+
+### Managing your budget
+
+If a rendered prompt has more message tokens than can fit into the available context window, the prompt renderer prunes messages with the lowest priority from the `ChatMessage`s result, preserving the order in which they were declared.
+
+In the above example, each message had the same priority, so they would be pruned in the order in which they were declared, but we could control that by passing a priority to element:
+
+```jsx
+<>
+  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
+  <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
+  <UserMessage priority={100}>{this.props.userQuery}</UserMessage>
+</>
+```
+
+In this case, a very long `userQuery` would get pruned from the output first if it's too long.
+
+But, this is not ideal. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
+
+`prompt-tsx` provides a utility component that supports this use case: `TextChunk`. Given input text, and optionally a delimiting string or regular expression, it'll include as much of the text as possible to fit within its budget:
+
+```tsx
+<>
+  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
+  <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
+  <UserMessage priority={100}><TextChunk breakOn=' '>{this.props.userQuery}</TextChunk></UserMessage>
+</>
+```
+
+When `flexGrow` is set for an element, other elements are rendered first, and then the `flexGrow` element is rendered and given the remaining unused token budget from its container as a parameter in the `PromptSizing` passed to its `prepare` and `render` methods. Here's a simplified version of the `TextChunk` component:
+
+```tsx
+class SimpleTextChunk extends PromptElement<{ text: string }, string> {
+	prepare(sizing: PromptSizing): Promise<string> {
+    const words = text.split(' ');
+    let str = '';
+
+    for (const word of words) {
+      if (tokenizer.tokenLength(str + ' ' + word) > sizing.tokenBudget) {
+        break
+      }
+
+      str += ' ' + word;
+    }
+
+		return str;
+	}
+
+	render(content: string) {
+		return <>{content}</>;
+	}
+}
+```
+
+There are a few similar properties which control budget allocation you mind find useful for more advanced cases:
+
+- `flexReserve`: controls the number of tokens reserved from the container's budget _before_ this element gets rendered. For example, if you have a 100 token budget and the elements `<><Foo /><Bar flexGrow={1} flexBasis={30}></>`, then `Foo` would receive a `PromptSizing.tokenBudget` of 70, and `Bar` would receive however many tokens of the 100 that `Foo` didn't use. This is only useful in conjunction with `flexGrow`.
+- `flexBasis`: controls the proportion of tokens allocated from the container's budget to this element. It defaults to `1` on all elements. For example, if you have the elements `<><Foo /><Bar /></>` and a 100 token budget, each element would be allocated 50 tokens in its `PromptSizing.tokenBudget`. If you instead render `<><Foo /><Bar flexBasis={2} /></>`, `Bar` would receive 66 tokens and `Foo` would receive 33.
+
+It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
+
+### Building your extension with `@vscode/prompt-tsx`
+
+You'll also want to vendor the `cl100k_base.tiktoken` file that ships with this library when you build and publish your VS Code extension. You can either do this with a `postinstall` script or, if you use `webpack`, a plugin like `CopyWebpackPlugin`:
+
+```js
+// in webpack.config.js
+  plugins: [
+    new CopyWebpackPlugin({
+      patterns: [
+        { from: 'node_modules/@vscode/prompt-tsx/dist/base/tokenizer/cl100k_base.tiktoken' }
+      ]
+    })
+  ],
+```

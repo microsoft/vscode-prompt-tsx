@@ -19,7 +19,7 @@ export interface ITokenizer {
 	 * @param {str} text - The input text
 	 * @returns {number}
 	 */
-	tokenLength(text: string): Promise<number> | number;
+	tokenLength(text: string, token?: CancellationToken): Promise<number> | number;
 
 	countMessageTokens(message: ChatMessage): Promise<number> | number;
 }
@@ -29,8 +29,8 @@ export class AnyTokenizer implements ITokenizer {
 
 	constructor(private countTokens: (text: string | LanguageModelChatMessage, token?: CancellationToken) => Thenable<number>) { }
 
-	async tokenLength(text: string): Promise<number> {
-		return this.countTokens(text);
+	async tokenLength(text: string, token?: CancellationToken): Promise<number> {
+		return this.countTokens(text, token);
 	}
 
 	async countMessageTokens(message: ChatMessage): Promise<number> {

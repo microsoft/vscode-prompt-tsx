@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { CancellationToken } from 'vscode';
 import { PromptElement } from "./promptElement";
 
 /**
@@ -27,6 +28,11 @@ export interface PromptSizing {
 	 * Metadata about the endpoint being used.
 	 */
 	readonly endpoint: IChatEndpointInfo;
+
+	/**
+	 * Counts the number of tokens the text consumes.
+	 */
+	countTokens(text: string, token?: CancellationToken): Promise<number> | number;
 }
 
 export interface BasePromptElementProps {

@@ -2,9 +2,10 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import type { CancellationToken } from 'vscode';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { BasePromptElementProps } from './types';
+import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
 
 export type ChatMessagePromptElement =
 	| SystemMessage
@@ -68,6 +69,8 @@ export class AssistantMessage extends BaseChatMessage {
 	}
 }
 
+const WHITESPACE_RE = /\s+/g;
+
 /**
  * A {@link PromptElement} which can be rendered to an OpenAI function chat message.
  *
@@ -80,16 +83,94 @@ export class FunctionMessage extends BaseChatMessage {
 	}
 }
 
+export interface TextChunkProps extends BasePromptElementProps {
+	/**
+	 * If defined, the text chunk will potentially truncate its contents at the
+	 * last occurrence of the string or regular expression to ensure its content
+	 * fits within in token budget.
+	 *
+	 * {@see BasePromptElementProps} for options to control how the token budget
+	 * is allocated.
+	 */
+	breakOn?: RegExp | string;
+
+	/** A shortcut for setting {@link breakOn} to `/\s+/g` */
+	breakOnWhitespace?: boolean;
+}
+
+
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
  * TextChunks can only have text literals or intrinsic attributes as children.
+ * It supports truncating text to fix the token budget if passed a {@link TextChunkProps.tokenizer} and {@link TextChunkProps.breakOn} behavior.
  * Like other {@link PromptElement}s, it can specify `priority` to determine how it should be prioritized.
  */
-export class TextChunk extends PromptElement {
-	render() {
-		return <>{this.props.children}</>;
+export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
+	async prepare(sizing: PromptSizing, _progress?: unknown, token?: CancellationToken): Promise<PromptPiece> {
+		const breakOn = this.props.breakOnWhitespace ? WHITESPACE_RE : this.props.breakOn;
+		if (!breakOn) {
+			return <>{this.props.children}</>;
+		}
+
+		let fullText = '';
+		const intrinsics: PromptPiece[] = [];
+		for (const child of this.props.children || []) {
+			if (child && typeof child === 'object') {
+				if (typeof child.ctor !== 'string') {
+					throw new Error('TextChunk children must be text literals or intrinsic attributes.');
+				} else if (child.ctor === 'br') {
+					fullText += '\n';
+				} else {
+					intrinsics.push(child);
+				}
+			} else if (child != null) {
+				fullText += child;
+			}
+		}
+
+		const text = await getTextContentBelowBudget(sizing, breakOn, fullText, token);
+		return <>{intrinsics}{text}</>;
 	}
+
+	render(piece: PromptPiece) {
+		return piece;
+	}
+}
+
+async function getTextContentBelowBudget(sizing: PromptSizing, breakOn: string | RegExp, fullText: string, cancellation: CancellationToken | undefined) {
+	if (breakOn instanceof RegExp) {
+		if (!breakOn.global) {
+			throw new Error(`\`breakOn\` expression must have the global flag set (got ${breakOn})`);
+		}
+
+		breakOn.lastIndex = 0;
+	}
+
+	let outputText = '';
+	let lastIndex = -1;
+	while (lastIndex < fullText.length) {
+		let index: number;
+		if (typeof breakOn === 'string') {
+			index = fullText.indexOf(breakOn, lastIndex === -1 ? 0 : lastIndex + breakOn.length);
+		} else {
+			index = breakOn.exec(fullText)?.index ?? -1;
+		}
+
+		if (index === -1) {
+			index = fullText.length;
+		}
+
+		const next = outputText + fullText.slice(Math.max(0, lastIndex), index);
+		if (await sizing.countTokens(next, cancellation) > sizing.tokenBudget) {
+			return outputText;
+		}
+
+		outputText = next;
+		lastIndex = index;
+	}
+
+	return outputText;
 }
 
 export interface PrioritizedListProps extends BasePromptElementProps {
