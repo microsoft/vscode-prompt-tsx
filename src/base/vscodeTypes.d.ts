@@ -401,5 +401,5 @@ export class LanguageModelChatMessageFunctionResultPart {
 }
 
 export interface LanguageModelChatMessage {
-	content2: string | LanguageModelChatMessageFunctionResultPart;
+	content2?: string | LanguageModelChatMessageFunctionResultPart;
 }
