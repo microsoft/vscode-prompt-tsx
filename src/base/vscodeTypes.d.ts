@@ -387,7 +387,7 @@ export class LanguageModelChatResponseTextPart {
 
 export interface LanguageModelChatResponse {
 
-	stream: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseFunctionUsePart>;
+	stream?: AsyncIterable<LanguageModelChatResponseTextPart | LanguageModelChatResponseFunctionUsePart>;
 }
 
 
