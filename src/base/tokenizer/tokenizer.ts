@@ -11,8 +11,6 @@ import type { LanguageModelChatMessage } from '../vscodeTypes';
  */
 export interface ITokenizer {
 
-	readonly _serviceBrand: undefined;
-
 	/**
 	 * Return the length of `text` in number of tokens.
 	 *
