@@ -54,5 +54,5 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 * @param sizing - The sizing information for the prompt.
 	 * @returns The rendered prompt piece or undefined if the element does not want to render anything.
 	 */
-	abstract render(state: S, sizing: PromptSizing): PromptPiece | undefined;
+	abstract render(state: S, sizing: PromptSizing): Promise<PromptPiece | undefined> | PromptPiece | undefined;
 }

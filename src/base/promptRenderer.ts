@@ -165,10 +165,15 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				element.node.setState(state);
 			}));
 
+			const templates = await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
+				const elementSizing = elementSizings[i];
+				return await promptElementInstance.render(element.node.getState(), elementSizing)
+			}));
+
 			// Render
 			for (const [i, { element, promptElementInstance, order }] of promptElements.entries()) {
 				const elementSizing = elementSizings[i];
-				const template = promptElementInstance.render(element.node.getState(), elementSizing);
+				const template = templates[i];
 
 				if (!template) {
 					// it doesn't want to render anything
