@@ -23,7 +23,6 @@ export interface ITokenizer {
 }
 
 export class AnyTokenizer implements ITokenizer {
-	_serviceBrand: undefined;
 
 	constructor(private countTokens: (text: string | LanguageModelChatMessage, token?: CancellationToken) => Thenable<number>) { }
 

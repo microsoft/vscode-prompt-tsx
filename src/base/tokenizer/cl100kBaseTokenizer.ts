@@ -13,7 +13,6 @@ import { ITokenizer } from './tokenizer';
  * See https://github.com/microsoft/Tokenizer
  */
 export class Cl100KBaseTokenizer implements ITokenizer {
-	declare readonly _serviceBrand: undefined;
 	private _cl100kTokenizer: TikTokenizer | undefined;
 
 	public readonly models = ['gpt-4', 'gpt-3.5-turbo', 'text-embedding-ada-002'];

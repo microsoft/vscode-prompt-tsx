@@ -98,7 +98,7 @@ suite('PromptRenderer', () => {
 					"This late pivot means we don't have time to boil the ocean for the client deliverable.",
 			},
 		]);
-		assert.deepStrictEqual(res.tokenCount, 129  - BaseTokensPerCompletion);
+		assert.deepStrictEqual(res.tokenCount, 129 - BaseTokensPerCompletion);
 	});
 
 	test('runs async prepare in parallel', async () => {
@@ -910,7 +910,6 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 		const consumeRe = /consume=(\d+)/g;
 
 		class FakeTokenizer implements ITokenizer {
-			_serviceBrand: undefined;
 			baseTokensPerMessage = 0;
 			baseTokensPerName = 0;
 			baseTokensPerCompletion = 0;

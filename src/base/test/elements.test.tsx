@@ -15,7 +15,6 @@ import {
 suite('PromptElements', () => {
 	suite('TextChunk', () => {
 		const tokenizer = new class TokenPerWordTokenizer implements ITokenizer {
-			_serviceBrand: undefined;
 			baseTokensPerMessage = 0;
 			baseTokensPerName = 0;
 			baseTokensPerCompletion = 0;
