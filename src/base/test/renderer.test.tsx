@@ -169,6 +169,41 @@ suite('PromptRenderer', () => {
 		]);
 	});
 
+	test('maintains element order', async () => {
+		class Prompt2 extends PromptElement<{ content: string } & BasePromptElementProps> {
+			render() {
+				return (
+					<TextChunk>{this.props.content}</TextChunk>
+				);
+			}
+		}
+
+		class Prompt1 extends PromptElement {
+			render() {
+				return (
+					<>
+						<SystemMessage>
+							a
+							<Prompt2 content='b' />
+							c
+							<TextChunk>d</TextChunk>
+							e
+							<TextChunk flexGrow={2}>f</TextChunk>
+							g
+							<Prompt2 content='h' flexGrow={1} />
+							i
+						</SystemMessage>
+					</>
+				);
+			}
+		}
+
+		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
+		const res = await inst.render(undefined, undefined);
+		assert.deepStrictEqual(res.messages.length, 1);
+		assert.deepStrictEqual(res.messages[0].content.replace(/\n/g, ''), 'abcdefghi');
+	});
+
 	suite('truncates tokens exceeding token budget', async () => {
 		class Prompt1 extends PromptElement {
 			render(_: void, sizing: PromptSizing) {
