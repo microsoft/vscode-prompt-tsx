@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { Location, Uri } from "vscode";
+import type { Location, ThemeIcon, Uri } from "vscode";
 
 /**
  * Arbitrary metadata which can be retrieved after the prompt is rendered.
@@ -20,5 +20,6 @@ export abstract class PromptMetadata {
 export class PromptReference {
 	constructor(
 		readonly anchor: Uri | Location | { variableName: string; value?: Uri | Location },
+		readonly iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }
 	) { }
 }
