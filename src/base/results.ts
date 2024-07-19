@@ -14,12 +14,19 @@ export abstract class PromptMetadata {
 	}
 }
 
+export enum ChatResponseReferencePartStatusKind {
+	Complete = 1,
+	Partial = 2,
+	Omitted = 3
+}
+
 /**
  * A reference used for creating the prompt.
  */
 export class PromptReference {
 	constructor(
 		readonly anchor: Uri | Location | { variableName: string; value?: Uri | Location },
-		readonly iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri }
+		readonly iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri },
+		readonly options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } }
 	) { }
 }

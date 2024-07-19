@@ -893,7 +893,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			const res = await inst.render(undefined, undefined);
 			assert.equal(res.messages.length, 1);
 			assert.equal(res.references.length, 0);
-
+			assert.equal(res.omittedReferences.length, 1);
 		});
 
 		test('reports references under nested extrinsics', async () => {
