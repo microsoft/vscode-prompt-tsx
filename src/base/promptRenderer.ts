@@ -21,6 +21,11 @@ export interface RenderPromptResult {
 	 * The references that survived prioritization in the rendered {@link RenderPromptResult.messages messages}.
 	 */
 	readonly references: PromptReference[];
+
+	/**
+	 * The references attached to chat message chunks that did not survive prioritization.
+	 */
+	readonly omittedReferences: PromptReference[];
 }
 
 export type QueueItem<C, P> = {
@@ -212,6 +217,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		prioritizedChunks.sort((a, b) => cmp(things[a.index], things[b.index]));
 
 		let remainingBudget = this._endpoint.modelMaxPromptTokens;
+		const omittedChunks: T[] = [];
 		while (prioritizedChunks.length > 0) {
 			const prioritizedChunk = prioritizedChunks.shift()!;
 			const index = prioritizedChunk.index;
@@ -224,6 +230,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			}
 			if (tokenCount > remainingBudget) {
 				// Wouldn't fit anymore
+				omittedChunks.push(chunk);
 				break;
 			}
 			chunkResult[index] = chunk;
@@ -233,7 +240,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			remainingBudget -= tokenCount;
 		}
 
-		return { result: coalesce(chunkResult), tokenCount: this._endpoint.modelMaxPromptTokens - remainingBudget };
+		for (const omittedChunk of prioritizedChunks) {
+			const index = omittedChunk.index;
+			const chunk = things[index];
+			omittedChunks.push(chunk);
+		}
+
+		return { result: coalesce(chunkResult), tokenCount: this._endpoint.modelMaxPromptTokens - remainingBudget, omittedChunks };
 	}
 
 	/**
@@ -256,7 +269,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		// First pass: sort message chunks by priority. Note that this can yield an imprecise result due to token boundaries within a single chat message
 		// so we also need to do a second pass over the full chat messages later
 		const chunkMessages = new Set<MaterializedChatMessage>();
-		const { result: prioritizedChunks } = await this._prioritize(
+		const { result: prioritizedChunks, omittedChunks } = await this._prioritize(
 			resultChunks,
 			(a, b) => MaterializedChatMessageTextChunk.cmp(a, b),
 			async (chunk) => {
@@ -298,7 +311,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		const messageResult = prioritizedMaterializedChatMessages.map(message => message?.toChatMessage());
 
 		// Remove undefined and duplicate references
-		const { references } = prioritizedMaterializedChatMessages.reduce<{ references: PromptReference[], names: Set<string> }>((acc, message) => {
+		const { references, names } = prioritizedMaterializedChatMessages.reduce<{ references: PromptReference[], names: Set<string> }>((acc, message) => {
 			[...this._references, ...message.references].forEach((ref) => {
 				const isVariableName = 'variableName' in ref.anchor;
 				if (isVariableName && !acc.names.has(ref.anchor.variableName)) {
@@ -311,7 +324,21 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			return acc;
 		}, { references: [], names: new Set<string>() });
 
-		return { messages: messageResult, hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references) };
+		// Collect the references for chat message chunks that did not survive prioritization
+		const { references: omittedReferences } = omittedChunks.reduce<{ references: PromptReference[] }>((acc, message) => {
+			message.references.forEach((ref) => {
+				const isVariableName = 'variableName' in ref.anchor;
+				if (isVariableName && !names.has(ref.anchor.variableName)) {
+					acc.references.push(ref);
+					names.add(ref.anchor.variableName);
+				} else if (!isVariableName) {
+					acc.references.push(ref);
+				}
+			});
+			return acc;
+		}, { references: [] });
+
+		return { messages: messageResult, hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references), omittedReferences: coalesce(omittedReferences) };
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
