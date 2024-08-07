@@ -19,9 +19,9 @@ import { ITokenizer } from '../tokenizer/tokenizer';
 import {
 	BasePromptElementProps,
 	IChatEndpointInfo,
+	PromptContext,
 	PromptElementCtor,
-	PromptPiece,
-	PromptSizing
+	PromptPiece
 } from '../types';
 
 suite('PromptRenderer', () => {
@@ -206,7 +206,7 @@ suite('PromptRenderer', () => {
 
 	suite('truncates tokens exceeding token budget', async () => {
 		class Prompt1 extends PromptElement {
-			render(_: void, sizing: PromptSizing) {
+			render(_: void, sizing: PromptContext) {
 				return (
 					<>
 						<SystemMessage priority={1000}>
@@ -460,7 +460,7 @@ suite('PromptRenderer', () => {
 				super(props);
 			}
 
-			override async prepare(sizing: PromptSizing) {
+			override async prepare(sizing: PromptContext) {
 				// Look at the token budget we've been given
 				let consumedTokens = 0;
 				let allText = '';
@@ -967,7 +967,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			useBudget?: number;
 		}
 		class EchoBudget extends PromptElement<IProps, number> {
-			prepare(sizing: PromptSizing): Promise<number> {
+			prepare(sizing: PromptContext): Promise<number> {
 				return Promise.resolve(sizing.tokenBudget);
 			}
 

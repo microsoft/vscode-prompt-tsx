@@ -8,7 +8,7 @@ import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
-import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
+import { BasePromptElementProps, IChatEndpointInfo, PromptContext, PromptElementCtor, PromptPiece, PromptPieceChild } from "./types";
 import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
 import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
@@ -152,7 +152,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			}
 
 			// Finally calculate the final sizing for each element in this group.
-			const elementSizings: PromptSizing[] = promptElements.map(e => {
+			const elementSizings: PromptContext[] = promptElements.map(e => {
 				const proportion = (e.element.props.flexBasis ?? 1) / flexBasisSum;
 				return {
 					tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion),

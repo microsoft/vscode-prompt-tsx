@@ -18,7 +18,7 @@ export interface IChatEndpointInfo {
 /**
  * The sizing hint for the prompt element. Prompt elements should take this into account when rendering.
  */
-export interface PromptSizing {
+export interface PromptContext {
 	/**
 	 * The computed token allocation for this prompt element to adhere to when rendering,
 	 * if it specified {@link BasePromptElementProps.flexBasis}.
@@ -43,9 +43,9 @@ export interface BasePromptElementProps {
 	 */
 	priority?: number;
 	/**
-	 * The proportion of the container's {@link PromptSizing.tokenBudget token budget} that is assigned to this prompt element, based on the total weight requested by the prompt element and all its siblings.
+	 * The proportion of the container's {@link PromptContext.tokenBudget token budget} that is assigned to this prompt element, based on the total weight requested by the prompt element and all its siblings.
 	 *
-	 * This is used to compute the {@link PromptSizing.tokenBudget token budget} hint that the prompt element receives.
+	 * This is used to compute the {@link PromptContext.tokenBudget token budget} hint that the prompt element receives.
 	 *
 	 * If set on a child element, the token budget is calculated with respect to all children under the element's parent, such that a child can never consume more tokens than its parent was allocated.
 	 *
@@ -57,14 +57,14 @@ export interface BasePromptElementProps {
 	flex?: number;
 
 	/**
-	 * If set, sibling elements will be rendered first, followed by this element. The remaining {@link PromptSizing.tokenBudget token budget} from the container will be distributed among the elements with `flexGrow` set.
+	 * If set, sibling elements will be rendered first, followed by this element. The remaining {@link PromptContext.tokenBudget token budget} from the container will be distributed among the elements with `flexGrow` set.
 	 *
 	 * If multiple elements are present with different values of `flexGrow` set, this process is repeated for each value of `flexGrow` in descending order.
 	 */
 	flexGrow?: number;
 
 	/**
-	 * If set with {@link flexGrow}, this defines the number of tokens this element will reserve of the container {@link PromptSizing.tokenBudget token budget} for sizing purposes in elements rendered before it.
+	 * If set with {@link flexGrow}, this defines the number of tokens this element will reserve of the container {@link PromptContext.tokenBudget token budget} for sizing purposes in elements rendered before it.
 	 */
 	flexReserve?: number;
 }
@@ -87,3 +87,37 @@ export interface PromptPiece<P extends BasePromptElementProps = any, S = any> {
 }
 
 export type PromptPieceChild = number | string | PromptPiece<any> | undefined;
+
+/**
+ * A part of a prompt element returned from {@link LanguageModelPromptElement.render}.
+ * This is most easily formed by rendering a JSX element, see more documentation
+ * at <link>
+ */
+export interface LanguageModelPromptPiece {
+	ctor: string | { new(props: any, ...args: any[]): LanguageModelPromptElement };
+	props: any;
+	children: (number | string | LanguageModelPromptPiece | undefined)[];
+}
+
+/**
+ * A prompt element that can be rendered by an extension for a language model.
+ */
+export interface LanguageModelPromptElement {
+	/**
+	 * Identifies that the data is a prompt element for consumers.
+	 */
+	readonly isLanguageModelPromptElement: true;
+
+	/**
+	 * Renders the prompt element.
+	 *
+	* @param state - The state of the prompt element.
+	* @param sizing - The sizing information for the prompt.
+	* @returns The rendered prompt piece
+		*/
+	render(sizing: PromptContext, token: CancellationToken): Thenable<LanguageModelPromptPiece | undefined> | LanguageModelPromptPiece | undefined;
+}
+
+// check assignability:
+declare const myElement: PromptElement;
+const foo: LanguageModelPromptElement = myElement;

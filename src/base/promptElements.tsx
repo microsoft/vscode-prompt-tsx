@@ -5,7 +5,7 @@
 import type { CancellationToken } from 'vscode';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
+import { BasePromptElementProps, PromptContext, PromptPiece } from './types';
 
 export type ChatMessagePromptElement =
 	| SystemMessage
@@ -107,7 +107,7 @@ export interface TextChunkProps extends BasePromptElementProps {
  * Like other {@link PromptElement}s, it can specify `priority` to determine how it should be prioritized.
  */
 export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
-	async prepare(sizing: PromptSizing, _progress?: unknown, token?: CancellationToken): Promise<PromptPiece> {
+	async prepare(sizing: PromptContext, _progress?: unknown, token?: CancellationToken): Promise<PromptPiece> {
 		const breakOn = this.props.breakOnWhitespace ? WHITESPACE_RE : this.props.breakOn;
 		if (!breakOn) {
 			return <>{this.props.children}</>;
@@ -138,7 +138,7 @@ export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
 	}
 }
 
-async function getTextContentBelowBudget(sizing: PromptSizing, breakOn: string | RegExp, fullText: string, cancellation: CancellationToken | undefined) {
+async function getTextContentBelowBudget(sizing: PromptContext, breakOn: string | RegExp, fullText: string, cancellation: CancellationToken | undefined) {
 	if (breakOn instanceof RegExp) {
 		if (!breakOn.global) {
 			throw new Error(`\`breakOn\` expression must have the global flag set (got ${breakOn})`);

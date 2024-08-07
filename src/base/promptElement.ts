@@ -4,7 +4,7 @@
 
 import type { CancellationToken, Progress } from 'vscode';
 import './tsx';
-import { BasePromptElementProps, PromptElementProps, PromptPiece, PromptSizing } from "./types";
+import { BasePromptElementProps, PromptContext, PromptElementProps, PromptPiece } from "./types";
 import { ChatResponsePart } from './vscodeTypes';
 
 /**
@@ -23,6 +23,7 @@ import { ChatResponsePart } from './vscodeTypes';
  * @method render - Renders the prompt element. This method is abstract and must be implemented by subclasses.
  */
 export abstract class PromptElement<P extends BasePromptElementProps = BasePromptElementProps, S = void> {
+	public readonly isLanguageModelPromptElement = true;
 
 	public readonly props: PromptElementProps<P>;
 
@@ -45,7 +46,7 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 *
 	 * @returns A promise that resolves to the prompt element's state.
 	 */
-	prepare?(sizing: PromptSizing, progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<S>;
+	prepare?(sizing: PromptContext, progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<S>;
 
 	/**
 	 * Renders the prompt element.
@@ -54,5 +55,5 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 * @param sizing - The sizing information for the prompt.
 	 * @returns The rendered prompt piece or undefined if the element does not want to render anything.
 	 */
-	abstract render(state: S, sizing: PromptSizing): Promise<PromptPiece | undefined> | PromptPiece | undefined;
+	abstract render(sizing: PromptContext): Promise<PromptPiece | undefined> | PromptPiece | undefined;
 }
