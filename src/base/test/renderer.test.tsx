@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { renderElementJSON, renderPrompt } from '..';
 import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
@@ -1135,5 +1136,45 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 				]
 			);
 		});
-	})
+	});
+
+	suite('renaderElementJSON', () => {
+		suite('identity', () => {
+			const tt = [
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							Hello world!
+							<TextChunk priority={10}>
+								chunk1
+								<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
+							</TextChunk>
+							<TextChunk priority={20}>chunk2</TextChunk>
+						</UserMessage>;
+					}
+				}
+			];
+
+			for (const [i, element] of tt.entries()) {
+				test(`test #${i}`, async () => {
+					const r = await renderElementJSON(
+						element, {}, { tokenBudget: 100 }
+					);
+
+					const expected = await renderPrompt(element, {}, fakeEndpoint, tokenizer);
+					const actual = await renderPrompt(
+						class extends PromptElement {
+							render() {
+								return <elementJSON data={JSON.parse(JSON.stringify(r))} />;
+							}
+						},
+						{}, fakeEndpoint, tokenizer
+					);
+
+					assert.deepStrictEqual(actual.messages, expected.messages);
+					assert.deepStrictEqual(actual.references, expected.references);
+				});
+			}
+		});
+	});
 });

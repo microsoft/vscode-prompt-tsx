@@ -3,6 +3,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Progress } from "vscode";
+import * as JSONT from './jsonTypes';
+import { PromptNodeType } from './jsonTypes';
 import { ChatMessage, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
@@ -250,6 +252,25 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 
 	/**
+	 * Renders the prompt element and its children to a JSON-serializable state.
+	 * @returns A promise that resolves to an object containing the rendered chat messages and the total token count.
+	 * The total token count is guaranteed to be less than or equal to the token budget.
+	 */
+	public async renderElementJSON(token?: CancellationToken): Promise<JSONT.PromptElementJSON> {
+		await this._processPromptPieces(
+			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
+			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
+			undefined,
+			token,
+		);
+
+		// todo@connor4312: should ignored files, used context, etc. be passed here?
+		return {
+			node: this._root.toJSON()
+		};
+	}
+
+	/**
 	 * Renders the prompt element and its children.
 	 * @returns A promise that resolves to an object containing the rendered chat messages and the total token count.
 	 * The total token count is guaranteed to be less than or equal to the token budget.
@@ -378,6 +399,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return this._handleIntrinsicReferences(node, props, children);
 			case 'ignoredFiles':
 				return this._handleIntrinsicIgnoredFiles(node, props, children);
+			case 'elementJSON':
+				return this._handleIntrinsicElementJSON(node, props.data);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
 	}
@@ -398,6 +421,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			throw new Error(`<br /> must not have children!`);
 		}
 		node.appendLineBreak(true, inheritedPriority ?? Number.MAX_SAFE_INTEGER, sortIndex);
+	}
+
+	private _handleIntrinsicElementJSON(node: PromptTreeElement, data: JSONT.PromptElementJSON) {
+		node.appendPieceJSON(data.node);
 	}
 
 	private _handleIntrinsicUsedContext(node: PromptTreeElement, props: JSX.IntrinsicElements['usedContext'], children: ProcessedPromptPiece[]) {
@@ -534,12 +561,6 @@ class LiteralPromptPiece {
 
 type ProcessedPromptPiece = LiteralPromptPiece | IntrinsicPromptPiece<any> | ExtrinsicPromptPiece<any, any>;
 
-const enum PromptNodeType {
-	Piece,
-	Text,
-	LineBreak
-}
-
 type PromptNode = PromptTreeElement | PromptText | PromptLineBreak;
 type LeafPromptNode = PromptText | PromptLineBreak;
 
@@ -570,6 +591,34 @@ class PromptSizingContext {
 }
 
 class PromptTreeElement {
+	public static fromJSON(json: JSONT.PieceJSON): PromptTreeElement {
+		const element = new PromptTreeElement(null, 0);
+		element._references = json.references?.map(r => PromptReference.fromJSON(r)) ?? [];
+		element._children = json.children.map((childJson, i) => {
+			switch (childJson.type) {
+				case JSONT.PromptNodeType.Piece:
+					return PromptTreeElement.fromJSON(childJson);
+				case JSONT.PromptNodeType.Text:
+					return PromptText.fromJSON(element, i, childJson);
+				case JSONT.PromptNodeType.LineBreak:
+					return PromptLineBreak.fromJSON(element, i, childJson);
+				default:
+					assertNever(childJson);
+			}
+		});
+
+		switch (json.ctor) {
+			case JSONT.PieceCtorKind.BaseChatMessage:
+				element._obj = new BaseChatMessage(json.props!);
+				break;
+			case JSONT.PieceCtorKind.Other:
+				break; // no-op
+			default:
+				assertNever(json.ctor);
+		}
+
+		return element;
+	}
 
 	public readonly kind = PromptNodeType.Piece;
 
@@ -601,6 +650,12 @@ class PromptTreeElement {
 		return child;
 	}
 
+	public appendPieceJSON(data: JSONT.PieceJSON): PromptTreeElement {
+		const child = PromptTreeElement.fromJSON(data);
+		this._children.push(child);
+		return child;
+	}
+
 	public appendStringChild(text: string, priority?: number, references?: PromptReference[], sortIndex = this._children.length) {
 		this._children.push(new PromptText(this, sortIndex, text, priority, references));
 	}
@@ -614,6 +669,27 @@ class PromptTreeElement {
 		const resultChunks: MaterializedChatMessageTextChunk[] = [];
 		this._materialize(result, resultChunks);
 		return { result, resultChunks };
+	}
+
+	public toJSON(): JSONT.PieceJSON {
+		const json: JSONT.PieceJSON = {
+			type: JSONT.PromptNodeType.Piece,
+			ctor: JSONT.PieceCtorKind.Other,
+			children: this._children.slice().sort((a, b) => a.childIndex - b.childIndex).map(c => c.toJSON()),
+			priority: this._obj?.props.priority,
+			references: this._references?.map(r => r.toJSON()),
+		};
+
+		if (this._obj instanceof BaseChatMessage) {
+			json.ctor = JSONT.PieceCtorKind.BaseChatMessage;
+			json.props = {
+				role: this._obj.props.role,
+				name: this._obj.props.name,
+				priority: this._obj.props.priority,
+			};
+		}
+
+		return json;
 	}
 
 	private _materialize(result: MaterializedChatMessage[], resultChunks: MaterializedChatMessageTextChunk[]): void {
@@ -761,6 +837,9 @@ class MaterializedChatMessage implements Countable {
 }
 
 class PromptText {
+	public static fromJSON(parent: PromptTreeElement, index: number, json: JSONT.TextJSON): PromptText {
+		return new PromptText(parent, index, json.text, json.priority, json.references?.map(r => PromptReference.fromJSON(r)));
+	}
 
 	public readonly kind = PromptNodeType.Text;
 
@@ -776,9 +855,20 @@ class PromptText {
 		result.push(this);
 	}
 
+	public toJSON(): JSONT.TextJSON {
+		return {
+			type: JSONT.PromptNodeType.Text,
+			priority: this.priority,
+			text: this.text,
+			references: this.references?.map(r => r.toJSON()),
+		};
+	}
 }
 
 class PromptLineBreak {
+	public static fromJSON(parent: PromptTreeElement, index: number, json: JSONT.LineBreakJSON): PromptLineBreak {
+		return new PromptLineBreak(parent, index, json.isExplicit, json.priority);
+	}
 
 	public readonly kind = PromptNodeType.LineBreak;
 
@@ -792,8 +882,20 @@ class PromptLineBreak {
 	public collectLeafs(result: LeafPromptNode[]) {
 		result.push(this);
 	}
+
+	public toJSON(): JSONT.LineBreakJSON {
+		return {
+			type: JSONT.PromptNodeType.LineBreak,
+			isExplicit: this.isExplicit,
+			priority: this.priority,
+		};
+	}
 }
 
 function isFragmentCtor(template: PromptPiece): boolean {
 	return (typeof template.ctor === 'function' && template.ctor.isFragment) ?? false;
+}
+
+function assertNever(x: never): never {
+	throw new Error(`Unexpected object: ${JSON.stringify(x)}`);
 }

@@ -2,6 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
+import { PieceJSON, PromptElementJSON } from './jsonTypes';
 import { PromptMetadata, PromptReference } from './results';
 import { URI } from './util/vs/common/uri';
 import { ChatDocumentContext } from './vscodeTypes';
@@ -38,6 +39,12 @@ declare global {
 			"ignoredFiles": {
 				value: URI[];
 			};
+			/**
+			 * A JSON element previously rendered in {@link renderElementJSON}.
+			 */
+			"elementJSON": {
+				data: PromptElementJSON;
+			}
 		}
 	}
 }
