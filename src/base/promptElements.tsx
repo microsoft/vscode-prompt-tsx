@@ -3,9 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken } from 'vscode';
+import { contentType } from '.';
+import * as JSONT from './jsonTypes';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
+import { LanguageModelToolResult } from './vscodeTypes';
 
 export type ChatMessagePromptElement =
 	| SystemMessage
@@ -208,5 +211,61 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 				})}
 			</>
 		);
+	}
+}
+
+export interface IToolResultProps extends BasePromptElementProps {
+	/**
+	 * Base priority of the tool data. All tool data will be scoped to this priority.
+	 */
+	priority?: number;
+
+	/**
+	 * Tool result from VS Code.
+	 */
+	data: LanguageModelToolResult;
+}
+
+/**
+ * A utility to include the result of a tool called using the `vscode.lm.invokeTool` API.
+ */
+export class ToolResult extends PromptElement<IToolResultProps> {
+	render(): Promise<PromptPiece | undefined> | PromptPiece | undefined {
+		// note: future updates to content types should be handled here for backwards compatibility
+		if (this.props.data.hasOwnProperty(contentType)) {
+			return <elementJSON data={this.rebasePriority(this.props.data[contentType])} />;
+		} else {
+			return <UserMessage priority={this.priority}>{this.props.data.toString()}</UserMessage>;
+		}
+	}
+
+	/**
+	 * Modifies priorities of all elements in the tree to fractional increments
+	 * past `this.priorty`.
+	 */
+	private rebasePriority(data: JSONT.PromptElementJSON) {
+		if (this.priority === undefined) {
+			return data;
+		}
+
+		const cloned = structuredClone(data);
+
+		let maxPriorityInChildren = 1;
+		JSONT.forEachNode(cloned.node, node => {
+			if (node.priority !== undefined) {
+				maxPriorityInChildren = Math.max(maxPriorityInChildren, node.priority);
+			}
+		});
+
+		// Elements without priority default to MAX_SAFE_INTEGER in the renderer,
+		// so follow similar behavior here. The denominator of the fractional part
+		// is set so that we maximal elements are `this.priority + (max + 1) / (max + 2)`,
+		// keeping `this.priority <= node.priority < this.priority + 1`
+		JSONT.forEachNode(cloned.node, node => {
+			const frac = (node.priority ?? (maxPriorityInChildren + 1)) / (maxPriorityInChildren + 2);
+			node.priority = this.priority + frac;
+		});
+
+		return cloned;
 	}
 }

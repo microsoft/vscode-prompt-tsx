@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { renderElementJSON, renderPrompt } from '..';
+import { contentType, renderElementJSON, renderPrompt } from '..';
 import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
@@ -11,6 +11,7 @@ import {
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
+	ToolResult,
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
@@ -1139,6 +1140,50 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 	});
 
 	suite('renaderElementJSON', () => {
+		test('scopes priorities', async () => {
+			const json = await renderElementJSON(
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage priority={50}>hello50</UserMessage>
+							<UserMessage priority={60}>hello60</UserMessage>
+							<UserMessage priority={70}>hello70</UserMessage>
+							<UserMessage priority={80}>hello80</UserMessage>
+							<UserMessage priority={90}>hello90</UserMessage>
+
+						</>;
+					}
+				},
+				{},
+				{ tokenBudget: 100 }
+			);
+
+			const actual = await renderPrompt(
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage priority={40}>outer40</UserMessage>
+							<ToolResult priority={50} data={{ [contentType]: json }} />
+							<UserMessage priority={60}>outer60</UserMessage>
+							<UserMessage priority={70}>outer70</UserMessage>
+							<UserMessage priority={80}>outer80</UserMessage>
+							<UserMessage priority={90}>outer90</UserMessage>
+						</>
+					}
+				},
+				{}, { modelMaxPromptTokens: 30 }, tokenizer
+			);
+
+			// if priorities were not scoped, we'd see hello80 here instead of outer70
+			assert.deepStrictEqual(actual.messages.map(m => m.content), [
+				'hello90',
+				'outer60',
+				'outer70',
+				'outer80',
+				'outer90',
+			]);
+		});
+
 		suite('identity', () => {
 			const tt = [
 				class extends PromptElement {
@@ -1151,6 +1196,24 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 							</TextChunk>
 							<TextChunk priority={20}>chunk2</TextChunk>
 						</UserMessage>;
+					}
+				},
+
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage>
+								Hello world!
+								<TextChunk priority={10}>
+									chunk1
+									<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
+								</TextChunk>
+								<TextChunk priority={20}>chunk2</TextChunk>
+							</UserMessage>
+							<AssistantMessage priority={30}>
+								System message here.
+							</AssistantMessage>
+						</>;
 					}
 				}
 			];

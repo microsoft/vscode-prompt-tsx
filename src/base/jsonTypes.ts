@@ -68,3 +68,14 @@ export interface PromptReferenceJSON {
 export interface PromptElementJSON {
 	node: PieceJSON;
 }
+
+/** Iterates over each {@link PromptNodeJSON} in the tree. */
+export function forEachNode(node: PromptNodeJSON, fn: (node: PromptNodeJSON) => void) {
+	fn(node);
+
+	if (node.type === PromptNodeType.Piece) {
+		for (const child of node.children) {
+			forEachNode(child, fn);
+		}
+	}
+}

@@ -40,6 +40,8 @@ export interface BasePromptElementProps {
 	 * The absolute priority of the prompt element.
 	 *
 	 * If the messages to be sent exceed the available token budget, prompt elements will be removed from the rendered result, starting with the element with the lowest priority.
+	 *
+	 * If unset, defaults to `Number.MAX_SAFE_INTEGER`, such that elements with no explicit priority take the highest-priority position.
 	 */
 	priority?: number;
 	/**

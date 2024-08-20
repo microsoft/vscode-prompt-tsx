@@ -603,9 +603,9 @@ class PromptTreeElement {
 				case JSONT.PromptNodeType.LineBreak:
 					return PromptLineBreak.fromJSON(element, i, childJson);
 				default:
-					assertNever(childJson);
+					softAssertNever(childJson);
 			}
-		});
+		}).filter(isDefined);
 
 		switch (json.ctor) {
 			case JSONT.PieceCtorKind.BaseChatMessage:
@@ -614,7 +614,7 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
 			default:
-				assertNever(json.ctor);
+				softAssertNever(json.ctor);
 		}
 
 		return element;
@@ -896,6 +896,11 @@ function isFragmentCtor(template: PromptPiece): boolean {
 	return (typeof template.ctor === 'function' && template.ctor.isFragment) ?? false;
 }
 
-function assertNever(x: never): never {
-	throw new Error(`Unexpected object: ${JSON.stringify(x)}`);
+function softAssertNever(x: never): void {
+	// note: does not actually throw, because we want to handle any unknown cases
+	// gracefully for forwards-compatibility
+}
+
+function isDefined<T>(x: T | undefined): x is T {
+	return x !== undefined;
 }

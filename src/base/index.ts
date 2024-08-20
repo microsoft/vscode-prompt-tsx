@@ -11,7 +11,7 @@ import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
 import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModelChatMessage } from './vscodeTypes.d';
 
-export * as JSONT from './jsonTypes';
+export * as JSONTree from './jsonTypes';
 export { ChatMessage, ChatRole } from './openai';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
@@ -90,6 +90,24 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 
 	return { messages, tokenCount, metadatas, usedContext, references };
 }
+
+/**
+ * Content type of the return value from {@link renderElementJSON}.
+ * When responding to a tool invokation, the tool should set this as the
+ * content type in the returned data:
+ *
+ * ```ts
+ * import { contentType } from '@vscode/prompt-tsx';
+ *
+ * async function doToolInvokation(): vscode.LanguageModelToolResult {
+ *   return {
+ *     [contentType]: await renderElementJSON(...),
+ *     toString: () => '...',
+ *   };
+ * }
+ * ```
+ */
+export const contentType = 'application/vnd.codechat.prompt+json.1';
 
 /**
  * Renders a prompt element to a serializable state. This type be returned in
