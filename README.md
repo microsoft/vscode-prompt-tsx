@@ -45,6 +45,15 @@ To enable TSX use in your extension, add the following configuration options to 
 }
 ```
 
+Note: if your codebase depends on both `@vscode/prompt-tsx` and another library that uses JSX, for example in a monorepo where a parent folder has dependencies on React, you may encounter compilation errors when trying to add this library to your project. This is because [by default](https://www.typescriptlang.org/tsconfig/#types%5D), TypeScript includes all `@types` packages during compilation. You can address this by explicitly listing the types that you want considered during compilation, e.g.:
+```json
+{
+  "compilerOptions": {
+    "types": ["node", "jest", "express"]
+  }
+}
+```
+
 ### Rendering a Prompt
 
 Next, your extension can use `renderPrompt` to render a TSX prompt. Here is an example of using TSX prompts in a Copilot chat participant that suggests SQL queries based on database context:
@@ -192,21 +201,6 @@ There are a few similar properties which control budget allocation you mind find
 - `flexBasis`: controls the proportion of tokens allocated from the container's budget to this element. It defaults to `1` on all elements. For example, if you have the elements `<><Foo /><Bar /></>` and a 100 token budget, each element would be allocated 50 tokens in its `PromptSizing.tokenBudget`. If you instead render `<><Foo /><Bar flexBasis={2} /></>`, `Bar` would receive 66 tokens and `Foo` would receive 33.
 
 It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
-
-### Building your extension with `@vscode/prompt-tsx`
-
-You'll also want to vendor the `cl100k_base.tiktoken` file that ships with this library when you build and publish your VS Code extension. You can either do this with a `postinstall` script or, if you use `webpack`, a plugin like `CopyWebpackPlugin`:
-
-```js
-// in webpack.config.js
-  plugins: [
-    new CopyWebpackPlugin({
-      patterns: [
-        { from: 'node_modules/@vscode/prompt-tsx/dist/base/tokenizer/cl100k_base.tiktoken' }
-      ]
-    })
-  ],
-```
 
 ### Usage in Tools
 
