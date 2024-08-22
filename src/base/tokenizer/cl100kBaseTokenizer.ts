@@ -59,6 +59,7 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 			if (!value) {
 				continue;
 			}
+			// TODO I don't know how to tokenize the tool_calls array, just tokenize all the props?
 			numTokens += this.tokenLength(value);
 			if (key === 'name') {
 				numTokens += this.baseTokensPerName;

@@ -27,7 +27,7 @@ export interface ChatMessageProps extends BasePromptElementProps {
 	name?: string;
 }
 
-export class BaseChatMessage extends PromptElement<ChatMessageProps> {
+export class BaseChatMessage<T extends ChatMessageProps = ChatMessageProps> extends PromptElement<T> {
 	render() {
 		return <>{this.props.children}</>;
 	}
@@ -57,13 +57,28 @@ export class UserMessage extends BaseChatMessage {
 	}
 }
 
+export interface ToolCall {
+	id: string;
+	function: Function;
+	type: 'function';
+}
+
+export interface Function {
+	arguments: string;
+	name: string;
+}
+
+export interface AssistantMessageProps extends ChatMessageProps {
+	tool_calls?: ToolCall[];
+}
+
 /**
  * A {@link PromptElement} which can be rendered to an OpenAI assistant chat message.
  *
  * See {@link https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages}
  */
-export class AssistantMessage extends BaseChatMessage {
-	constructor(props: ChatMessageProps) {
+export class AssistantMessage extends BaseChatMessage<AssistantMessageProps> {
+	constructor(props: AssistantMessageProps) {
 		props.role = ChatRole.Assistant;
 		super(props);
 	}
@@ -79,6 +94,22 @@ const WHITESPACE_RE = /\s+/g;
 export class FunctionMessage extends BaseChatMessage {
 	constructor(props: ChatMessageProps & { name: string }) {
 		props.role = ChatRole.Function;
+		super(props);
+	}
+}
+
+export interface ToolMessageProps extends ChatMessageProps {
+	tool_call_id: string;
+}
+
+/**
+ * A {@link PromptElement} which can be rendered to an OpenAI tool chat message.
+ *
+ * See {@link https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages}
+ */
+export class ToolMessage extends BaseChatMessage<ToolMessageProps> {
+	constructor(props: ToolMessageProps) {
+		props.role = ChatRole.Tool;
 		super(props);
 	}
 }

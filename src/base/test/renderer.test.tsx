@@ -204,6 +204,24 @@ suite('PromptRenderer', () => {
 		assert.deepStrictEqual(res.messages[0].content.replace(/\n/g, ''), 'abcdefghi');
 	});
 
+	test('renders tool calls', async () => {
+		class Prompt1 extends PromptElement {
+			render() {
+				return (
+					<>
+						<AssistantMessage tool_calls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '' } }]}>assistant</AssistantMessage>
+						<UserMessage>hello</UserMessage>
+					</>
+				);
+			}
+		}
+
+		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
+		const res = await inst.render(undefined, undefined);
+		assert.deepStrictEqual(res.messages.length, 2);
+		assert.deepStrictEqual(res.messages[0].content.replace(/\n/g, ''), 'abcdefghi');
+	});
+
 	suite('truncates tokens exceeding token budget', async () => {
 		class Prompt1 extends PromptElement {
 			render(_: void, sizing: PromptSizing) {

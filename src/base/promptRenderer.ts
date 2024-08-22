@@ -3,9 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Progress } from "vscode";
-import { ChatMessage, ChatRole } from "./openai";
+import { ChatMessage, ChatMessageToolCall, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
-import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
@@ -630,6 +630,8 @@ class PromptTreeElement {
 			const parent = new MaterializedChatMessage(
 				this._obj.props.role,
 				this._obj.props.name,
+				this._obj instanceof AssistantMessage ? this._obj.props.tool_calls : undefined,
+				this._obj instanceof ToolMessage ? this._obj.props.tool_call_id : undefined,
 				this._obj.props.priority,
 				this.childIndex,
 				chunks
@@ -725,6 +727,8 @@ class MaterializedChatMessage implements Countable {
 	constructor(
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
+		public readonly tool_calls: ChatMessageToolCall[] | undefined,
+		public readonly tool_call_id: string | undefined,
 		private readonly priority: number | undefined,
 		private readonly childIndex: number,
 		private _chunks: MaterializedChatMessageTextChunk[],
@@ -745,11 +749,18 @@ class MaterializedChatMessage implements Countable {
 	}
 
 	public toChatMessage(): ChatMessage {
-		return {
+		const message: ChatMessage = {
 			role: this.role,
 			content: this.text,
 			...(this.name ? { name: this.name } : {})
 		};
+		if (this.tool_calls) {
+			message.tool_calls = this.tool_calls;
+		} else if (this.tool_call_id) {
+			message.tool_call_id = this.tool_call_id;
+		}
+
+		return message;
 	}
 
 	public static cmp(a: MaterializedChatMessage, b: MaterializedChatMessage): number {
