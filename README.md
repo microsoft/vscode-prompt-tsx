@@ -201,3 +201,47 @@ There are a few similar properties which control budget allocation you mind find
 - `flexBasis`: controls the proportion of tokens allocated from the container's budget to this element. It defaults to `1` on all elements. For example, if you have the elements `<><Foo /><Bar /></>` and a 100 token budget, each element would be allocated 50 tokens in its `PromptSizing.tokenBudget`. If you instead render `<><Foo /><Bar flexBasis={2} /></>`, `Bar` would receive 66 tokens and `Foo` would receive 33.
 
 It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
+
+### Usage in Tools
+
+Visual Studio Code's API supports language models tools, sometimes called 'functions'. The tools API allows tools to return multiple content types of data to its consumers, and this library supports both returning rich prompt elements to tool callers, as well as using rich content returned from tools.
+
+#### As a Tool
+
+As a tool, you can use this library normally. However, to return data to the tool caller, you will want to use a special function `renderElementJSON` to serialize your elements to a plain, transferrable JSON object that can be used by a consumer if they also leverage prompt-tsx:
+
+Note that when VS Code invokes your language model tool, the `options` may contain `tokenOptions` which you should pass through as the third argument to `renderElementJSON`:
+
+```ts
+// 1. Import prompt-tsx's well-known content type:
+import { contentType } from '@vscode/prompt-tsx';
+
+async function doToolInvocation(options: LanguageModelToolInvocationOptions): vscode.LanguageModelToolResult {
+  return {
+    // In constructing your response, render the tree as JSON.
+    [contentType]: await renderElementJSON(MyElement, options.parameters, options.tokenOptions),
+    toString: () => '...',
+  };
+}
+```
+
+### As a Consumer
+
+You may invoke the `vscode.lm.invokeTool` API however you see fit. If you know your token budget in advance, you should pass it to the tool when you call `invokeTool` via the `tokenOptions` option. You can then render the result using the `<ToolResult />` helper element, for example:
+
+```tsx
+class MyElement extends PromptElement {
+	async render(_state: void, sizing: PromptSizing) {
+		const result = await vscode.lm.invokeTool(toolId, {
+			parameters: getToolParameters(),
+			tokenOptions: {
+				tokenBudget: sizing.tokenBudget,
+				countTokens: (text, token) => sizing.countTokens(text, token),
+			}
+		});
+
+		return <ToolResult data={result} priority={20} />;
+	}
+}
+```
+

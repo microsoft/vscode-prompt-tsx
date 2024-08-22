@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { contentType, renderElementJSON, renderPrompt } from '..';
 import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
@@ -10,6 +11,7 @@ import {
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
+	ToolResult,
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
@@ -1135,5 +1137,85 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 				]
 			);
 		});
-	})
+	});
+
+	suite('renderElementJSON', () => {
+		test('scopes priorities', async () => {
+			const json = await renderElementJSON(
+				class extends PromptElement {
+					render() {
+						return <>
+							<TextChunk priority={50}>hello50</TextChunk>
+							<TextChunk priority={60}>hello60</TextChunk>
+							<TextChunk priority={70}>hello70</TextChunk>
+							<TextChunk priority={80}>hello80</TextChunk>
+							<TextChunk priority={90}>hello90</TextChunk>
+
+						</>;
+					}
+				},
+				{},
+				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
+
+			const actual = await renderPrompt(
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<TextChunk priority={40}>outer40</TextChunk>
+							<ToolResult priority={50} data={{ [contentType]: json }} />
+							<TextChunk priority={60}>outer60</TextChunk>
+							<TextChunk priority={70}>outer70</TextChunk>
+							<TextChunk priority={80}>outer80</TextChunk>
+							<TextChunk priority={90}>outer90</TextChunk>
+						</UserMessage>
+					}
+				},
+				{}, { modelMaxPromptTokens: 20 }, tokenizer
+			);
+
+			// if priorities were not scoped, we'd see hello80 here instead of outer70
+			assert.strictEqual(actual.messages[0].content, '\nhello90\nouter60\nouter70\nouter80\nouter90');
+		});
+
+		test('round trips messages', async () => {
+			class MyElement extends PromptElement {
+				render() {
+					return <>
+						Hello world!
+						<TextChunk priority={10}>
+							chunk1
+							<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
+						</TextChunk>
+						<TextChunk priority={20}>chunk2</TextChunk>
+					</>;
+				}
+			}
+			const r = await renderElementJSON(
+				MyElement, {}, { tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
+
+			const expected = await renderPrompt(class extends PromptElement {
+				render() {
+					return <UserMessage>
+						<MyElement />
+					</UserMessage>;
+				}
+			}, {}, fakeEndpoint, tokenizer);
+
+			const actual = await renderPrompt(
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<ToolResult data={{ [contentType]: r }} />
+						</UserMessage>;
+					}
+				},
+				{}, fakeEndpoint, tokenizer
+			);
+
+			assert.deepStrictEqual(actual.messages, expected.messages);
+			assert.deepStrictEqual(actual.references, expected.references);
+		});
+	});
 });

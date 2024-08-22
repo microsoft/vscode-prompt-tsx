@@ -22,7 +22,7 @@
 		"@microsoft/tiktokenizer": "^1.0.6",
 		"@types/node": "^20.11.30",
 		"@vscode/test-cli": "^0.0.9",
-		"@vscode/test-electron": "^2.3.10",
+		"@vscode/test-electron": "^2.4.1",
 		"@types/vscode": "^1.89.0",
 		"esbuild": "0.20.2",
 		"mocha": "^10.2.0",
