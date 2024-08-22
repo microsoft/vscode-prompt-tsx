@@ -93,13 +93,13 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 
 /**
  * Content type of the return value from {@link renderElementJSON}.
- * When responding to a tool invokation, the tool should set this as the
+ * When responding to a tool invocation, the tool should set this as the
  * content type in the returned data:
  *
  * ```ts
  * import { contentType } from '@vscode/prompt-tsx';
  *
- * async function doToolInvokation(): vscode.LanguageModelToolResult {
+ * async function doToolInvocation(): vscode.LanguageModelToolResult {
  *   return {
  *     [contentType]: await renderElementJSON(...),
  *     toString: () => '...',
@@ -122,7 +122,7 @@ export const contentType = 'application/vnd.codechat.prompt+json.1';
  * @param ctor - The constructor of the prompt element.
  * @param props - The props for the prompt element.
  * @param budgetInformation - Information about the token budget.
- * `vscode.LanguageModelToolInvokationOptions` is assignable to this object.
+ * `vscode.LanguageModelToolInvocationOptions` is assignable to this object.
  * @param token - The cancellation token for cancelling the operation.
  * @returns A promise that resolves to an object containing the serialized data.
  */

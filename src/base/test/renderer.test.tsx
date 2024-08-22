@@ -1175,7 +1175,6 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 
 			// if priorities were not scoped, we'd see hello80 here instead of outer70
-			console.log(JSON.stringify(actual.messages[0].content));
 			assert.strictEqual(actual.messages[0].content, '\nhello90\nouter60\nouter70\nouter80\nouter90');
 		});
 

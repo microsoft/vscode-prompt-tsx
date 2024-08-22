@@ -210,13 +210,13 @@ Visual Studio Code's API supports language models tools, sometimes called 'funct
 
 As a tool, you can use this library normally. However, to return data to the tool caller, you will want to use a special function `renderElementJSON` to serialize your elements to a plain, transferrable JSON object that can be used by a consumer if they also leverage prompt-tsx:
 
-Note that when VS Code invokes your language model tool, the `options` make contain `tokenOptions` which you should pass through as the third argument to `renderElementJSON`:
+Note that when VS Code invokes your language model tool, the `options` may contain `tokenOptions` which you should pass through as the third argument to `renderElementJSON`:
 
 ```ts
 // 1. Import prompt-tsx's well-known content type:
 import { contentType } from '@vscode/prompt-tsx';
 
-async function doToolInvokation(options: LanguageModelToolInvokationOptions): vscode.LanguageModelToolResult {
+async function doToolInvocation(options: LanguageModelToolInvocationOptions): vscode.LanguageModelToolResult {
   return {
     // In constructing your response, render the tree as JSON.
     [contentType]: await renderElementJSON(MyElement, options.parameters, options.tokenOptions),
@@ -236,7 +236,7 @@ class MyElement extends PromptElement {
 			parameters: getToolParameters(),
 			tokenOptions: {
 				tokenBudget: sizing.tokenBudget,
-				countTokens: data => tokenizer.countTokens(data),
+				countTokens: (text, token) => sizing.countTokens(text, token),
 			}
 		});
 
