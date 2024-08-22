@@ -252,6 +252,10 @@ export class ToolResult extends PromptElement<IToolResultProps> {
 
 		let maxPriorityInChildren = 1;
 		JSONT.forEachNode(cloned.node, node => {
+			// was initially undefined in the tree and was set to this implicitly:
+			if (node.priority === Number.MAX_SAFE_INTEGER) {
+				node.priority = undefined;
+			}
 			if (node.priority !== undefined) {
 				maxPriorityInChildren = Math.max(maxPriorityInChildren, node.priority);
 			}
