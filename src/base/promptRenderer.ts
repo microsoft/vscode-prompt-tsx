@@ -591,13 +591,13 @@ class PromptSizingContext {
 }
 
 class PromptTreeElement {
-	public static fromJSON(json: JSONT.PieceJSON): PromptTreeElement {
-		const element = new PromptTreeElement(null, 0);
+	public static fromJSON(index: number, json: JSONT.PieceJSON): PromptTreeElement {
+		const element = new PromptTreeElement(null, index);
 		element._references = json.references?.map(r => PromptReference.fromJSON(r)) ?? [];
 		element._children = json.children.map((childJson, i) => {
 			switch (childJson.type) {
 				case JSONT.PromptNodeType.Piece:
-					return PromptTreeElement.fromJSON(childJson);
+					return PromptTreeElement.fromJSON(i, childJson);
 				case JSONT.PromptNodeType.Text:
 					return PromptText.fromJSON(element, i, childJson);
 				case JSONT.PromptNodeType.LineBreak:
@@ -651,7 +651,7 @@ class PromptTreeElement {
 	}
 
 	public appendPieceJSON(data: JSONT.PieceJSON): PromptTreeElement {
-		const child = PromptTreeElement.fromJSON(data);
+		const child = PromptTreeElement.fromJSON(this._children.length, data);
 		this._children.push(child);
 		return child;
 	}
@@ -808,7 +808,7 @@ class MaterializedChatMessage implements Countable {
 	) { }
 
 	public set chunks(chunks: MaterializedChatMessageTextChunk[]) {
-		this._chunks = chunks.sort(MaterializedChatMessageTextChunk.cmp);
+		this._chunks = chunks;
 	}
 
 	public get text(): string {

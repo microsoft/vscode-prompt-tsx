@@ -130,18 +130,25 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	budgetInformation: {
-		tokenBudget?: number;
-		countTokens?(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
-	},
+		tokenBudget: number;
+		countTokens(text: string, token?: CancellationToken): Thenable<number>;
+	} | undefined,
 	token?: CancellationToken,
 ): Promise<PromptElementJSON> {
 	const renderer = new PromptRenderer(
-		{ modelMaxPromptTokens: budgetInformation.tokenBudget ?? Number.MAX_SAFE_INTEGER },
+		{ modelMaxPromptTokens: budgetInformation?.tokenBudget ?? Number.MAX_SAFE_INTEGER },
 		ctor,
 		props,
 		// note: if tokenBudget is given, countTokens is also give and vise-versa.
 		// `1` is used only as a dummy fallback to avoid errors if no/unlimited budget is provided.
-		new AnyTokenizer(budgetInformation.countTokens ?? (() => Promise.resolve(1))),
+		{
+			countMessageTokens(message) {
+				throw new Error('Tools may only return text, not messages.'); // for now...
+			},
+			tokenLength(text, token) {
+				return Promise.resolve(budgetInformation?.countTokens(text, token) ?? Promise.resolve(1));
+			},
+		},
 	);
 
 	return renderer.renderElementJSON(token);
