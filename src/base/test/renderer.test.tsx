@@ -212,7 +212,7 @@ suite('PromptRenderer', () => {
 			render() {
 				return (
 					<>
-						<AssistantMessage toolCalls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '' } }]}>assistant</AssistantMessage>
+						<AssistantMessage toolCalls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '"{a: 1, b: [2]}"' } }]}>assistant</AssistantMessage>
 						<ToolMessage toolCallId='call_123'>tool result</ToolMessage>
 					</>
 				);
@@ -221,7 +221,27 @@ suite('PromptRenderer', () => {
 
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
-		assert.deepStrictEqual(res.messages.length, 2);
+		assert.deepStrictEqual(res.messages, [
+			{
+				role: 'assistant',
+				tool_calls: [
+					{
+						id: 'call_123',
+						type: 'function',
+						function: {
+							name: 'tool1',
+							arguments: '"{a: 1, b: [2]}"'
+						}
+					}
+				],
+				content: 'assistant',
+			},
+			{
+				role: 'tool',
+				tool_call_id: 'call_123',
+				content: 'tool result',
+			}
+		]);
 	});
 
 	suite('truncates tokens exceeding token budget', async () => {

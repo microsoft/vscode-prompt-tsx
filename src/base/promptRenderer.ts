@@ -826,13 +826,15 @@ class MaterializedChatMessage implements Countable {
 		if (this.role === ChatRole.System) {
 			return {
 				role: this.role,
-				content: this.text
+				content: this.text,
+				...(this.name ? { name: this.name } : {})
 			};
 		} else if (this.role === ChatRole.Assistant) {
 			return {
 				role: this.role,
 				content: this.text,
-				tool_calls: this.toolCalls
+				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
+				...(this.name ? { name: this.name } : {})
 			};
 		} else if (this.role === ChatRole.User) {
 			return {
