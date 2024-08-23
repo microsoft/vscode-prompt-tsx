@@ -5,9 +5,9 @@
 import type { CancellationToken, Progress } from "vscode";
 import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
-import { ChatMessage, ChatRole } from "./openai";
+import { ChatMessage, ChatMessageToolCall, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
-import { BaseChatMessage, ChatMessagePromptElement, TextChunk, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
@@ -686,6 +686,8 @@ class PromptTreeElement {
 				role: this._obj.props.role,
 				name: this._obj.props.name,
 				priority: this._obj.props.priority,
+				toolCalls: this._obj.props.toolCalls,
+				toolCallId: this._obj.props.toolCallId,
 			};
 		}
 
@@ -706,6 +708,8 @@ class PromptTreeElement {
 			const parent = new MaterializedChatMessage(
 				this._obj.props.role,
 				this._obj.props.name,
+				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
+				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority,
 				this.childIndex,
 				chunks
@@ -788,12 +792,10 @@ class MaterializedChatMessageTextChunk implements Countable {
 		return a.childIndex - b.childIndex;
 	}
 
-	public toChatMessage() {
-		return {
-			role: this.message.role,
-			content: this.text,
-			...(this.message.name ? { name: this.message.name } : {})
-		};
+	public toChatMessage(): ChatMessage {
+		const chatMessage = this.message.toChatMessage();
+		chatMessage.content = this.text;
+		return chatMessage;
 	}
 }
 
@@ -801,6 +803,8 @@ class MaterializedChatMessage implements Countable {
 	constructor(
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
+		public readonly toolCalls: ChatMessageToolCall[] | undefined,
+		public readonly toolCallId: string | undefined,
 		private readonly priority: number | undefined,
 		private readonly childIndex: number,
 		private _chunks: MaterializedChatMessageTextChunk[],
@@ -821,11 +825,38 @@ class MaterializedChatMessage implements Countable {
 	}
 
 	public toChatMessage(): ChatMessage {
-		return {
-			role: this.role,
-			content: this.text,
-			...(this.name ? { name: this.name } : {})
-		};
+		if (this.role === ChatRole.System) {
+			return {
+				role: this.role,
+				content: this.text,
+				...(this.name ? { name: this.name } : {})
+			};
+		} else if (this.role === ChatRole.Assistant) {
+			return {
+				role: this.role,
+				content: this.text,
+				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
+				...(this.name ? { name: this.name } : {})
+			};
+		} else if (this.role === ChatRole.User) {
+			return {
+				role: this.role,
+				content: this.text,
+				...(this.name ? { name: this.name } : {})
+			}
+		} else if (this.role === ChatRole.Tool) {
+			return {
+				role: this.role,
+				content: this.text,
+				tool_call_id: this.toolCallId
+			};
+		} else {
+			return {
+				role: this.role,
+				content: this.text,
+				name: this.name!
+			};
+		}
 	}
 
 	public static cmp(a: MaterializedChatMessage, b: MaterializedChatMessage): number {

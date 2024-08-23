@@ -54,12 +54,24 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	 * **Note**: The result does not include base tokens for the completion itself.
 	 */
 	countMessageTokens(message: ChatMessage): number {
-		let numTokens = this.baseTokensPerMessage;
-		for (const [key, value] of Object.entries(message)) {
+		return this.baseTokensPerMessage + this.countObjectTokens(message);
+	}
+
+	private countObjectTokens(obj: any): number {
+		let numTokens = 0;
+		for (const [key, value] of Object.entries(obj)) {
 			if (!value) {
 				continue;
 			}
-			numTokens += this.tokenLength(value);
+
+			if (typeof value === 'string') {
+				numTokens += this.tokenLength(value);
+			} else if (value) {
+				// TODO@roblourens - count tokens for tool_calls correctly
+				// TODO@roblourens - tool_call_id is always 1 token
+				numTokens += this.countObjectTokens(value);
+			}
+
 			if (key === 'name') {
 				numTokens += this.baseTokensPerName;
 			}
