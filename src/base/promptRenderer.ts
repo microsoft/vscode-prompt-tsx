@@ -686,6 +686,8 @@ class PromptTreeElement {
 				role: this._obj.props.role,
 				name: this._obj.props.name,
 				priority: this._obj.props.priority,
+				toolCalls: this._obj.props.toolCalls,
+				toolCallId: this._obj.props.toolCallId,
 			};
 		}
 

@@ -34,6 +34,7 @@ export class AnyTokenizer implements ITokenizer {
 		return this.countTokens({
 			role: this.toChatRole(message.role),
 			content: message.content,
+			content2: [message.content],
 			name: 'name' in message ? message.name : undefined
 		});
 	}
