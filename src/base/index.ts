@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Progress } from 'vscode';
+import { PromptElementJSON } from './jsonTypes';
 import { ChatMessage, ChatRole, AssistantChatMessage } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
@@ -10,6 +11,7 @@ import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
 import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModelChatMessage } from './vscodeTypes.d';
 
+export * as JSONTree from './jsonTypes';
 export { ChatMessage, ChatRole } from './openai';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
@@ -87,6 +89,69 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	}
 
 	return { messages, tokenCount, metadatas, usedContext, references };
+}
+
+/**
+ * Content type of the return value from {@link renderElementJSON}.
+ * When responding to a tool invocation, the tool should set this as the
+ * content type in the returned data:
+ *
+ * ```ts
+ * import { contentType } from '@vscode/prompt-tsx';
+ *
+ * async function doToolInvocation(): vscode.LanguageModelToolResult {
+ *   return {
+ *     [contentType]: await renderElementJSON(...),
+ *     toString: () => '...',
+ *   };
+ * }
+ * ```
+ */
+export const contentType = 'application/vnd.codechat.prompt+json.1';
+
+/**
+ * Renders a prompt element to a serializable state. This type be returned in
+ * tools results and reused in subsequent render calls via the `<Tool />`
+ * element.
+ *
+ * In this mode, message chunks are not pruned from the tree; budget
+ * information is used only to hint to the elements how many tokens they should
+ * consume when rendered.
+ *
+ * @template P - The type of the prompt element props.
+ * @param ctor - The constructor of the prompt element.
+ * @param props - The props for the prompt element.
+ * @param budgetInformation - Information about the token budget.
+ * `vscode.LanguageModelToolInvocationOptions` is assignable to this object.
+ * @param token - The cancellation token for cancelling the operation.
+ * @returns A promise that resolves to an object containing the serialized data.
+ */
+export function renderElementJSON<P extends BasePromptElementProps>(
+	ctor: PromptElementCtor<P, any>,
+	props: P,
+	budgetInformation: {
+		tokenBudget: number;
+		countTokens(text: string, token?: CancellationToken): Thenable<number>;
+	} | undefined,
+	token?: CancellationToken,
+): Promise<PromptElementJSON> {
+	const renderer = new PromptRenderer(
+		{ modelMaxPromptTokens: budgetInformation?.tokenBudget ?? Number.MAX_SAFE_INTEGER },
+		ctor,
+		props,
+		// note: if tokenBudget is given, countTokens is also give and vise-versa.
+		// `1` is used only as a dummy fallback to avoid errors if no/unlimited budget is provided.
+		{
+			countMessageTokens(message) {
+				throw new Error('Tools may only return text, not messages.'); // for now...
+			},
+			tokenLength(text, token) {
+				return Promise.resolve(budgetInformation?.countTokens(text, token) ?? Promise.resolve(1));
+			},
+		},
+	);
+
+	return renderer.renderElementJSON(token);
 }
 
 /**

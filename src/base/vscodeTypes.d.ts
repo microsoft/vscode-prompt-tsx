@@ -403,3 +403,8 @@ export class LanguageModelChatMessageFunctionResultPart {
 export interface LanguageModelChatMessage {
 	content2?: string | LanguageModelChatMessageFunctionResultPart;
 }
+
+export interface LanguageModelToolResult {
+	[contentType: string]: any;
+	toString(): string;
+}
