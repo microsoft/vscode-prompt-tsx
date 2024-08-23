@@ -67,6 +67,8 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 			if (typeof value === 'string') {
 				numTokens += this.tokenLength(value);
 			} else if (value) {
+				// TODO@roblourens - count tokens for tool_calls correctly
+				// TODO@roblourens - tool_call_id is always 1 token
 				numTokens += this.countObjectTokens(value);
 			}
 
