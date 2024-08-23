@@ -4,7 +4,7 @@
 
 import type { CancellationToken, Progress } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
-import { ChatMessage, ChatRole, AssistantChatMessage } from './openai';
+import { ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
 import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
@@ -12,7 +12,7 @@ import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './
 import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModelChatMessage } from './vscodeTypes.d';
 
 export * as JSONTree from './jsonTypes';
-export { ChatMessage, ChatRole } from './openai';
+export { AssistantChatMessage, ChatMessage, ChatRole, FunctionChatMessage, SystemChatMessage, ToolChatMessage, UserChatMessage } from './openai';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
 export * from './tsx-globals';
