@@ -210,8 +210,8 @@ suite('PromptRenderer', () => {
 			render() {
 				return (
 					<>
-						<AssistantMessage tool_calls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '' } }]}>assistant</AssistantMessage>
-						<ToolMessage tool_call_id='call_123'>tool result</ToolMessage>
+						<AssistantMessage toolCalls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '' } }]}>assistant</AssistantMessage>
+						<ToolMessage toolCallId='call_123'>tool result</ToolMessage>
 					</>
 				);
 			}

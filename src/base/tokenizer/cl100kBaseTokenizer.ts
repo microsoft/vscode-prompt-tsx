@@ -54,13 +54,22 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	 * **Note**: The result does not include base tokens for the completion itself.
 	 */
 	countMessageTokens(message: ChatMessage): number {
-		let numTokens = this.baseTokensPerMessage;
-		for (const [key, value] of Object.entries(message)) {
+		return this.baseTokensPerMessage + this.countObjectTokens(message);
+	}
+
+	private countObjectTokens(obj: any): number {
+		let numTokens = 0;
+		for (const [key, value] of Object.entries(obj)) {
 			if (!value) {
 				continue;
 			}
-			// TODO I don't know how to tokenize the tool_calls array, just tokenize all the props?
-			numTokens += this.tokenLength(value);
+
+			if (typeof value === 'string') {
+				numTokens += this.tokenLength(value);
+			} else if (value) {
+				numTokens += this.countObjectTokens(value);
+			}
+
 			if (key === 'name') {
 				numTokens += this.baseTokensPerName;
 			}

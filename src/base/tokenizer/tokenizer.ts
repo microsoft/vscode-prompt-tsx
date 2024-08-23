@@ -34,7 +34,7 @@ export class AnyTokenizer implements ITokenizer {
 		return this.countTokens({
 			role: this.toChatRole(message.role),
 			content: message.content,
-			name: message.name
+			name: 'name' in message ? message.name : undefined
 		});
 	}
 
@@ -44,7 +44,7 @@ export class AnyTokenizer implements ITokenizer {
 			case ChatRole.Assistant: return 2;
 			case ChatRole.System: return 1;
 			case ChatRole.Function: return 1;
-			case ChatRole.Tool: return 1; // ?
+			case ChatRole.Tool: return 1;
 		}
 	}
 }

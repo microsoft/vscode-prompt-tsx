@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Progress } from "vscode";
+import { type CancellationToken, type Progress } from "vscode";
 import { ChatMessage, ChatMessageToolCall, ChatRole } from "./openai";
 import { PromptElement } from "./promptElement";
 import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
@@ -630,8 +630,8 @@ class PromptTreeElement {
 			const parent = new MaterializedChatMessage(
 				this._obj.props.role,
 				this._obj.props.name,
-				this._obj instanceof AssistantMessage ? this._obj.props.tool_calls : undefined,
-				this._obj instanceof ToolMessage ? this._obj.props.tool_call_id : undefined,
+				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
+				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority,
 				this.childIndex,
 				chunks
@@ -714,12 +714,10 @@ class MaterializedChatMessageTextChunk implements Countable {
 		return a.childIndex - b.childIndex;
 	}
 
-	public toChatMessage() {
-		return {
-			role: this.message.role,
-			content: this.text,
-			...(this.message.name ? { name: this.message.name } : {})
-		};
+	public toChatMessage(): ChatMessage {
+		const chatMessage = this.message.toChatMessage();
+		chatMessage.content = this.text;
+		return chatMessage;
 	}
 }
 
@@ -727,8 +725,8 @@ class MaterializedChatMessage implements Countable {
 	constructor(
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
-		public readonly tool_calls: ChatMessageToolCall[] | undefined,
-		public readonly tool_call_id: string | undefined,
+		public readonly toolCalls: ChatMessageToolCall[] | undefined,
+		public readonly toolCallId: string | undefined,
 		private readonly priority: number | undefined,
 		private readonly childIndex: number,
 		private _chunks: MaterializedChatMessageTextChunk[],
@@ -749,18 +747,36 @@ class MaterializedChatMessage implements Countable {
 	}
 
 	public toChatMessage(): ChatMessage {
-		const message: ChatMessage = {
-			role: this.role,
-			content: this.text,
-			...(this.name ? { name: this.name } : {})
-		};
-		if (this.tool_calls) {
-			message.tool_calls = this.tool_calls;
-		} else if (this.tool_call_id) {
-			message.tool_call_id = this.tool_call_id;
+		if (this.role === ChatRole.System) {
+			return {
+				role: this.role,
+				content: this.text
+			};
+		} else if (this.role === ChatRole.Assistant) {
+			return {
+				role: this.role,
+				content: this.text,
+				tool_calls: this.toolCalls
+			};
+		} else if (this.role === ChatRole.User) {
+			return {
+				role: this.role,
+				content: this.text,
+				...(this.name ? { name: this.name } : {})
+			}
+		} else if (this.role === ChatRole.Tool) {
+			return {
+				role: this.role,
+				content: this.text,
+				tool_call_id: this.toolCallId
+			};
+		} else {
+			return {
+				role: this.role,
+				content: this.text,
+				name: this.name!
+			};
 		}
-
-		return message;
 	}
 
 	public static cmp(a: MaterializedChatMessage, b: MaterializedChatMessage): number {

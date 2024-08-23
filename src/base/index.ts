@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, Progress } from 'vscode';
-import { ChatMessage, ChatRole } from './openai';
+import { ChatMessage, ChatRole, AssistantChatMessage } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
 import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';

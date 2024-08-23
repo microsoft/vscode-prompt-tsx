@@ -59,17 +59,17 @@ export class UserMessage extends BaseChatMessage {
 
 export interface ToolCall {
 	id: string;
-	function: Function;
+	function: ToolFunction;
 	type: 'function';
 }
 
-export interface Function {
+export interface ToolFunction {
 	arguments: string;
 	name: string;
 }
 
 export interface AssistantMessageProps extends ChatMessageProps {
-	tool_calls?: ToolCall[];
+	toolCalls?: ToolCall[];
 }
 
 /**
@@ -99,7 +99,7 @@ export class FunctionMessage extends BaseChatMessage {
 }
 
 export interface ToolMessageProps extends ChatMessageProps {
-	tool_call_id: string;
+	toolCallId: string;
 }
 
 /**
