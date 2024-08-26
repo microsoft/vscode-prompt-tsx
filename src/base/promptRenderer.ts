@@ -174,7 +174,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 			const templates = await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
 				const elementSizing = elementSizings[i];
-				return await promptElementInstance.render(element.node.getState(), elementSizing)
+				return await promptElementInstance.render(element.node.getState(), elementSizing, progress, token)
 			}));
 
 			// Render

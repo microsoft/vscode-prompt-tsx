@@ -52,7 +52,9 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 *
 	 * @param state - The state of the prompt element.
 	 * @param sizing - The sizing information for the prompt.
+	 * @param progress - Optionally report progress to the user for long-running state preparation.
+	 * @param token - A cancellation token that can be used to signal cancellation to the prompt element.
 	 * @returns The rendered prompt piece or undefined if the element does not want to render anything.
 	 */
-	abstract render(state: S, sizing: PromptSizing): Promise<PromptPiece | undefined> | PromptPiece | undefined;
+	abstract render(state: S, sizing: PromptSizing, progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<PromptPiece | undefined> | PromptPiece | undefined;
 }
