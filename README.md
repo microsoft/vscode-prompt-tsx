@@ -58,11 +58,10 @@ Note: if your codebase depends on both `@vscode/prompt-tsx` and another library 
 
 Next, your extension can use `renderPrompt` to render a TSX prompt. Here is an example of using TSX prompts in a Copilot chat participant that suggests SQL queries based on database context:
 ```ts
-import { renderPrompt, Cl100KBaseTokenizer } from '@vscode/prompt-tsx';
+import { renderPrompt } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { TestPrompt } from './prompt';
 
-const tokenizer = new Cl100KBaseTokenizer();
 const participant = vscode.chat.createChatParticipant(
   "mssql",
   async (
@@ -73,19 +72,22 @@ const participant = vscode.chat.createChatParticipant(
   ) => {
     response.progress("Reading database context...");
 
-    // Render TSX prompt
-    const { messages } = await renderPrompt(
-      TestPrompt,
-      { userQuery: request.prompt },
-      { modelMaxPromptTokens: 4096 },
-      tokenizer
-    );
     const models = await vscode.lm.selectChatModels({ family: 'gpt-4' });
     if (models.length === 0) {
       // No models available, return early
       return;
     }
-    const chatRequest = await models[0].sendChatRequest(
+    const chatModel = models[0];
+
+    // Render TSX prompt
+    const { messages } = await renderPrompt(
+      TestPrompt,
+      { userQuery: request.prompt },
+      { modelMaxPromptTokens: 4096 },
+      chatModel
+    );
+
+    const chatRequest = await chatModel.sendChatRequest(
       messages,
       {},
       token
@@ -112,11 +114,12 @@ export interface PromptState {
 
 export class TestPrompt extends PromptElement<PromptProps, PromptState> {
     override async prepare() {
-        const sqlExtensionApi = await vscode.extensions.getExtension('ms-mssql.mssql')?.activate();
-        return { creationScript: await sqlExtensionApi.getDatabaseCreateScript?.() };
-    }
+      }
 
-    render(state: PromptState, sizing: PromptSizing) {
+    async render(state: PromptState, sizing: PromptSizing) {
+        const sqlExtensionApi = await vscode.extensions.getExtension('ms-mssql.mssql')?.activate();
+        const creationScript = await sqlExtensionApi.getDatabaseCreateScript?.();
+
         return (
             <>
                 <AssistantMessage>

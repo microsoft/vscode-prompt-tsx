@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Progress } from 'vscode';
+import type { CancellationToken, ChatResponsePart, LanguageModelChat, Progress } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
 import { ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
 import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
-import { ChatDocumentContext, ChatResponsePart, LanguageModelChat, LanguageModelChatMessage } from './vscodeTypes.d';
+import { ChatDocumentContext, LanguageModelChatMessage } from './vscodeTypes.d';
 
 export * as JSONTree from './jsonTypes';
 export { AssistantChatMessage, ChatMessage, ChatRole, FunctionChatMessage, SystemChatMessage, ToolChatMessage, UserChatMessage } from './openai';
