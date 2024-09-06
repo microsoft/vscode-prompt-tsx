@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Command, Location, MarkdownString, ProviderResult, ThemeIcon, Uri } from 'vscode';
+import type { CancellationToken, Command, Location, MarkdownString, ProviderResult, ThemeIcon, Range, Uri } from 'vscode';
 
 /**
  * Represents a part of a chat response that is formatted as Markdown.
