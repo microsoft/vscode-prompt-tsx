@@ -1129,6 +1129,46 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 		})
 
+		test.skip('none-grow, greedy-grow, grow elements, nested', async () => {
+
+			class StringEchoBudget extends PromptElement<IProps, number> {
+				prepare(sizing: PromptSizing): Promise<number> {
+					return Promise.resolve(sizing.tokenBudget);
+				}
+				render(budget: number) {
+					return (
+						<>
+							{this.props.useBudget ? `consume=${this.props.useBudget}, ` : ''}
+							{this.props.name}={budget}
+						</>
+					);
+				}
+			}
+
+			await flexTest(<>
+				<UserMessage>
+					<StringEchoBudget name='1' useBudget={5} />
+					<StringEchoBudget name='2' useBudget={10} />
+					<StringEchoBudget name='3' useBudget={5} />
+					<StringEchoBudget name='grow4' flexGrow={2} useBudget={1} />
+					<StringEchoBudget name='grow5' flexGrow={3} useBudget={79} />
+				</UserMessage>
+			</>,
+				[
+					{
+						content: [
+							'consume=5, 1=33',
+							'consume=10, 2=33',
+							'consume=5, 3=33',
+							'consume=1, grow4=1',
+							'consume=79, grow5=80'
+						].join('\n'),
+						role: ChatRole.User,
+					}
+				]
+			);
+		})
+
 		test('counts budget used in nested elements', async () => {
 			class Nested extends PromptElement {
 				render() {
