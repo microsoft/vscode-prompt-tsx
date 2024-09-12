@@ -1095,6 +1095,40 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 		});
 
+		test('none-grow, greedy-grow, grow elements', async () => {
+
+			await flexTest(<>
+				<EchoBudget name='1' useBudget={5} />
+				<EchoBudget name='2' useBudget={10} />
+				<EchoBudget name='3' useBudget={5} />
+				<EchoBudget name='grow4' flexGrow={2} useBudget={1} />
+				<EchoBudget name='grow5' flexGrow={3} useBudget={79} />
+			</>,
+				[
+					{
+						content: 'consume=5, 1=33',
+						role: ChatRole.User,
+					},
+					{
+						content: 'consume=10, 2=33',
+						role: ChatRole.User,
+					},
+					{
+						content: 'consume=5, 3=33',
+						role: ChatRole.User,
+					},
+					{
+						content: 'consume=1, grow4=1',
+						role: ChatRole.User,
+					},
+					{
+						content: 'consume=79, grow5=80',
+						role: ChatRole.User,
+					}
+				]
+			);
+		})
+
 		test('counts budget used in nested elements', async () => {
 			class Nested extends PromptElement {
 				render() {
