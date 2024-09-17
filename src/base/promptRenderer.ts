@@ -10,6 +10,7 @@ import { PromptElement } from "./promptElement";
 import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
+import { ITracer } from './tracer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
 import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
@@ -60,6 +61,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
 	private readonly _references: PromptReference[] = [];
+	public tracer: ITracer | undefined = undefined;
 
 	/**
 	 *
@@ -129,22 +131,32 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			flexGroup.push({ element, promptElementInstance: promptElement });
 		}
 
+		if (promptElements.size === 0) {
+			return;
+		}
+
+		this.tracer?.startRenderPass();
+
 		const flexGroups = [...promptElements.entries()].sort(([a], [b]) => b - a).map(([_, group]) => group);
 		const setReserved = (groupIndex: number, reserved: boolean) => {
 			const sign = reserved ? 1 : -1;
+			let reservedTokens = 0;
 			for (let i = groupIndex + 1; i < flexGroups.length; i++) {
 				for (const { element } of flexGroups[i]) {
 					if (element.props.flexReserve) {
 						sizing.consume(sign * element.props.flexReserve);
+						reservedTokens += element.props.flexReserve
 					}
 				}
 			}
+			return reservedTokens;
 		};
 
 		// Prepare all currently known prompt elements in parallel
 		for (const [groupIndex, promptElements] of flexGroups.entries()) {
 			// Temporarily consume any reserved budget for later elements so that the sizing is calculated correctly here.
-			setReserved(groupIndex, true);
+			const reservedTokens = setReserved(groupIndex, true);
+			this.tracer?.startRenderFlex(groupIndex, reservedTokens, sizing.remainingTokenBudget);
 
 			// Calculate the flex basis for dividing the budget amongst siblings in this group.
 			let flexBasisSum = 0;
@@ -192,13 +204,18 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				// Compute token budget for the pieces that this child wants to render
 				const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
 				const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
+				this.tracer?.didRenderElement(element.ctor.name, pieces.filter(p => p.kind === 'literal').map(p => p.value));
 				childSizing.consume(tokensConsumed);
 				await this._handlePromptChildren(element, pieces, childSizing, progress, token);
+				this.tracer?.didRenderChildren(childSizing.consumed);
 
 				// Tally up the child consumption into the parent context for any subsequent flex group
 				sizing.consume(childSizing.consumed);
 			}
+
+			this.tracer?.endRenderFlex();
 		}
+		this.tracer?.endRenderPass();
 	}
 
 	private async _prioritize<T extends Countable>(things: T[], cmp: (a: T, b: T) => number, count: (thing: T) => Promise<number>) {

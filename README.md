@@ -205,6 +205,19 @@ There are a few similar properties which control budget allocation you mind find
 
 It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
 
+#### Debugging Budgeting
+
+You can set a `tracer` property on the `PromptElement` to debug how your elements are rendered and how this library allocates your budget. We include a basic `HTMLTracer` you can use:
+
+```js
+const renderer = new PromptRenderer(/* ... */);
+const tracer = new HTMLTracer();
+renderer.tracer = tracer;
+renderer.render(/* ... */);
+
+fs.writeFile('debug.html', tracer.toHTML());
+```
+
 ### Usage in Tools
 
 Visual Studio Code's API supports language models tools, sometimes called 'functions'. The tools API allows tools to return multiple content types of data to its consumers, and this library supports both returning rich prompt elements to tool callers, as well as using rich content returned from tools.
@@ -228,7 +241,7 @@ async function doToolInvocation(options: LanguageModelToolInvocationOptions): vs
 }
 ```
 
-### As a Consumer
+#### As a Consumer
 
 You may invoke the `vscode.lm.invokeTool` API however you see fit. If you know your token budget in advance, you should pass it to the tool when you call `invokeTool` via the `tokenOptions` option. You can then render the result using the `<ToolResult />` helper element, for example:
 
