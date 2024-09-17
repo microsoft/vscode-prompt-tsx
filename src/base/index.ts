@@ -11,10 +11,12 @@ import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
 import { ChatDocumentContext, LanguageModelChatMessage } from './vscodeTypes.d';
 
+export * from './htmlTracer';
 export * as JSONTree from './jsonTypes';
 export { AssistantChatMessage, ChatMessage, ChatRole, FunctionChatMessage, SystemChatMessage, ToolChatMessage, UserChatMessage } from './openai';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
+export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
 
