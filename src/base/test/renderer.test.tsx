@@ -1129,7 +1129,7 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 		})
 
-		test.skip('none-grow, greedy-grow, grow elements, nested', async () => {
+		test('none-grow, greedy-grow, grow elements, nested', async () => {
 
 			class StringEchoBudget extends PromptElement<IProps, number> {
 				prepare(sizing: PromptSizing): Promise<number> {
