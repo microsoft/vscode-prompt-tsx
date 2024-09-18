@@ -511,11 +511,11 @@ async function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: Q
 
 	if (isChatMessagePromptElement(instance)) {
 		tokensConsumed += await tokenizer.countMessageTokens({ role: element.props.role, content: '', ...(element.props.name ? { name: element.props.name } : undefined) });
+	}
 
-		for (const piece of pieces) {
-			if (piece.kind === 'literal') {
-				tokensConsumed += await tokenizer.tokenLength(piece.value);
-			}
+	for (const piece of pieces) {
+		if (piece.kind === 'literal') {
+			tokensConsumed += await tokenizer.tokenLength(piece.value);
 		}
 	}
 
