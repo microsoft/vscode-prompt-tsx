@@ -138,15 +138,19 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		this.tracer?.startRenderPass();
 
 		const flexGroups = [...promptElements.entries()].sort(([a], [b]) => b - a).map(([_, group]) => group);
-		const setReserved = (groupIndex: number, reserved: boolean) => {
-			const sign = reserved ? 1 : -1;
+		const setReserved = (groupIndex: number) => {
 			let reservedTokens = 0;
 			for (let i = groupIndex + 1; i < flexGroups.length; i++) {
 				for (const { element } of flexGroups[i]) {
-					if (element.props.flexReserve) {
-						sizing.consume(sign * element.props.flexReserve);
-						reservedTokens += element.props.flexReserve
+					if (!element.props.flexReserve) {
+						continue;
 					}
+					const reserve = typeof element.props.flexReserve === 'string'
+						// Typings ensure the string is `/${number}`
+						? Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
+						: element.props.flexReserve;
+					sizing.consume(reserve);
+					reservedTokens += reserve
 				}
 			}
 			return reservedTokens;
@@ -155,7 +159,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		// Prepare all currently known prompt elements in parallel
 		for (const [groupIndex, promptElements] of flexGroups.entries()) {
 			// Temporarily consume any reserved budget for later elements so that the sizing is calculated correctly here.
-			const reservedTokens = setReserved(groupIndex, true);
+			const reservedTokens = setReserved(groupIndex);
 			this.tracer?.startRenderFlex(groupIndex, reservedTokens, sizing.remainingTokenBudget);
 
 			// Calculate the flex basis for dividing the budget amongst siblings in this group.
@@ -177,7 +181,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 
 			// Free the previously-reserved budget now that we calculated sizing
-			setReserved(groupIndex, false);
+			sizing.consume(-reservedTokens);
 
 			await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
 				const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token)

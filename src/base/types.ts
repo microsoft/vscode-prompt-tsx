@@ -66,9 +66,15 @@ export interface BasePromptElementProps {
 	flexGrow?: number;
 
 	/**
-	 * If set with {@link flexGrow}, this defines the number of tokens this element will reserve of the container {@link PromptSizing.tokenBudget token budget} for sizing purposes in elements rendered before it.
+	 * If set with {@link flexGrow}, this defines the number of tokens this element
+	 * will reserve of the container {@link PromptSizing.tokenBudget token budget}
+	 * for sizing purposes in elements rendered before it.
+	 *
+	 * This can be set to a constant number of tokens, or a proportion of the
+	 * container's budget. For example, `/3` would reserve a third of the
+	 * container's budget.
 	 */
-	flexReserve?: number;
+	flexReserve?: number | `/${number}`;
 }
 
 export interface PromptElementCtor<P extends BasePromptElementProps, S> {
