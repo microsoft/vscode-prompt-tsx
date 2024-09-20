@@ -149,10 +149,11 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 						// Typings ensure the string is `/${number}`
 						? Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
 						: element.props.flexReserve;
-					sizing.consume(reserve);
 					reservedTokens += reserve
 				}
 			}
+
+			sizing.consume(reservedTokens);
 			return reservedTokens;
 		};
 
