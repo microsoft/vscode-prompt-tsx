@@ -1072,6 +1072,29 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 		});
 
+		test('applies proportional flex reserve', async () => {
+			await flexTest(<>
+				<EchoBudget name='content' useBudget={10} />
+				<EchoBudget name='grow1' flexGrow={1} flexReserve='/4' />
+				<EchoBudget name='grow2' flexGrow={1} flexReserve='/4' />
+			</>,
+				[
+					{
+						content: 'consume=10, content=50',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow1=45',
+						role: ChatRole.User,
+					},
+					{
+						content: 'grow2=45',
+						role: ChatRole.User,
+					}
+				]
+			);
+		});
+
 		test('shared between multiple in flex groups', async () => {
 			await flexTest(<>
 				<EchoBudget name='content' useBudget={10} />
