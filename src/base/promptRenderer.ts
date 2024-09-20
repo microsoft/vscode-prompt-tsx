@@ -766,7 +766,7 @@ class PromptTreeElement {
 			// Add an implicit <br/> before the element
 			result.push(new PromptLineBreak(this, 0, false));
 		}
-		for (const child of this._children) {
+		for (const child of this._children.sort((a, b) => a.childIndex - b.childIndex)) {
 			child.collectLeafs(result);
 		}
 	}

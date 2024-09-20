@@ -1330,4 +1330,41 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			assert.deepStrictEqual(actual.references, expected.references);
 		});
 	});
+
+	test('correct ordering of child text chunks (#90)', async () => {
+		class Wrapper extends PromptElement {
+			render() {
+				return (
+					<>
+						inbefore<br />
+						{this.props.children}
+						inafter<br />
+					</>
+				);
+			}
+		}
+		class Outer extends PromptElement {
+			render() {
+				return (
+					<UserMessage>
+						before<br />
+						<Wrapper>
+							<TextChunk>wrapped<br /></TextChunk>
+						</Wrapper>
+						after
+					</UserMessage>
+				);
+			}
+		}
+
+		const inst = new PromptRenderer(fakeEndpoint, Outer, {}, tokenizer);
+		const res = await inst.render(undefined, undefined);
+		assert.deepStrictEqual(res.messages.map(m => m.content).join('\n'), [
+			'before',
+			'inbefore',
+			'wrapped',
+			'inafter',
+			'after',
+		].join('\n'));
+	})
 });
