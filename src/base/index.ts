@@ -82,15 +82,14 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 		? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
 		: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
-	let { messages, tokenCount, references } = await renderer.render(progress, token);
-	const metadatas = renderer.getAllMeta();
+	let { messages, tokenCount, references, metadata } = await renderer.render(progress, token);
 	const usedContext = renderer.getUsedContext();
 
 	if (mode === 'vscode') {
 		messages = toVsCodeChatMessages(messages);
 	}
 
-	return { messages, tokenCount, metadatas, usedContext, references };
+	return { messages, tokenCount, metadatas: metadata, usedContext, references };
 }
 
 /**

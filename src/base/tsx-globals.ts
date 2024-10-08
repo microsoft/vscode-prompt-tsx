@@ -15,6 +15,11 @@ declare global {
 			 */
 			"meta": {
 				value: PromptMetadata;
+				/**
+				 * If set, the metadata will only be included in the rendered result
+				 * if the chunk it's in survives prioritization.
+				 */
+				local?: boolean;
 			};
 			/**
 			 * `\n` character.

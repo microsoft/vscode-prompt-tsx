@@ -19,13 +19,6 @@ import { UriComponents } from './util/vs/common/uri';
 export const enum PromptNodeType {
 	Piece = 1,
 	Text = 2,
-	LineBreak = 3
-}
-
-export interface LineBreakJSON {
-	type: PromptNodeType.LineBreak;
-	isExplicit: boolean;
-	priority: number | undefined;
 }
 
 export interface TextJSON {
@@ -33,6 +26,7 @@ export interface TextJSON {
 	text: string;
 	priority: number | undefined;
 	references: PromptReferenceJSON[] | undefined;
+	lineBreakBefore: boolean | undefined;
 }
 
 /**
@@ -55,7 +49,7 @@ export interface PieceJSON {
 	props?: Record<string, unknown>;
 }
 
-export type PromptNodeJSON = PieceJSON | TextJSON | LineBreakJSON;
+export type PromptNodeJSON = PieceJSON | TextJSON;
 
 export type UriOrLocationJSON = UriComponents | { uri: UriComponents, range: Range };
 

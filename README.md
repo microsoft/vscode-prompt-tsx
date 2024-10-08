@@ -143,11 +143,10 @@ export class TestPrompt extends PromptElement<PromptProps, PromptState> {
 Please note:
 - If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
 - Newlines are not preserved in JSX text or between JSX elements when rendered, and must be explicitly declared with the builtin `<br />` attribute.
-- For now, if two prompt messages _with the same priority_ are up for pruning due to exceeding the token budget, it is not possible for a subtree of the prompt message declared before to prune a subtree of the prompt message declared later.
 
-### Managing your budget
+### Prioritization
 
-If a rendered prompt has more message tokens than can fit into the available context window, the prompt renderer prunes messages with the lowest priority from the `ChatMessage`s result, preserving the order in which they were declared.
+If a rendered prompt has more message tokens than can fit into the available context window, the prompt renderer prunes messages with the lowest priority from the `ChatMessage`s result.
 
 In the above example, each message had the same priority, so they would be pruned in the order in which they were declared, but we could control that by passing a priority to element:
 
@@ -159,9 +158,24 @@ In the above example, each message had the same priority, so they would be prune
 </>
 ```
 
-In this case, a very long `userQuery` would get pruned from the output first if it's too long.
+In this case, a very long `userQuery` would get pruned from the output first if it's too long. Priorities are local in the element tree, so for example the tree of nodes...
 
-But, this is not ideal. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
+```html
+<UserMessage priority={1}>
+  <TextChunk priority={100}>A</TextChunk>
+  <TextChunk priority={0}>B</TextChunk>
+</UserMesssage>
+<SystemMessage priority={2}>
+  <TextChunk priority={200}>C</TextChunk>
+  <TextChunk priority={20}>D</TextChunk>
+</SystemMessage>
+```
+
+...would be pruned in the order `B->A->D->C`. If two sibling elements share the same priority, the renderer looks ahead at their direct children and picks whichever one has a child with the lowest priority: if the `SystemMessage` and `UserMessage` in the above example did not declare priorities, the pruning order would be `B->D->A->C`.
+
+### Flex Behavior
+
+Wholesale pruning is not always already. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
 
 `prompt-tsx` provides a utility component that supports this use case: `TextChunk`. Given input text, and optionally a delimiting string or regular expression, it'll include as much of the text as possible to fit within its budget:
 
