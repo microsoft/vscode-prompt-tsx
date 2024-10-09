@@ -29,6 +29,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		public readonly priority: number,
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
+		public readonly isLegacyPrioritization = false,
 	) { }
 
 	/** @inheritdoc */
@@ -75,7 +76,11 @@ export class MaterializedContainer implements IMaterializedNode {
 
 	/** Removes the node in the tree with the lowest priority. */
 	removeLowestPriorityChild(): void {
-		removeLowestPriorityChild(this.children);
+		if (this.isLegacyPrioritization) {
+			removeLowestPriorityLegacy(this);
+		} else {
+			removeLowestPriorityChild(this.children);
+		}
 	}
 }
 
@@ -92,8 +97,8 @@ export class MaterializedChatMessageTextChunk {
 		return this._upperBound(tokenizer);
 	}
 
-	private readonly _upperBound = once((tokenizer: ITokenizer) => {
-		return tokenizer.tokenLength(this.text);
+	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
+		return await tokenizer.tokenLength(this.text) + (this.lineBreakBefore ? 1 : 0);
 	});
 }
 
@@ -131,7 +136,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		this.onChunksChange();
 	}
 
-	private onChunksChange() {
+	onChunksChange() {
 		this._tokenCount.clear();
 		this._upperBound.clear();
 		this._text.clear();
@@ -145,7 +150,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		let total = await this._baseMessageTokenCount(tokenizer)
 		await Promise.all(this.children.map(async (chunk) => {
 			const amt = await chunk.upperBoundTokenCount(tokenizer);
-			total += amt + (chunk instanceof MaterializedChatMessageTextChunk && chunk.lineBreakBefore ? 1 : 0);
+			total += amt;
 		}));
 		return total;
 	});
@@ -227,6 +232,55 @@ function* textChunks(node: MaterializedNode): Generator<MaterializedChatMessageT
 			yield child;
 		} else {
 			yield* textChunks(child);
+		}
+	}
+}
+
+function removeLowestPriorityLegacy(root: MaterializedNode) {
+	let lowest: undefined | {
+		chain: (MaterializedContainer | MaterializedChatMessage)[],
+		node: MaterializedChatMessageTextChunk;
+	};
+
+	function findLowestInTree(node: MaterializedNode, chain: (MaterializedContainer | MaterializedChatMessage)[]) {
+		if (node instanceof MaterializedChatMessageTextChunk) {
+			if (!lowest || node.priority < lowest.node.priority) {
+				lowest = { chain: chain.slice(), node };
+			}
+		} else {
+			chain.push(node);
+			for (const child of node.children) {
+				findLowestInTree(child, chain);
+			}
+			chain.pop();
+		}
+	}
+
+	findLowestInTree(root, []);
+
+	if (!lowest) {
+		throw new Error('No lowest priority node found');
+	}
+
+	let needle: MaterializedNode = lowest.node;
+	let i = lowest.chain.length - 1;
+	for (; i >= 0; i--) {
+		const node = lowest.chain[i];
+		node.children.splice(node.children.indexOf(needle), 1);
+		if (node instanceof MaterializedChatMessage) {
+			node.onChunksChange();
+		}
+		if (node.children.length > 0) {
+			break;
+		}
+
+		needle = node;
+	}
+
+	for (; i >= 0; i--) {
+		const node = lowest.chain[i];
+		if (node instanceof MaterializedChatMessage) {
+			node.onChunksChange();
 		}
 	}
 }

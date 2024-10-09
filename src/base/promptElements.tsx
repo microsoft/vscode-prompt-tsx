@@ -270,3 +270,16 @@ export class ToolResult extends PromptElement<IToolResultProps> {
 		}
 	}
 }
+
+/**
+ * Marker element that uses the legacy global prioritization algorithm (0.2.x
+ * if this library) for pruning child elements. This will be removed in
+ * the future.
+ *
+ * @deprecated
+ */
+export class LegacyPrioritization extends PromptElement {
+	render() {
+		return <>{this.props.children}</>;
+	}
+}

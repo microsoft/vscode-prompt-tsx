@@ -8,6 +8,7 @@ import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
+	LegacyPrioritization,
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
@@ -406,6 +407,34 @@ suite('PromptRenderer', () => {
 					<TextChunk priority={15}>d</TextChunk>
 				</SystemMessage>
 			</>, ['a', 'b', 'c', 'd']);
+		});
+
+		test('uses legacy prioritization', async () => {
+			class Wrap1 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</>
+				}
+			}
+			class Wrap2 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</>
+				}
+			}
+			await assertPruningOrder(<LegacyPrioritization>
+				<UserMessage>
+					<Wrap1 priority={1} />
+					<Wrap2 priority={2} />
+				</UserMessage>
+				<UserMessage>
+					<TextChunk priority={5}>e</TextChunk>
+				</UserMessage>
+			</LegacyPrioritization>, ['a', 'c', 'e', 'b', 'd']);
 		});
 	});
 

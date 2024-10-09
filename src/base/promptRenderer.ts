@@ -8,7 +8,7 @@ import { PromptNodeType } from './jsonTypes';
 import { MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
 import { ChatMessage } from "./openai";
 import { PromptElement } from "./promptElement";
-import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { ITracer } from './tracer';
@@ -650,6 +650,7 @@ class PromptTreeElement {
 				this._obj?.props.priority || 0,
 				this._children.map(child => child.materialize()),
 				this._metadata,
+				this._obj instanceof LegacyPrioritization,
 			);
 		}
 	}
