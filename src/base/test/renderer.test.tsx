@@ -1440,7 +1440,7 @@ suite('PromptRenderer', () => {
 				);
 
 				// if priorities were not scoped, we'd see hello80 here instead of outer70
-				assert.strictEqual(actual.messages[0].content, 'hello60\nhello70\nhello80\nhello90\nouter60\nouter70\nouter80\nouter90');
+				assert.strictEqual(actual.messages[0].content, 'hello90\nouter60\nouter70\nouter80\nouter90');
 			});
 
 			test('round trips messages', async () => {
