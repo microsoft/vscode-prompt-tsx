@@ -20,7 +20,7 @@ export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
 
-export { AssistantMessage, FunctionMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage } from './promptElements';
+export { AssistantMessage, FunctionMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage, LegacyPrioritization, Chunk } from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';

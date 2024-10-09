@@ -4,7 +4,6 @@
 
 import type { CancellationToken } from 'vscode';
 import { contentType } from '.';
-import * as JSONT from './jsonTypes';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
@@ -232,12 +231,22 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 		return (
 			<>
 				{children.map((child, i) => {
-					child.props ??= {};
-					child.props.priority = this.props.descending
+					if (!child) {
+						return;
+					}
+
+					const priority = this.props.descending
 						? // First element in array of children has highest priority
 						this.props.priority - i
 						: // Last element in array of children has highest priority
 						this.props.priority - children.length + i;
+
+					if (typeof child !== 'object') {
+						return <TextChunk priority={priority}>{child}</TextChunk>;
+					}
+
+					child.props ??= {};
+					child.props.priority = priority;
 					return child;
 				})}
 			</>
@@ -279,6 +288,17 @@ export class ToolResult extends PromptElement<IToolResultProps> {
  * @deprecated
  */
 export class LegacyPrioritization extends PromptElement {
+	render() {
+		return <>{this.props.children}</>;
+	}
+}
+
+/**
+ * Marker element that ensures all of its children are either included, or
+ * not included. This is similar to the `<TextChunk />` element, but it is more
+ * basic and can contain extrinsic children.
+ */
+export class Chunk extends PromptElement<BasePromptElementProps> {
 	render() {
 		return <>{this.props.children}</>;
 	}

@@ -5,10 +5,10 @@
 import type { CancellationToken, Progress } from "vscode";
 import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
-import { MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
+import { ContainerFlags, LineBreakBefore, MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
 import { ChatMessage } from "./openai";
 import { PromptElement } from "./promptElement";
-import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, Chunk, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { ITracer } from './tracer';
@@ -253,7 +253,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 
 		// Then finalize the chat messages
-		const messageResult = container.toChatMessages();
+		const messageResult = [...container.toChatMessages()];
 		const tokenCount = await container.tokenCount(this._tokenizer);
 		const remainingMetadata = [...container.allMetadata()];
 
@@ -646,11 +646,15 @@ class PromptTreeElement {
 			);
 			return parent;
 		} else {
+			let flags = 0;
+			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
+			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
+
 			return new MaterializedContainer(
 				this._obj?.props.priority || 0,
 				this._children.map(child => child.materialize()),
 				this._metadata,
-				this._obj instanceof LegacyPrioritization,
+				flags,
 			);
 		}
 	}
@@ -682,7 +686,12 @@ class PromptText {
 	}
 
 	public materialize() {
-		return new MaterializedChatMessageTextChunk(this.text, this.priority ?? Number.MAX_SAFE_INTEGER, this.metadata || [], this.lineBreakBefore || this.childIndex === 0);
+		const lineBreak = this.lineBreakBefore
+			? LineBreakBefore.Always
+			: this.childIndex === 0
+				? LineBreakBefore.IfNotTextSibling
+				: LineBreakBefore.None;
+		return new MaterializedChatMessageTextChunk(this.text, this.priority ?? Number.MAX_SAFE_INTEGER, this.metadata || [], lineBreak);
 	}
 
 	public toJSON(): JSONT.TextJSON {

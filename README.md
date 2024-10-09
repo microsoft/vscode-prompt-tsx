@@ -173,6 +173,14 @@ In this case, a very long `userQuery` would get pruned from the output first if 
 
 ...would be pruned in the order `B->A->D->C`. If two sibling elements share the same priority, the renderer looks ahead at their direct children and picks whichever one has a child with the lowest priority: if the `SystemMessage` and `UserMessage` in the above example did not declare priorities, the pruning order would be `B->D->A->C`.
 
+Continuous text strings and elements can both be pruned from the tree. If you have a set of elements that you want to either be include all the time or none of the time, you can use the simple `Chunk` utility element:
+
+```html
+<Chunk>
+  The file I'm editing is: <FileLink file={f}>
+</Chunk>
+```
+
 ### Flex Behavior
 
 Wholesale pruning is not always already. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.

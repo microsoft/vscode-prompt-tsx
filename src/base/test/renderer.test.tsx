@@ -8,6 +8,7 @@ import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
+	Chunk,
 	LegacyPrioritization,
 	PrioritizedList,
 	SystemMessage,
@@ -303,6 +304,18 @@ suite('PromptRenderer', () => {
 					<TextChunk priority={3}>c</TextChunk>
 				</UserMessage>
 			</>, ['a', 'b', 'c']);
+		});
+
+		test('chunks together', async () => {
+			await assertPruningOrder(<>
+				<UserMessage>
+					<Chunk priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={2}>b</TextChunk>
+					</Chunk>
+					<TextChunk priority={3}>c</TextChunk>
+				</UserMessage>
+			</>, ['a', 'c']); // 'b' should not get individually removed and cause a change
 		});
 
 		test('does not scope priorities in fragments', async () => {
@@ -1158,6 +1171,83 @@ suite('PromptRenderer', () => {
 			);
 		});
 
+		test('does not emit empty messages', async () => {
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<SystemMessage></SystemMessage>
+							<UserMessage>Hello!</UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'Hello!',
+				}
+			]);
+		});
+
+		test('does not add a line break in an embedded message', async () => {
+			class Inner extends PromptElement {
+				render() {
+					return <>world</>;
+				}
+			}
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage>Hello <Inner />!</UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'Hello world!',
+				}
+			]);
+		});
+
+		test('adds line break between two nested embedded messages', async () => {
+			class Inner extends PromptElement {
+				render() {
+					return <>world</>;
+				}
+			}
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage><Inner /><Inner /></UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'world\nworld',
+				}
+			]);
+		});
+
 		test('none-grow, greedy-grow, grow elements', async () => {
 
 			await flexTest(<>
@@ -1477,7 +1567,7 @@ suite('PromptRenderer', () => {
 
 		test('local is pruned when chunk is pruned', async () => {
 			const res = await new PromptRenderer(
-				{ modelMaxPromptTokens: 5 } as any,
+				{ modelMaxPromptTokens: 1 } as any,
 				class extends PromptElement {
 					render() {
 						return <UserMessage>

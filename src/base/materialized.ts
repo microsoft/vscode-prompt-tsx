@@ -23,14 +23,25 @@ export interface IMaterializedNode {
 
 export type MaterializedNode = MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageTextChunk;
 
+export const enum ContainerFlags {
+	/** It's a {@link LegacyPrioritization} instance */
+	IsLegacyPrioritization = 1 << 0,
+	/** It's a {@link Chunk} instance */
+	IsChunk = 1 << 1,
+}
+
 export class MaterializedContainer implements IMaterializedNode {
 
 	constructor(
 		public readonly priority: number,
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
-		public readonly isLegacyPrioritization = false,
+		public readonly flags: number,
 	) { }
+
+	public has(flag: ContainerFlags) {
+		return !!(this.flags & flag);
+	}
 
 	/** @inheritdoc */
 	async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -67,21 +78,33 @@ export class MaterializedContainer implements IMaterializedNode {
 	/**
 	 * Gets the chat messages the container holds.
 	 */
-	toChatMessages(): ChatMessage[] {
-		return this.children.flatMap(child => {
+	*toChatMessages(): Generator<ChatMessage> {
+		for (const child of this.children) {
 			assertContainerOrChatMessage(child);
-			return child instanceof MaterializedContainer ? child.toChatMessages() : [child.toChatMessage()];
-		})
+			if (child instanceof MaterializedContainer) {
+				yield* child.toChatMessages();
+			} else if (!child.isEmpty) {
+				// note: empty messages are already removed during pruning, but the
+				// consumer might themselves have given us empty messages that we should omit.
+				yield child.toChatMessage();
+			}
+		}
 	}
 
 	/** Removes the node in the tree with the lowest priority. */
 	removeLowestPriorityChild(): void {
-		if (this.isLegacyPrioritization) {
+		if (this.has(ContainerFlags.IsLegacyPrioritization)) {
 			removeLowestPriorityLegacy(this);
 		} else {
 			removeLowestPriorityChild(this.children);
 		}
 	}
+}
+
+export const enum LineBreakBefore {
+	None,
+	Always,
+	IfNotTextSibling,
 }
 
 /** A chunk of text in a {@link MaterializedChatMessage} */
@@ -90,7 +113,7 @@ export class MaterializedChatMessageTextChunk {
 		public readonly text: string,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
-		public readonly lineBreakBefore: boolean,
+		public readonly lineBreakBefore: LineBreakBefore,
 	) { }
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
@@ -98,7 +121,7 @@ export class MaterializedChatMessageTextChunk {
 	}
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		return await tokenizer.tokenLength(this.text) + (this.lineBreakBefore ? 1 : 0);
+		return await tokenizer.tokenLength(this.text) + (this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0);
 	});
 }
 
@@ -128,6 +151,11 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	/** Gets the text this message contains */
 	public get text(): string {
 		return this._text()
+	}
+
+	/** Gets whether the message is empty */
+	public get isEmpty() {
+		return !/\S/.test(this.text);
 	}
 
 	/** Remove the lowest priority chunk among this message's children. */
@@ -161,14 +189,17 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 	private readonly _text = once(() => {
 		let result = '';
-		for (const chunk of textChunks(this)) {
-			if (chunk.lineBreakBefore && result.length && !result.endsWith('\n')) {
-				result += '\n';
+		for (const { text, isTextSibling } of textChunks(this)) {
+			if (text.lineBreakBefore === LineBreakBefore.Always || (text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)) {
+				if (result.length && !result.endsWith('\n')) {
+					result += '\n';
+				}
 			}
-			result += chunk.text;
+
+			result += text.text;
 		}
 
-		return result;
+		return result.trim();
 	});
 
 	public toChatMessage(): ChatMessage {
@@ -221,17 +252,14 @@ function assertContainerOrChatMessage(v: MaterializedNode): asserts v is Materia
 }
 
 
-function* textChunks(node: MaterializedNode): Generator<MaterializedChatMessageTextChunk> {
-	if (node instanceof MaterializedChatMessageTextChunk) {
-		yield node;
-		return;
-	}
-
+function* textChunks(node: MaterializedContainer | MaterializedChatMessage, isTextSibling = false): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
-			yield child;
+			yield { text: child, isTextSibling };
+			isTextSibling = true;
 		} else {
-			yield* textChunks(child);
+			yield* textChunks(child, isTextSibling);
+			isTextSibling = false;
 		}
 	}
 }
@@ -309,7 +337,7 @@ function removeLowestPriorityChild(children: MaterializedNode[]) {
 	}
 
 	const lowest = children[lowestIndex];
-	if (lowest instanceof MaterializedChatMessageTextChunk) {
+	if (lowest instanceof MaterializedChatMessageTextChunk || (lowest instanceof MaterializedContainer && lowest.has(ContainerFlags.IsChunk))) {
 		children.splice(lowestIndex, 1);
 	} else {
 		lowest.removeLowestPriorityChild();

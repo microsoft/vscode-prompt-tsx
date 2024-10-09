@@ -83,7 +83,7 @@ export interface PromptElementCtor<P extends BasePromptElementProps, S> {
 }
 
 export interface RuntimePromptElementProps {
-	children?: PromptPiece[];
+	children?: PromptPieceChild[];
 }
 
 export type PromptElementProps<T> = T & BasePromptElementProps & RuntimePromptElementProps;
