@@ -8,6 +8,8 @@ import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
+	Chunk,
+	LegacyPrioritization,
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
@@ -16,7 +18,7 @@ import {
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
-import { PromptReference } from '../results';
+import { PromptMetadata, PromptReference } from '../results';
 import { Cl100KBaseTokenizer } from '../tokenizer/cl100kBaseTokenizer';
 import { ITokenizer } from '../tokenizer/tokenizer';
 import {
@@ -242,6 +244,211 @@ suite('PromptRenderer', () => {
 				content: 'tool result',
 			}
 		]);
+	});
+
+	suite('prunes in priority order', () => {
+		async function assertPruningOrder(elements: PromptPiece, order: string[]) {
+			const initialRender = await new PromptRenderer(
+				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+				class extends PromptElement {
+					render() {
+						return elements;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			let tokens = initialRender.tokenCount;
+			let last = '';
+			for (let i = 0; i < order.length;) {
+				const res = await new PromptRenderer(
+					{ modelMaxPromptTokens: tokens } as any,
+					class extends PromptElement {
+						render() {
+							return elements;
+						}
+					},
+					{},
+					tokenizer
+				).render();
+
+				const messages = res.messages.map(m => `${m.role}: ${m.content}`).join('\n');
+				if (messages === last) {
+					tokens--;
+					continue;
+				}
+
+				for (let k = 0; k < i; k++) {
+					if (res.messages.some(m => m.content.includes(order[k]))) {
+						throw new Error(`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`);
+					}
+				}
+				for (let k = i; k < order.length; k++) {
+					if (!res.messages.some(m => m.content.includes(order[k]))) {
+						throw new Error(`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`);
+					}
+				}
+
+				last = messages;
+				tokens--;
+				i++;
+			}
+		}
+
+		test('basic siblings', async () => {
+			await assertPruningOrder(<>
+				<UserMessage>
+					<TextChunk priority={1}>a</TextChunk>
+					<TextChunk priority={2}>b</TextChunk>
+					<TextChunk priority={3}>c</TextChunk>
+				</UserMessage>
+			</>, ['a', 'b', 'c']);
+		});
+
+		test('chunks together', async () => {
+			await assertPruningOrder(<>
+				<UserMessage>
+					<Chunk priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={2}>b</TextChunk>
+					</Chunk>
+					<TextChunk priority={3}>c</TextChunk>
+				</UserMessage>
+			</>, ['a', 'c']); // 'b' should not get individually removed and cause a change
+		});
+
+		test('does not scope priorities in fragments', async () => {
+			await assertPruningOrder(<>
+				<UserMessage>
+					<TextChunk priority={1}>b</TextChunk>
+					<>
+						<TextChunk priority={0}>a</TextChunk>
+						<TextChunk priority={2}>c</TextChunk>
+					</>
+					<TextChunk priority={3}>d</TextChunk>
+				</UserMessage>
+			</>, ['a', 'b', 'c', 'd']);
+		});
+
+		test('scopes priorities normally', async () => {
+			class Wrap1 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</>
+				}
+			}
+			class Wrap2 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</>
+				}
+			}
+			await assertPruningOrder(<>
+				<UserMessage>
+					<Wrap1 priority={1} />
+					<Wrap2 priority={2} />
+				</UserMessage>
+			</>, ['a', 'b', 'c', 'd']);
+		});
+
+		test('balances priorities of equal children', async () => {
+			class Wrap1 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</>
+				}
+			}
+			class Wrap2 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</>
+				}
+			}
+			await assertPruningOrder(<>
+				<UserMessage>
+					<Wrap1 />
+					<Wrap2 />
+				</UserMessage>
+			</>, ['a', 'c', 'b', 'd']);
+		});
+
+		test('priority list', async () => {
+			await assertPruningOrder(<UserMessage>
+				<PrioritizedList priority={1} descending={false}>
+					<TextChunk>a</TextChunk>
+					<TextChunk>b</TextChunk>
+					<TextChunk>c</TextChunk>
+				</PrioritizedList>
+				<PrioritizedList priority={2} descending={true}>
+					<TextChunk>d</TextChunk>
+					<TextChunk>e</TextChunk>
+					<TextChunk>f</TextChunk>
+				</PrioritizedList>
+			</UserMessage>, ['a', 'b', 'c', 'f', 'e', 'd']);
+		});
+
+		test('balances priorities of equal across chat messages', async () => {
+			await assertPruningOrder(<>
+				<UserMessage>
+					<TextChunk priority={1}>a</TextChunk>
+					<TextChunk priority={10}>b</TextChunk>
+				</UserMessage>
+				<SystemMessage>
+					<TextChunk priority={2}>c</TextChunk>
+					<TextChunk priority={15}>d</TextChunk>
+				</SystemMessage>
+			</>, ['a', 'c', 'b', 'd']);
+		});
+
+		test('scopes priorities in messages', async () => {
+			await assertPruningOrder(<>
+				<UserMessage priority={1}>
+					<TextChunk priority={1}>a</TextChunk>
+					<TextChunk priority={10}>b</TextChunk>
+				</UserMessage>
+				<SystemMessage priority={2}>
+					<TextChunk priority={2}>c</TextChunk>
+					<TextChunk priority={15}>d</TextChunk>
+				</SystemMessage>
+			</>, ['a', 'b', 'c', 'd']);
+		});
+
+		test('uses legacy prioritization', async () => {
+			class Wrap1 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</>
+				}
+			}
+			class Wrap2 extends PromptElement {
+				render() {
+					return <>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</>
+				}
+			}
+			await assertPruningOrder(<LegacyPrioritization>
+				<UserMessage>
+					<Wrap1 priority={1} />
+					<Wrap2 priority={2} />
+				</UserMessage>
+				<UserMessage>
+					<TextChunk priority={5}>e</TextChunk>
+				</UserMessage>
+			</LegacyPrioritization>, ['a', 'c', 'e', 'b', 'd']);
+		});
 	});
 
 	suite('truncates tokens exceeding token budget', async () => {
@@ -694,7 +901,6 @@ suite('PromptRenderer', () => {
 					tokenizer
 				);
 				const res2 = await inst2.render(undefined, undefined);
-				assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
 				assert.deepStrictEqual(res2.messages, [
 					{
 						role: 'system',
@@ -720,160 +926,7 @@ suite('PromptRenderer', () => {
 					},
 					{ role: 'user', content: 'What is your name?' },
 				]);
-			});
-
-			test('are globally prioritized across messages', async () => {
-				class TextChunkPrompt extends PromptElement {
-					render() {
-						return (
-							<>
-								<SystemMessage flexBasis={1} priority={2001}>
-									<TextChunk>
-										00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-								</SystemMessage>
-								<UserMessage flexBasis={1} priority={1000}>
-									<TextChunk priority={1000}>
-										HI HI 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-									<TextChunk priority={500}>
-										HI MED 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-									<TextChunk priority={100}>
-										HI LOW 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-								</UserMessage>
-								<UserMessage flexBasis={1} priority={2000}>
-									<TextChunk priority={2000}>
-										LOW HI 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-									<TextChunk priority={2000}>
-										LOW MED 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-									<TextChunk priority={2000}>
-										LOW LOW 00 01 02 03 04 05 06 07 08 09
-										<br />
-										10 11 12 13 14 15 16 17 18 19
-										<br />
-									</TextChunk>
-								</UserMessage>
-							</>
-						);
-					}
-				}
-
-				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 150 - BaseTokensPerCompletion,
-				} satisfies Partial<IChatEndpointInfo>;
-				const inst2 = new PromptRenderer(
-					smallTokenBudgetEndpoint,
-					TextChunkPrompt,
-					{},
-					tokenizer
-				);
-				const res2 = await inst2.render(undefined, undefined);
-				assert.equal(res2.messages.length, 2);
-				assert.equal(res2.messages[0].role, ChatRole.System);
-				assert.equal(res2.messages[1].role, ChatRole.User);
-				assert.equal(
-					res2.messages[1].content,
-					`LOW HI 00 01 02 03 04 05 06 07 08 09
-10 11 12 13 14 15 16 17 18 19
-
-LOW MED 00 01 02 03 04 05 06 07 08 09
-10 11 12 13 14 15 16 17 18 19
-`
-				);
-			});
-
-			test('are prioritized within prioritized lists', async () => {
-				class PriorityListPrompt extends PromptElement {
-					render() {
-						const textChunksA = [];
-						for (let i = 0; i < 100; i++) {
-							textChunksA.push(
-								<TextChunk>
-									{i.toString().padStart(3, '0')}
-								</TextChunk>
-							);
-						}
-
-						const textChunksB = [];
-						for (let i = 100; i < 200; i++) {
-							textChunksB.push(
-								<TextChunk>
-									{i.toString().padStart(3, '0')}
-								</TextChunk>
-							);
-						}
-
-						return (
-							<>
-								<SystemMessage>
-									Hello there, this is a system message.
-								</SystemMessage>
-								<UserMessage>
-									<PrioritizedList
-										priority={900}
-										descending={false}
-									>
-										{...textChunksA}
-									</PrioritizedList>
-									<PrioritizedList
-										priority={1001}
-										descending={false}
-									>
-										{...textChunksB}
-									</PrioritizedList>
-								</UserMessage>
-							</>
-						);
-					}
-				}
-
-				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 150 - BaseTokensPerCompletion,
-				} satisfies Partial<IChatEndpointInfo>;
-				const inst2 = new PromptRenderer(
-					smallTokenBudgetEndpoint,
-					PriorityListPrompt,
-					{},
-					tokenizer
-				);
-				const res2 = await inst2.render(undefined, undefined);
-				assert.equal(res2.messages.length, 2);
-				assert.equal(res2.messages[0].role, ChatRole.System);
-				assert.equal(res2.messages[1].role, ChatRole.User);
-				assert.ok(
-					res2.messages[1].content.includes('199'),
-					'Higher-priority chunks from second user message were not included'
-				);
-				assert.ok(
-					!res2.messages[1].content.includes('099'),
-					'Lower-priority chunks from first user message were included'
-				);
-				assert.ok(
-					!res2.messages[1].content.includes('000'),
-					'Lower-priority chunks from first user message were included'
-				);
+				assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
 			});
 		}
 	);
@@ -1118,6 +1171,83 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			);
 		});
 
+		test('does not emit empty messages', async () => {
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<SystemMessage></SystemMessage>
+							<UserMessage>Hello!</UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'Hello!',
+				}
+			]);
+		});
+
+		test('does not add a line break in an embedded message', async () => {
+			class Inner extends PromptElement {
+				render() {
+					return <>world</>;
+				}
+			}
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage>Hello <Inner />!</UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'Hello world!',
+				}
+			]);
+		});
+
+		test('adds line break between two nested embedded messages', async () => {
+			class Inner extends PromptElement {
+				render() {
+					return <>world</>;
+				}
+			}
+			const inst = new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return <>
+							<UserMessage><Inner /><Inner /></UserMessage>
+						</>;
+					}
+				},
+				{},
+				new FakeTokenizer()
+			);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'world\nworld',
+				}
+			]);
+		});
+
 		test('none-grow, greedy-grow, grow elements', async () => {
 
 			await flexTest(<>
@@ -1274,85 +1404,86 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 		});
 	});
 
-	suite('renderElementJSON', () => {
-		test('scopes priorities', async () => {
-			const json = await renderElementJSON(
-				class extends PromptElement {
+	if (!process.env.IS_OUTSIDE_VSCODE) {
+		suite('renderElementJSON', () => {
+			test('scopes priorities', async () => {
+				const json = await renderElementJSON(
+					class extends PromptElement {
+						render() {
+							return <>
+								<TextChunk priority={50}>hello50</TextChunk>
+								<TextChunk priority={60}>hello60</TextChunk>
+								<TextChunk priority={70}>hello70</TextChunk>
+								<TextChunk priority={80}>hello80</TextChunk>
+								<TextChunk priority={90}>hello90</TextChunk>
+							</>;
+						}
+					},
+					{},
+					{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+				);
+
+				const actual = await renderPrompt(
+					class extends PromptElement {
+						render() {
+							return <UserMessage>
+								<TextChunk priority={40}>outer40</TextChunk>
+								<ToolResult priority={50} data={{ [contentType]: json }} />
+								<TextChunk priority={60}>outer60</TextChunk>
+								<TextChunk priority={70}>outer70</TextChunk>
+								<TextChunk priority={80}>outer80</TextChunk>
+								<TextChunk priority={90}>outer90</TextChunk>
+							</UserMessage>
+						}
+					},
+					{}, { modelMaxPromptTokens: 20 }, tokenizer
+				);
+
+				// if priorities were not scoped, we'd see hello80 here instead of outer70
+				assert.strictEqual(actual.messages[0].content, 'hello60\nhello70\nhello80\nhello90\nouter60\nouter70\nouter80\nouter90');
+			});
+
+			test('round trips messages', async () => {
+				class MyElement extends PromptElement {
 					render() {
 						return <>
-							<TextChunk priority={50}>hello50</TextChunk>
-							<TextChunk priority={60}>hello60</TextChunk>
-							<TextChunk priority={70}>hello70</TextChunk>
-							<TextChunk priority={80}>hello80</TextChunk>
-							<TextChunk priority={90}>hello90</TextChunk>
-
+							Hello world!
+							<TextChunk priority={10}>
+								chunk1
+								<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
+							</TextChunk>
+							<TextChunk priority={20}>chunk2</TextChunk>
 						</>;
 					}
-				},
-				{},
-				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
-			);
+				}
+				const r = await renderElementJSON(
+					MyElement, {}, { tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+				);
 
-			const actual = await renderPrompt(
-				class extends PromptElement {
+				const expected = await renderPrompt(class extends PromptElement {
 					render() {
 						return <UserMessage>
-							<TextChunk priority={40}>outer40</TextChunk>
-							<ToolResult priority={50} data={{ [contentType]: json }} />
-							<TextChunk priority={60}>outer60</TextChunk>
-							<TextChunk priority={70}>outer70</TextChunk>
-							<TextChunk priority={80}>outer80</TextChunk>
-							<TextChunk priority={90}>outer90</TextChunk>
-						</UserMessage>
-					}
-				},
-				{}, { modelMaxPromptTokens: 20 }, tokenizer
-			);
-
-			// if priorities were not scoped, we'd see hello80 here instead of outer70
-			assert.strictEqual(actual.messages[0].content, '\nhello90\nouter60\nouter70\nouter80\nouter90');
-		});
-
-		test('round trips messages', async () => {
-			class MyElement extends PromptElement {
-				render() {
-					return <>
-						Hello world!
-						<TextChunk priority={10}>
-							chunk1
-							<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
-						</TextChunk>
-						<TextChunk priority={20}>chunk2</TextChunk>
-					</>;
-				}
-			}
-			const r = await renderElementJSON(
-				MyElement, {}, { tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
-			);
-
-			const expected = await renderPrompt(class extends PromptElement {
-				render() {
-					return <UserMessage>
-						<MyElement />
-					</UserMessage>;
-				}
-			}, {}, fakeEndpoint, tokenizer);
-
-			const actual = await renderPrompt(
-				class extends PromptElement {
-					render() {
-						return <UserMessage>
-							<ToolResult data={{ [contentType]: r }} />
+							<MyElement />
 						</UserMessage>;
 					}
-				},
-				{}, fakeEndpoint, tokenizer
-			);
+				}, {}, fakeEndpoint, tokenizer);
 
-			assert.deepStrictEqual(actual.messages, expected.messages);
-			assert.deepStrictEqual(actual.references, expected.references);
+				const actual = await renderPrompt(
+					class extends PromptElement {
+						render() {
+							return <UserMessage>
+								<ToolResult data={{ [contentType]: r }} />
+							</UserMessage>;
+						}
+					},
+					{}, fakeEndpoint, tokenizer
+				);
+
+				assert.deepStrictEqual(actual.messages, expected.messages);
+				assert.deepStrictEqual(actual.references, expected.references);
+			});
 		});
-	});
+	}
 
 	test('correct ordering of child text chunks (#90)', async () => {
 		class Wrapper extends PromptElement {
@@ -1389,5 +1520,85 @@ LOW MED 00 01 02 03 04 05 06 07 08 09
 			'inafter',
 			'after',
 		].join('\n'));
-	})
+	});
+
+	suite('metadata', () => {
+		class MyMeta extends PromptMetadata {
+			constructor(public cool: boolean) {
+				super();
+			}
+		}
+
+		test('is extractable and global', async () => {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							Hello world!
+							<meta value={new MyMeta(true)} />
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
+		});
+
+		test('local survives when chunk survives', async () => {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<TextChunk>Hello <meta value={new MyMeta(true)} local /></TextChunk>
+							<TextChunk>world!</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
+		});
+
+		test('local is pruned when chunk is pruned', async () => {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 1 } as any,
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<TextChunk priority={1}>Hello <meta value={new MyMeta(true)} local /></TextChunk>
+							<TextChunk>world!</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(res.metadata.get(MyMeta), undefined);
+		});
+
+		test('global survives when chunk is pruned', async () => {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 5 } as any,
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<TextChunk priority={1}>Hello <meta value={new MyMeta(true)} /></TextChunk>
+							<TextChunk>world!</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
+		});
+	});
 });

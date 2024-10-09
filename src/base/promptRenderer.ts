@@ -5,14 +5,14 @@
 import type { CancellationToken, Progress } from "vscode";
 import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
-import { ChatMessage, ChatMessageToolCall, ChatRole } from "./openai";
+import { ContainerFlags, LineBreakBefore, MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
+import { ChatMessage } from "./openai";
 import { PromptElement } from "./promptElement";
-import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, Chunk, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { ITracer } from './tracer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
-import { coalesce } from "./util/arrays";
 import { URI } from "./util/vs/common/uri";
 import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
 
@@ -20,6 +20,7 @@ export interface RenderPromptResult {
 	readonly messages: ChatMessage[];
 	readonly tokenCount: number;
 	readonly hasIgnoredFiles: boolean;
+	readonly metadata: MetadataMap;
 	/**
 	 * The references that survived prioritization in the rendered {@link RenderPromptResult.messages messages}.
 	 */
@@ -55,12 +56,9 @@ export namespace MetadataMap {
  */
 export class PromptRenderer<P extends BasePromptElementProps> {
 
-	// map the constructor to the meta data instances
-	private readonly _meta: Map<new () => PromptMetadata, PromptMetadata> = new Map();
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
-	private readonly _references: PromptReference[] = [];
 	public tracer: ITracer | undefined = undefined;
 
 	/**
@@ -76,21 +74,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _tokenizer: ITokenizer
 	) { }
 
-	public getAllMeta(): MetadataMap {
-		const metadataMap = this._meta;
-		return {
-			get<T extends PromptMetadata>(key: new (...args: any[]) => T): T | undefined {
-				return metadataMap.get(key) as T | undefined;
-			}
-		};
-	}
-
 	public getIgnoredFiles(): URI[] {
 		return Array.from(new Set(this._ignoredFiles));
-	}
-
-	public getMeta<T extends PromptMetadata>(key: new (...args: any[]) => T): T | undefined {
-		return this._meta.get(key) as T | undefined;
 	}
 
 	public getUsedContext(): ChatDocumentContext[] {
@@ -223,56 +208,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		this.tracer?.endRenderPass();
 	}
 
-	private async _prioritize<T extends Countable>(things: T[], cmp: (a: T, b: T) => number, count: (thing: T) => Promise<number>) {
-		const prioritizedChunks: { index: number; precedingLinebreak?: number }[] = []; // sorted by descending priority
-		const chunkResult: (T | null)[] = [];
-
-		let i = 0;
-		while (i < things.length) {
-			// We only consider non-linebreaks for prioritization
-			if (!things[i].isImplicitLinebreak) {
-				const chunk = things[i - 1]?.isImplicitLinebreak ? { index: i, precedingLinebreak: i - 1 } : { index: i };
-				prioritizedChunks.push(chunk);
-				chunkResult[i] = null;
-			}
-			i += 1;
-		}
-
-		prioritizedChunks.sort((a, b) => cmp(things[a.index], things[b.index]));
-
-		let remainingBudget = this._endpoint.modelMaxPromptTokens;
-		const omittedChunks: T[] = [];
-		while (prioritizedChunks.length > 0) {
-			const prioritizedChunk = prioritizedChunks.shift()!;
-			const index = prioritizedChunk.index;
-			const chunk = things[index];
-			let tokenCount = await count(chunk);
-			let precedingLinebreak;
-			if (prioritizedChunk.precedingLinebreak) {
-				precedingLinebreak = things[prioritizedChunk.precedingLinebreak];
-				tokenCount += await count(precedingLinebreak);
-			}
-			if (tokenCount > remainingBudget) {
-				// Wouldn't fit anymore
-				omittedChunks.push(chunk);
-				break;
-			}
-			chunkResult[index] = chunk;
-			if (prioritizedChunk.precedingLinebreak && precedingLinebreak) {
-				chunkResult[prioritizedChunk.precedingLinebreak] = precedingLinebreak;
-			}
-			remainingBudget -= tokenCount;
-		}
-
-		for (const omittedChunk of prioritizedChunks) {
-			const index = omittedChunk.index;
-			const chunk = things[index];
-			omittedChunks.push(chunk);
-		}
-
-		return { result: coalesce(chunkResult), tokenCount: this._endpoint.modelMaxPromptTokens - remainingBudget, omittedChunks };
-	}
-
 	/**
 	 * Renders the prompt element and its children to a JSON-serializable state.
 	 * @returns A promise that resolves to an object containing the rendered chat messages and the total token count.
@@ -306,87 +241,70 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			token,
 		);
 
-		// Convert prompt pieces to message chunks (text and linebreaks)
-		const { result: messageChunks, resultChunks } = this._root.materialize();
-
-		// First pass: sort message chunks by priority. Note that this can yield an imprecise result due to token boundaries within a single chat message
-		// so we also need to do a second pass over the full chat messages later
-		const chunkMessages = new Set<MaterializedChatMessage>();
-		const { result: prioritizedChunks, omittedChunks } = await this._prioritize(
-			resultChunks,
-			(a, b) => MaterializedChatMessageTextChunk.cmp(a, b),
-			async (chunk) => {
-				let tokenLength = await this._tokenizer.tokenLength(chunk.text);
-				if (!chunkMessages.has(chunk.message)) {
-					chunkMessages.add(chunk.message);
-					tokenLength = await this._tokenizer.countMessageTokens(chunk.toChatMessage());
-				}
-				return tokenLength;
-			});
-
-		// Update chat messages with their chunks that survived prioritization
-		const chatMessagesToChunks = new Map<MaterializedChatMessage, MaterializedChatMessageTextChunk[]>();
-		for (const chunk of coalesce(prioritizedChunks)) {
-			const value = chatMessagesToChunks.get(chunk.message) ?? [];
-			value[chunk.childIndex] = chunk;
-			chatMessagesToChunks.set(chunk.message, value);
+		// Trim the elements to fit within the token budget. We check the "lower bound"
+		// first because that's much more cache-friendly as we remove elements.
+		const container = this._root.materialize() as MaterializedContainer;
+		const allMetadata = [...container.allMetadata()];
+		while (
+			await container.upperBoundTokenCount(this._tokenizer) > this._endpoint.modelMaxPromptTokens &&
+			await container.tokenCount(this._tokenizer) > this._endpoint.modelMaxPromptTokens
+		) {
+			container.removeLowestPriorityChild();
 		}
-
-		// Collect chat messages with surviving prioritized chunks in the order they were declared
-		const chatMessages: MaterializedChatMessage[] = [];
-		for (const message of messageChunks) {
-			const chunks = chatMessagesToChunks.get(message);
-			if (chunks) {
-				message.chunks = coalesce(chunks);
-				for (const chunk of chunks) {
-					if (chunk && chunk.references.length > 0) {
-						message.references.push(...chunk.references);
-					}
-				}
-				chatMessages.push(message);
-			}
-		}
-
-		// Second pass: make sure the chat messages will fit within the token budget
-		const { result: prioritizedMaterializedChatMessages, tokenCount } = await this._prioritize(chatMessages, (a, b) => MaterializedChatMessage.cmp(a, b), async (message) => this._tokenizer.countMessageTokens(message.toChatMessage()));
 
 		// Then finalize the chat messages
-		const messageResult = prioritizedMaterializedChatMessages.map(message => message?.toChatMessage());
+		const messageResult = [...container.toChatMessages()];
+		const tokenCount = await container.tokenCount(this._tokenizer);
+		const remainingMetadata = [...container.allMetadata()];
 
 		// Remove undefined and duplicate references
-		const { references, names } = prioritizedMaterializedChatMessages.reduce<{ references: PromptReference[], names: Set<string> }>((acc, message) => {
-			[...this._references, ...message.references].forEach((ref) => {
-				const isVariableName = 'variableName' in ref.anchor;
-				if (isVariableName && !acc.names.has(ref.anchor.variableName)) {
-					acc.references.push(ref);
-					acc.names.add(ref.anchor.variableName);
-				} else if (!isVariableName) {
-					acc.references.push(ref);
-				}
-			});
-			return acc;
-		}, { references: [], names: new Set<string>() });
+		const referenceNames = new Set<string>();
+		const references = remainingMetadata.map(m => {
+			if (!(m instanceof ReferenceMetadata)) {
+				return;
+			}
+
+			const ref = m.reference;
+			const isVariableName = 'variableName' in ref.anchor;
+			if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
+				referenceNames.add(ref.anchor.variableName);
+				return ref;
+			} else if (!isVariableName) {
+				return ref;
+			}
+		}).filter(isDefined);
 
 		// Collect the references for chat message chunks that did not survive prioritization
-		const { references: omittedReferences } = omittedChunks.reduce<{ references: PromptReference[] }>((acc, message) => {
-			message.references.forEach((ref) => {
-				const isVariableName = 'variableName' in ref.anchor;
-				if (isVariableName && !names.has(ref.anchor.variableName)) {
-					acc.references.push(ref);
-					names.add(ref.anchor.variableName);
-				} else if (!isVariableName) {
-					acc.references.push(ref);
-				}
-			});
-			return acc;
-		}, { references: [] });
+		const omittedReferences = allMetadata.map(m => {
+			if (!(m instanceof ReferenceMetadata) || remainingMetadata.includes(m)) {
+				return;
+			}
 
-		return { messages: messageResult, hasIgnoredFiles: this._ignoredFiles.length > 0, tokenCount, references: coalesce(references), omittedReferences: coalesce(omittedReferences) };
+			const ref = m.reference;
+			const isVariableName = 'variableName' in ref.anchor;
+			if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
+				referenceNames.add(ref.anchor.variableName);
+				return ref;
+			} else if (!isVariableName) {
+				return ref;
+			}
+		}).filter(isDefined);
+
+		return {
+			metadata: {
+				get: ctor => remainingMetadata.find(m => m instanceof ctor) as any
+			},
+			messages: messageResult,
+			hasIgnoredFiles: this._ignoredFiles.length > 0,
+			tokenCount,
+			references,
+			omittedReferences,
+		};
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
 		if (element.ctor === TextChunk) {
-			this._handleExtrinsicTextChunkChildren(element.node.parent!, element.node, element.props, pieces);
+			this._handleExtrinsicTextChunkChildren(element.node, element.node, element.props, pieces);
 			return;
 		}
 
@@ -431,18 +349,19 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		if (children.length > 0) {
 			throw new Error(`<meta /> must not have children!`);
 		}
-		const key = Object.getPrototypeOf(props.value).constructor;
-		if (this._meta.has(key)) {
-			throw new Error(`Duplicate metadata ${key.name}!`);
+
+		if (props.local) {
+			node.addMetadata(props.value);
+		} else {
+			this._root.addMetadata(props.value);
 		}
-		this._meta.set(key, props.value);
 	}
 
 	private _handleIntrinsicLineBreak(node: PromptTreeElement, props: JSX.IntrinsicElements['br'], children: ProcessedPromptPiece[], inheritedPriority?: number, sortIndex?: number) {
 		if (children.length > 0) {
 			throw new Error(`<br /> must not have children!`);
 		}
-		node.appendLineBreak(true, inheritedPriority ?? Number.MAX_SAFE_INTEGER, sortIndex);
+		node.appendLineBreak(inheritedPriority ?? Number.MAX_SAFE_INTEGER, sortIndex);
 	}
 
 	private _handleIntrinsicElementJSON(node: PromptTreeElement, data: JSONT.PromptElementJSON) {
@@ -460,8 +379,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		if (children.length > 0) {
 			throw new Error(`<reference /> must not have children!`);
 		}
-		node.addReferences(props.value);
-		this._references.push(...props.value);
+		for (const ref of props.value) {
+			node.addMetadata(new ReferenceMetadata(ref));
+		}
 	}
 
 
@@ -481,7 +401,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 */
 	private _handleExtrinsicTextChunkChildren(node: PromptTreeElement, textChunkNode: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {
 		const content: string[] = [];
-		const references: PromptReference[] = [];
+		const metadata: PromptMetadata[] = [];
 
 		for (const child of children) {
 			if (child.kind === 'extrinsic') {
@@ -498,15 +418,16 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					content.push('\n');
 				} else if (child.name === 'references') {
 					// For TextChunks, references must be propagated through the PromptText element that is appended to the node
-					references.push(...child.props.value);
+					for (const reference of child.props.value) {
+						metadata.push(new ReferenceMetadata(reference));
+					}
 				} else {
 					this._handleIntrinsic(node, child.name, child.props, flattenAndReduceArr(child.children), textChunkNode.childIndex);
 				}
 			}
 		}
 
-		node.appendLineBreak(false, undefined, textChunkNode.childIndex);
-		node.appendStringChild(content.join(''), props?.priority ?? Number.MAX_SAFE_INTEGER, references, textChunkNode.childIndex);
+		node.appendStringChild(content.join(''), props?.priority ?? Number.MAX_SAFE_INTEGER, metadata, textChunkNode.childIndex, true);
 	}
 }
 
@@ -583,8 +504,8 @@ class LiteralPromptPiece {
 
 type ProcessedPromptPiece = LiteralPromptPiece | IntrinsicPromptPiece<any> | ExtrinsicPromptPiece<any, any>;
 
-type PromptNode = PromptTreeElement | PromptText | PromptLineBreak;
-type LeafPromptNode = PromptText | PromptLineBreak;
+type PromptNode = PromptTreeElement | PromptText;
+type LeafPromptNode = PromptText;
 
 /**
  * A shared instance given to each PromptTreeElement that contains information
@@ -615,15 +536,13 @@ class PromptSizingContext {
 class PromptTreeElement {
 	public static fromJSON(index: number, json: JSONT.PieceJSON): PromptTreeElement {
 		const element = new PromptTreeElement(null, index);
-		element._references = json.references?.map(r => PromptReference.fromJSON(r)) ?? [];
+		element._metadata = json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))) ?? [];
 		element._children = json.children.map((childJson, i) => {
 			switch (childJson.type) {
 				case JSONT.PromptNodeType.Piece:
 					return PromptTreeElement.fromJSON(i, childJson);
 				case JSONT.PromptNodeType.Text:
 					return PromptText.fromJSON(element, i, childJson);
-				case JSONT.PromptNodeType.LineBreak:
-					return PromptLineBreak.fromJSON(element, i, childJson);
 				default:
 					softAssertNever(childJson);
 			}
@@ -647,7 +566,7 @@ class PromptTreeElement {
 	private _obj: PromptElement | null = null;
 	private _state: any | undefined = undefined;
 	private _children: PromptNode[] = [];
-	private _references: PromptReference[] = [];
+	private _metadata: PromptMetadata[] = [];
 
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
@@ -678,19 +597,12 @@ class PromptTreeElement {
 		return child;
 	}
 
-	public appendStringChild(text: string, priority?: number, references?: PromptReference[], sortIndex = this._children.length) {
-		this._children.push(new PromptText(this, sortIndex, text, priority, references));
+	public appendStringChild(text: string, priority?: number, metadata?: PromptMetadata[], sortIndex = this._children.length, lineBreakBefore = false) {
+		this._children.push(new PromptText(this, sortIndex, text, priority, metadata, lineBreakBefore));
 	}
 
-	public appendLineBreak(explicit = true, priority?: number, sortIndex = this._children.length): void {
-		this._children.push(new PromptLineBreak(this, sortIndex, explicit, priority));
-	}
-
-	public materialize(): { result: MaterializedChatMessage[]; resultChunks: MaterializedChatMessageTextChunk[] } {
-		const result: MaterializedChatMessage[] = [];
-		const resultChunks: MaterializedChatMessageTextChunk[] = [];
-		this._materialize(result, resultChunks);
-		return { result, resultChunks };
+	public appendLineBreak(priority?: number, sortIndex = this._children.length): void {
+		this._children.push(new PromptText(this, sortIndex, '\n', priority));
 	}
 
 	public toJSON(): JSONT.PieceJSON {
@@ -699,7 +611,7 @@ class PromptTreeElement {
 			ctor: JSONT.PieceCtorKind.Other,
 			children: this._children.slice().sort((a, b) => a.childIndex - b.childIndex).map(c => c.toJSON()),
 			priority: this._obj?.props.priority,
-			references: this._references?.map(r => r.toJSON()),
+			references: this._metadata.filter(m => m instanceof ReferenceMetadata).map(r => r.reference.toJSON()),
 		};
 
 		if (this._obj instanceof BaseChatMessage) {
@@ -716,182 +628,46 @@ class PromptTreeElement {
 		return json;
 	}
 
-	private _materialize(result: MaterializedChatMessage[], resultChunks: MaterializedChatMessageTextChunk[]): void {
+	public materialize(): MaterializedChatMessage | MaterializedContainer {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 		if (this._obj instanceof BaseChatMessage) {
 			if (!this._obj.props.role) {
 				throw new Error(`Invalid ChatMessage!`);
 			}
-			const leafNodes: LeafPromptNode[] = [];
-			for (const child of this._children) {
-				child.collectLeafs(leafNodes);
-			}
-			const chunks: MaterializedChatMessageTextChunk[] = [];
 			const parent = new MaterializedChatMessage(
 				this._obj.props.role,
 				this._obj.props.name,
 				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
-				this._obj.props.priority,
+				this._obj.props.priority ?? 0,
 				this.childIndex,
-				chunks
+				this._metadata,
+				this._children.map(child => child.materialize()),
 			);
-			let childIndex = resultChunks.length;
-			leafNodes.forEach((node, index) => {
-				if (node.kind === PromptNodeType.Text) {
-					chunks.push(new MaterializedChatMessageTextChunk(parent, node.text, node.priority, childIndex++, false, node.references ?? this._references));
-				} else {
-					if (node.isExplicit) {
-						chunks.push(new MaterializedChatMessageTextChunk(parent, '\n', node.priority, childIndex++));
-					} else if (chunks.length > 0 && chunks[chunks.length - 1].text !== '\n' || chunks[index - 1] && chunks[index - 1].text !== '\n') {
-						// Only insert an implicit linebreak if there wasn't already an explicit linebreak before
-						chunks.push(new MaterializedChatMessageTextChunk(parent, '\n', node.priority, childIndex++, true));
-					}
-				}
-			});
-			resultChunks.push(...chunks);
-			result.push(parent);
+			return parent;
 		} else {
-			for (const child of this._children) {
-				if (child.kind === PromptNodeType.Text) {
-					throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${child.text}"`);
-				} else if (child.kind === PromptNodeType.LineBreak) {
-					throw new Error(`Cannot have a line break node outside a ChatMessage!`);
-				}
-				child._materialize(result, resultChunks);
-			}
+			let flags = 0;
+			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
+			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
+
+			return new MaterializedContainer(
+				this._obj?.props.priority || 0,
+				this._children.map(child => child.materialize()),
+				this._metadata,
+				flags,
+			);
 		}
 	}
 
-	public collectLeafs(result: LeafPromptNode[]): void {
-		if (this._obj instanceof BaseChatMessage) {
-			throw new Error(`Cannot have a ChatMessage nested inside a ChatMessage!`);
-		}
-		if (this._obj?.insertLineBreakBefore) {
-			// Add an implicit <br/> before the element
-			result.push(new PromptLineBreak(this, 0, false));
-		}
-		for (const child of this._children.sort((a, b) => a.childIndex - b.childIndex)) {
-			child.collectLeafs(result);
-		}
-	}
-
-	public addReferences(references: PromptReference[]): void {
-		this._references.push(...references);
+	public addMetadata(metadata: PromptMetadata): void {
+		this._metadata.push(metadata);
 	}
 }
 
-interface Countable {
-	text: string;
-	isImplicitLinebreak?: boolean;
-}
-
-class MaterializedChatMessageTextChunk implements Countable {
-	constructor(
-		public readonly message: MaterializedChatMessage,
-		public readonly text: string,
-		private readonly priority: number | undefined,
-		public readonly childIndex: number,
-		public readonly isImplicitLinebreak = false,
-		public readonly references: PromptReference[] = []
-	) { }
-
-	public static cmp(a: MaterializedChatMessageTextChunk, b: MaterializedChatMessageTextChunk): number {
-		if (a.priority !== undefined && b.priority !== undefined && a.priority === b.priority) {
-			// If the chunks share the same parent, break priority ties based on the order
-			// that the chunks were declared in under its parent chat message
-			if (a.message === b.message) {
-				return a.childIndex - b.childIndex;
-			}
-			// Otherwise, prioritize chunks that were declared last
-			return b.childIndex - a.childIndex;
-		}
-
-		if (a.priority !== undefined && b.priority !== undefined && a.priority !== b.priority) {
-			return b.priority - a.priority;
-		}
-
-		return a.childIndex - b.childIndex;
-	}
-
-	public toChatMessage(): ChatMessage {
-		const chatMessage = this.message.toChatMessage();
-		chatMessage.content = this.text;
-		return chatMessage;
-	}
-}
-
-class MaterializedChatMessage implements Countable {
-	constructor(
-		public readonly role: ChatRole,
-		public readonly name: string | undefined,
-		public readonly toolCalls: ChatMessageToolCall[] | undefined,
-		public readonly toolCallId: string | undefined,
-		private readonly priority: number | undefined,
-		private readonly childIndex: number,
-		private _chunks: MaterializedChatMessageTextChunk[],
-		public references: PromptReference[] = []
-	) { }
-
-	public set chunks(chunks: MaterializedChatMessageTextChunk[]) {
-		this._chunks = chunks;
-	}
-
-	public get text(): string {
-		return this._chunks.reduce((acc, c, i) => {
-			if (i !== (this._chunks.length - 1) || !c.isImplicitLinebreak) {
-				acc += c.text;
-			}
-			return acc;
-		}, '');
-	}
-
-	public toChatMessage(): ChatMessage {
-		if (this.role === ChatRole.System) {
-			return {
-				role: this.role,
-				content: this.text,
-				...(this.name ? { name: this.name } : {})
-			};
-		} else if (this.role === ChatRole.Assistant) {
-			return {
-				role: this.role,
-				content: this.text,
-				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
-				...(this.name ? { name: this.name } : {})
-			};
-		} else if (this.role === ChatRole.User) {
-			return {
-				role: this.role,
-				content: this.text,
-				...(this.name ? { name: this.name } : {})
-			}
-		} else if (this.role === ChatRole.Tool) {
-			return {
-				role: this.role,
-				content: this.text,
-				tool_call_id: this.toolCallId
-			};
-		} else {
-			return {
-				role: this.role,
-				content: this.text,
-				name: this.name!
-			};
-		}
-	}
-
-	public static cmp(a: MaterializedChatMessage, b: MaterializedChatMessage): number {
-		if (a.priority !== b.priority) {
-			return (b.priority || 0) - (a.priority || 0);
-		}
-		return b.childIndex - a.childIndex;
-	}
-}
 
 class PromptText {
 	public static fromJSON(parent: PromptTreeElement, index: number, json: JSONT.TextJSON): PromptText {
-		return new PromptText(parent, index, json.text, json.priority, json.references?.map(r => PromptReference.fromJSON(r)));
+		return new PromptText(parent, index, json.text, json.priority, json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))), json.lineBreakBefore);
 	}
 
 	public readonly kind = PromptNodeType.Text;
@@ -901,11 +677,21 @@ class PromptText {
 		public readonly childIndex: number,
 		public readonly text: string,
 		public readonly priority?: number,
-		public readonly references?: PromptReference[]
+		public readonly metadata?: PromptMetadata[],
+		public readonly lineBreakBefore = false,
 	) { }
 
 	public collectLeafs(result: LeafPromptNode[]) {
 		result.push(this);
+	}
+
+	public materialize() {
+		const lineBreak = this.lineBreakBefore
+			? LineBreakBefore.Always
+			: this.childIndex === 0
+				? LineBreakBefore.IfNotTextSibling
+				: LineBreakBefore.None;
+		return new MaterializedChatMessageTextChunk(this.text, this.priority ?? Number.MAX_SAFE_INTEGER, this.metadata || [], lineBreak);
 	}
 
 	public toJSON(): JSONT.TextJSON {
@@ -913,34 +699,8 @@ class PromptText {
 			type: JSONT.PromptNodeType.Text,
 			priority: this.priority,
 			text: this.text,
-			references: this.references?.map(r => r.toJSON()),
-		};
-	}
-}
-
-class PromptLineBreak {
-	public static fromJSON(parent: PromptTreeElement, index: number, json: JSONT.LineBreakJSON): PromptLineBreak {
-		return new PromptLineBreak(parent, index, json.isExplicit, json.priority);
-	}
-
-	public readonly kind = PromptNodeType.LineBreak;
-
-	constructor(
-		public readonly parent: PromptTreeElement,
-		public readonly childIndex: number,
-		public readonly isExplicit: boolean,
-		public readonly priority?: number
-	) { }
-
-	public collectLeafs(result: LeafPromptNode[]) {
-		result.push(this);
-	}
-
-	public toJSON(): JSONT.LineBreakJSON {
-		return {
-			type: JSONT.PromptNodeType.LineBreak,
-			isExplicit: this.isExplicit,
-			priority: this.priority,
+			references: this.metadata?.filter(m => m instanceof ReferenceMetadata).map(r => r.reference.toJSON()),
+			lineBreakBefore: this.lineBreakBefore,
 		};
 	}
 }
@@ -956,4 +716,12 @@ function softAssertNever(x: never): void {
 
 function isDefined<T>(x: T | undefined): x is T {
 	return x !== undefined;
+}
+
+class InternalMetadata extends PromptMetadata { }
+
+class ReferenceMetadata extends InternalMetadata {
+	constructor(public readonly reference: PromptReference) {
+		super();
+	}
 }

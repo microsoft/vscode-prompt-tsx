@@ -20,7 +20,7 @@ export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
 
-export { AssistantMessage, FunctionMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage } from './promptElements';
+export { AssistantMessage, FunctionMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage, LegacyPrioritization, Chunk } from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
@@ -82,15 +82,14 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 		? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
 		: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
-	let { messages, tokenCount, references } = await renderer.render(progress, token);
-	const metadatas = renderer.getAllMeta();
+	let { messages, tokenCount, references, metadata } = await renderer.render(progress, token);
 	const usedContext = renderer.getUsedContext();
 
 	if (mode === 'vscode') {
 		messages = toVsCodeChatMessages(messages);
 	}
 
-	return { messages, tokenCount, metadatas, usedContext, references };
+	return { messages, tokenCount, metadatas: metadata, usedContext, references };
 }
 
 /**

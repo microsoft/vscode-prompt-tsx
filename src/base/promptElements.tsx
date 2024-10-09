@@ -4,7 +4,6 @@
 
 import type { CancellationToken } from 'vscode';
 import { contentType } from '.';
-import * as JSONT from './jsonTypes';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
@@ -232,12 +231,22 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 		return (
 			<>
 				{children.map((child, i) => {
-					child.props ??= {};
-					child.props.priority = this.props.descending
+					if (!child) {
+						return;
+					}
+
+					const priority = this.props.descending
 						? // First element in array of children has highest priority
 						this.props.priority - i
 						: // Last element in array of children has highest priority
 						this.props.priority - children.length + i;
+
+					if (typeof child !== 'object') {
+						return <TextChunk priority={priority}>{child}</TextChunk>;
+					}
+
+					child.props ??= {};
+					child.props.priority = priority;
 					return child;
 				})}
 			</>
@@ -264,43 +273,33 @@ export class ToolResult extends PromptElement<IToolResultProps> {
 	render(): Promise<PromptPiece | undefined> | PromptPiece | undefined {
 		// note: future updates to content types should be handled here for backwards compatibility
 		if (this.props.data.hasOwnProperty(contentType)) {
-			return <elementJSON data={this.rebasePriority(this.props.data[contentType])} />;
+			return <elementJSON data={this.props.data[contentType]} />;
 		} else {
 			return <UserMessage priority={this.priority}>{this.props.data.toString()}</UserMessage>;
 		}
 	}
+}
 
-	/**
-	 * Modifies priorities of all elements in the tree to fractional increments
-	 * past `this.priorty`.
-	 */
-	private rebasePriority(data: JSONT.PromptElementJSON) {
-		if (this.priority === undefined) {
-			return data;
-		}
+/**
+ * Marker element that uses the legacy global prioritization algorithm (0.2.x
+ * if this library) for pruning child elements. This will be removed in
+ * the future.
+ *
+ * @deprecated
+ */
+export class LegacyPrioritization extends PromptElement {
+	render() {
+		return <>{this.props.children}</>;
+	}
+}
 
-		const cloned = structuredClone(data);
-
-		let maxPriorityInChildren = 1;
-		JSONT.forEachNode(cloned.node, node => {
-			// was initially undefined in the tree and was set to this implicitly:
-			if (node.priority === Number.MAX_SAFE_INTEGER) {
-				node.priority = undefined;
-			}
-			if (node.priority !== undefined) {
-				maxPriorityInChildren = Math.max(maxPriorityInChildren, node.priority);
-			}
-		});
-
-		// Elements without priority default to MAX_SAFE_INTEGER in the renderer,
-		// so follow similar behavior here. The denominator of the fractional part
-		// is set so that we maximal elements are `this.priority + (max + 1) / (max + 2)`,
-		// keeping `this.priority <= node.priority < this.priority + 1`
-		JSONT.forEachNode(cloned.node, node => {
-			const frac = (node.priority ?? (maxPriorityInChildren + 1)) / (maxPriorityInChildren + 2);
-			node.priority = this.priority + frac;
-		});
-
-		return cloned;
+/**
+ * Marker element that ensures all of its children are either included, or
+ * not included. This is similar to the `<TextChunk />` element, but it is more
+ * basic and can contain extrinsic children.
+ */
+export class Chunk extends PromptElement<BasePromptElementProps> {
+	render() {
+		return <>{this.props.children}</>;
 	}
 }
