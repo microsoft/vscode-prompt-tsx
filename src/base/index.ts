@@ -20,7 +20,7 @@ export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
 
-export { AssistantMessage, FunctionMessage, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage, LegacyPrioritization, Chunk } from './promptElements';
+export { AssistantMessage, Chunk, FunctionMessage, LegacyPrioritization, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage } from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
@@ -168,7 +168,7 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(m.content, m.name);
 				if (m.tool_calls) {
 					message.content2 = [m.content];
-					message.content2.push(...m.tool_calls.map(tc => new vscode.LanguageModelToolCallPart(tc.function.name, tc.function.arguments, tc.id)));
+					message.content2.push(...m.tool_calls.map(tc => new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)));
 				}
 				return message;
 			case ChatRole.User:
