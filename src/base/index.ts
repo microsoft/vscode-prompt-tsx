@@ -168,19 +168,19 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(m.content, m.name);
 				if (m.tool_calls) {
 					message.content2 = [m.content];
-					message.content2.push(...m.tool_calls.map(tc => new vscode.LanguageModelChatResponseToolCallPart(tc.function.name, tc.function.arguments, tc.id)));
+					message.content2.push(...m.tool_calls.map(tc => new vscode.LanguageModelToolCallPart(tc.function.name, tc.function.arguments, tc.id)));
 				}
 				return message;
 			case ChatRole.User:
 				return vscode.LanguageModelChatMessage.User(m.content, m.name);
 			case ChatRole.Function: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content2 = [new vscode.LanguageModelChatMessageFunctionResultPart(m.name, m.content)];
+				message.content2 = [new vscode.LanguageModelToolResultPart(m.name, m.content)];
 				return message;
 			}
 			case ChatRole.Tool: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User(m.content);
-				message.content2 = [new vscode.LanguageModelChatMessageFunctionResultPart(m.tool_call_id, m.content)];
+				message.content2 = [new vscode.LanguageModelToolResultPart(m.tool_call_id, m.content)];
 				return message;
 			}
 			default:
