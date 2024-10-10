@@ -41,11 +41,13 @@ export type QueueItem<C, P> = {
 
 export interface MetadataMap {
 	get<T extends PromptMetadata>(key: new (...args: any[]) => T): T | undefined;
+	getAll<T extends PromptMetadata>(key: new (...args: any[]) => T): T[];
 }
 
 export namespace MetadataMap {
 	export const empty: MetadataMap = {
-		get: () => undefined
+		get: () => undefined,
+		getAll: () => [],
 	};
 }
 
@@ -292,7 +294,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		return {
 			metadata: {
-				get: ctor => remainingMetadata.find(m => m instanceof ctor) as any
+				get: ctor => remainingMetadata.find(m => m instanceof ctor) as any,
+				getAll: ctor => remainingMetadata.filter(m => m instanceof ctor) as any,
 			},
 			messages: messageResult,
 			hasIgnoredFiles: this._ignoredFiles.length > 0,

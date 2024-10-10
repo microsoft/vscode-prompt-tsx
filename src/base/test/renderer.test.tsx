@@ -1600,5 +1600,24 @@ suite('PromptRenderer', () => {
 
 			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
 		});
+
+		test('can return multiple instances', async () => {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							Hello world!
+							<meta value={new MyMeta(true)} />
+							<meta value={new MyMeta(false)} />
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(res.metadata.getAll(MyMeta), [new MyMeta(true), new MyMeta(false)]);
+		});
 	});
 });
