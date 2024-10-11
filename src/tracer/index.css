@@ -1,0 +1,115 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe WPC', 'Segoe UI', system-ui, 'Ubuntu', 'Droid Sans', sans-serif;
+  background: #fff;
+}
+
+/** Old flex display */
+.render-pass {
+  padding: 4px;
+  border-left: 2px solid #ccc;
+
+  &:hover {
+    border-left-color: #000;
+  }
+}
+
+.literals li {
+  white-space: pre;
+  font-family: monospace;
+}
+
+.render-flex, .render-element {
+  padding-left: 10px;
+}
+
+/** TSX Components */
+
+.app {
+  padding: 20px;
+}
+
+.node {
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  margin: 10px;
+  padding: 10px;
+  border-radius: 4px;
+  width: 200px;
+}
+
+.node-content {
+  font-weight: bold;
+}
+
+.node-children {
+  margin-left: 20px;
+  border-left: 2px dashed rgba(255, 255, 255, 0.5);
+  padding-left: 10px;
+}
+
+.node-toggler {
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  .indicator {
+    font-size: 0.7em;
+  }
+}
+
+.node-text {
+  width: 400px;
+
+  &:focus, &:focus-within {
+    outline: 1px solid orange;
+
+    .node-content {
+      white-space: normal;
+    }
+  }
+
+  .node-content {
+    font-weight: normal;
+    font-size: 0.8em;
+
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+  }
+}
+
+.node-stats {
+  font-family: monospace;
+  font-size: 0.8em;
+}
+
+.controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  p {
+    font-size: 0.9em;
+    max-width: 500px;
+    margin-top: 0;
+  }
+}
+
+.controls-slider {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.controls-stats {
+  display: flex;
+  gap: 20px;
+  list-style: none;
+  padding: 0;
+  margin-top: 0;
+}
+
+.controls-scoreby {
+  display: flex;
+  gap: 10px;
+}

@@ -1,0 +1,13 @@
+{
+	"include": ["./"],
+	"compilerOptions": {
+		"module": "ESNext",
+		"noEmit": true,
+		"strict": true,
+		"declaration": false,
+		"jsx": "react",
+		"jsxFactory": "h",
+		"jsxFragmentFactory": "Fragment",
+		"moduleResolution": "Bundler"
+	}
+}

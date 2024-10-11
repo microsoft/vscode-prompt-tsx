@@ -33,6 +33,8 @@ export const enum ContainerFlags {
 export class MaterializedContainer implements IMaterializedNode {
 
 	constructor(
+		public readonly id: number,
+		public readonly name: string | undefined,
 		public readonly priority: number,
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
@@ -128,12 +130,12 @@ export class MaterializedChatMessageTextChunk {
 export class MaterializedChatMessage implements IMaterializedNode {
 
 	constructor(
+		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
 		public readonly toolCalls: ChatMessageToolCall[] | undefined,
 		public readonly toolCallId: string | undefined,
 		public readonly priority: number,
-		private readonly childIndex: number,
 		public readonly metadata: PromptMetadata[],
 		public readonly children: MaterializedNode[],
 	) { }
@@ -235,13 +237,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				name: this.name!
 			};
 		}
-	}
-
-	public static cmp(a: MaterializedChatMessage, b: MaterializedChatMessage): number {
-		if (a.priority !== b.priority) {
-			return (b.priority || 0) - (a.priority || 0);
-		}
-		return b.childIndex - a.childIndex;
 	}
 }
 

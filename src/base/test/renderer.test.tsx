@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { contentType, renderElementJSON, renderPrompt } from '..';
+import { contentType, HTMLTracer, renderElementJSON, renderPrompt } from '..';
 import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
@@ -28,6 +28,7 @@ import {
 	PromptPiece,
 	PromptSizing
 } from '../types';
+import { randomUUID } from 'crypto';
 
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
@@ -1069,6 +1070,7 @@ suite('PromptRenderer', () => {
 					<UserMessage>
 						{this.props.useBudget ? `consume=${this.props.useBudget}, ` : ''}
 						{this.props.name}={budget}
+						{randomUUID().repeat(Math.floor(Math.random() * 5))}
 					</UserMessage>
 				);
 			}
@@ -1085,7 +1087,13 @@ suite('PromptRenderer', () => {
 				{},
 				new FakeTokenizer()
 			);
+			const tracer = new HTMLTracer();
+			inst.tracer = tracer;
 			const res = await inst.render(undefined, undefined);
+			await tracer.serveHTML().then(s => {
+				console.log(s.address);
+				return new Promise(() => { });
+			})
 			assert.deepStrictEqual(res.messages, expected);
 		}
 
