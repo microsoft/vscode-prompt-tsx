@@ -155,7 +155,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 	/** Gets whether the message is empty */
 	public get isEmpty() {
-		return !/\S/.test(this.text);
+		return !/\S/.test(this.text) && !this.toolCalls?.length && !this.toolCallId;
 	}
 
 	/** Remove the lowest priority chunk among this message's children. */
