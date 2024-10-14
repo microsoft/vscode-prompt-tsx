@@ -48,6 +48,14 @@ const Children: FunctionComponent<{ scoreBy: ScoreField; nodes: ITraceMaterializ
 	</div>
 };
 
+const LNNodeStats: FunctionComponent<{ node: ITraceMaterializedNode }> = ({ node }) => (
+	<div className='node-stats'>
+		Used Tokens: {node.tokens}
+		{' / '}
+		Priority: {node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : node.priority}
+	</div>
+);
+
 const LMNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedNode } & h.JSX.HTMLAttributes<HTMLDivElement>> = ({ scoreBy, node, children, ...attrs }) => {
 	let step = 0;
 	if (scoreBy.max !== scoreBy.min) {
@@ -57,11 +65,6 @@ const LMNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedN
 
 	return (
 		<div {...attrs} className={`node ${attrs.className || ''}`} style={{ backgroundColor: RANGE_COLORS[step].bg, color: RANGE_COLORS[step].fg }}>
-			<div className='node-stats'>
-				Tokens: {node.tokens}
-				{' / '}
-				Priority: {node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : node.priority}
-			</div>
 			{children}
 		</div>
 	);
@@ -70,6 +73,7 @@ const LMNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedN
 const TextNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedChatMessageTextChunk; }> = ({ scoreBy, node }) => {
 	return (
 		<LMNode node={node} scoreBy={scoreBy} tabIndex={0} className='node-text'>
+			<LNNodeStats node={node} />
 			<div className="node-content">
 				{node.value}
 			</div>
@@ -79,15 +83,35 @@ const TextNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterialize
 
 const WrapperNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedContainer | ITraceMaterializedChatMessage; epoch: number }> = ({ scoreBy, node, epoch }) => {
 	const [collapsed, setCollapsed] = useState(false);
+	const epochIndex = EPOCHS.findIndex(e => e.elements.some(e => e.id === node.id));
+	if (epochIndex === undefined) {
+		throw new Error(`epoch not found for ${node.id}`);
+	}
+	const myEpoch = EPOCHS[epochIndex];
+	const thisEpoch = EPOCHS.at(epoch);
+	const tokenBudget = myEpoch.elements.find(e => e.id === node.id)!.tokenBudget;
 	const tag = node.type === TraceMaterializedNodeType.ChatMessage
 		? node.name || node.role.slice(0, 1).toUpperCase() + node.role.slice(1) + 'Message'
 		: node.name;
+
+	if (epoch < epochIndex) {
+		return null;
+	}
+
 	return (
-		<LMNode node={node} scoreBy={scoreBy}>
+		<LMNode node={node} scoreBy={scoreBy} className={epochIndex === epoch ? 'new-in-epoch' : undefined}>
+			<LNNodeStats node={node} />
 			<div className="node-content node-toggler" onClick={() => setCollapsed(v => !v)}>
-				<span>{`<${tag}>`}</span>
+				<span>{thisEpoch?.inNode === node.id ? '🏃 ' : ''}{`<${tag}>`}</span>
 				<span className='indicator'>{collapsed ? '[+]' : '[-]'}</span>
 			</div>
+			{epoch === epochIndex && <div className='node-stats'>
+				Token Budget: {tokenBudget}
+			</div>}
+			{thisEpoch?.inNode === node.id && <div className='node-stats'>
+				Rendering flexGrow={thisEpoch.flexValue}<br /><br />
+				Splitting {thisEpoch.reservedTokens ? `${thisEpoch.tokenBudget} - ${thisEpoch.reservedTokens} (reserved) = ${thisEpoch.tokenBudget - thisEpoch.reservedTokens}` : thisEpoch.tokenBudget} tokens among {thisEpoch.elements.length} elements
+			</div>}
 			{!collapsed && <Children nodes={node.children} scoreBy={scoreBy} epoch={epoch} />}
 		</LMNode>
 	);

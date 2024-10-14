@@ -26,6 +26,7 @@ export interface ITraceData {
 }
 
 export interface ITraceEpoch {
+	inNode: number | undefined;
 	flexValue: number;
 	tokenBudget: number;
 	reservedTokens: number;

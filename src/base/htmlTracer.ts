@@ -28,91 +28,87 @@ export class HTMLTracer implements ITracer {
 
 	/**
 	 * Returns HTML to trace the output. Note that is starts a server which is
-	 * used for client interaction to resize the prompt and its value should
-	 * be disp
+	 * used for client interaction to resize the prompt and its `address` should
+	 * be displayed or opened as a link in a browser.
+	 *
+	 * The server runs until it is disposed.
 	 */
 	public async serveHTML(): Promise<IHTMLServer> {
-		const serverToken = crypto.randomUUID();
-		const traceData = mustGet(this.traceData);
-		const html = `<body>
-			<style>${tracerCss}</style>
-			<script>
-				const DEFAULT_TOKENS = ${JSON.stringify(traceData.budget)};
-				const EPOCHS = ${JSON.stringify(this.epochs satisfies HTMLTraceEpoch[])};
-				const DEFAULT_MODEL = ${JSON.stringify(await serializeRenderData(traceData.tokenizer, traceData.renderedTree))};
-				${tracerSrc}
-			</script>
-		</body>`;
-
 		return RequestServer.create({
-			html,
-			serverToken,
-			traceData,
-		})
+			epochs: this.epochs,
+			traceData: mustGet(this.traceData),
+		});
 	}
+
+	/**
+	 * Gets an HTML router for a server at the URL. URL is the form `http://127.0.0.1:1234`.
+	 */
+	public serveRouter(url: string): IHTMLRouter {
+		return new RequestRouter({
+			baseAddress: url,
+			epochs: this.epochs,
+			traceData: mustGet(this.traceData),
+		});
+	}
+}
+
+export interface IHTMLRouter {
+	route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean;
 }
 
 export interface IHTMLServer {
 	address: string;
-	html: string;
+	getHTML(): Promise<string>;
 	dispose(): void;
 }
 
 interface IServerOpts {
-	html: string;
-	serverToken: string;
+	epochs: ITraceEpoch[];
 	traceData: ITraceData;
+	baseAddress: string;
 }
 
-class RequestServer implements IHTMLServer {
-	public static async create(opts: IServerOpts) {
-		const { createServer } = await import('http');
-		const prefix = `/${opts.serverToken}`;
+class RequestRouter implements IHTMLRouter {
+	private serverToken = crypto.randomUUID();
 
-		const server = createServer((req, res) => {
-			const url = new URL(req.url || '/', `http://localhost`);
-			try {
-				switch (url.pathname) {
-					case ``:
-					case `${prefix}/`: return instance.onRoot(url, req, res);
-					case `${prefix}/regen`: return instance.onRegen(url, req, res);
-					default:
-						res.statusCode = 404;
-						res.end('Not Found');
-				}
-			} catch (e) {
-				res.statusCode = 500;
-				res.end(String(e));
-			}
-		});
-		const instance = new RequestServer(opts, server);
+	constructor(private readonly opts: IServerOpts) { }
 
-		instance.port = await new Promise<number>((resolve, reject) => {
-			server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port)).on('error', reject);
-		});
+	public route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean {
+		const req = httpIncomingMessage as IncomingMessage;
+		const res = httpOutgoingMessage as OutgoingMessage;
+		const url = new URL(req.url || '/', `http://localhost`);
+		const prefix = `/${this.serverToken}`;
+		switch (url.pathname) {
+			case prefix:
+			case `${prefix}/`:
+				this.onRoot(url, req, res);
+				break;
+			case `${prefix}/regen`:
+				this.onRegen(url, req, res);
+				break;
+			default:
+				return false;
+		}
 
-		return instance;
+		return true;
 	}
-
-	private port!: number;
 
 	public get address() {
-		return `http://127.0.0.1:${this.port}/${this.opts.serverToken}/`;
+		return this.opts.baseAddress + '/' + this.serverToken;
 	}
 
-	public get html() {
-		return this.opts.html;
-	}
-
-	constructor(
-		private readonly opts: IServerOpts,
-		private readonly server: Server
-	) {
-	}
-
-	dispose() {
-		this.server.closeAllConnections();
-		this.server.close();
+	public async getHTML() {
+		const { traceData, epochs } = this.opts;
+		return `<body>
+			<style>${tracerCss}</style>
+			<script>
+				const DEFAULT_TOKENS = ${JSON.stringify(traceData.budget)};
+				const EPOCHS = ${JSON.stringify(epochs satisfies HTMLTraceEpoch[])};
+				const DEFAULT_MODEL = ${JSON.stringify(await serializeRenderData(traceData.tokenizer, traceData.renderedTree))};
+				const SERVER_ADDRESS = ${JSON.stringify(this.opts.baseAddress + '/' + this.serverToken + '/')};
+				${tracerSrc}
+			</script>
+		</body>`;
 	}
 
 	private async onRegen(url: URL, _req: IncomingMessage, res: OutgoingMessage) {
@@ -124,14 +120,51 @@ class RequestServer implements IHTMLServer {
 		res.setHeader('Content-Type', 'application/json');
 		res.setHeader('Content-Length', Buffer.byteLength(json));
 		res.end(json);
-
 	}
 
 	private onRoot(_url: URL, _req: IncomingMessage, res: OutgoingMessage) {
-		const html = `<script>globalThis.SERVER_ADDRESS=${JSON.stringify(this.address)}</script>` + this.opts.html;
-		res.setHeader('Content-Type', 'text/html');
-		res.setHeader('Content-Length', html.length);
-		res.end(html);
+		this.getHTML().then(html => {
+			res.setHeader('Content-Type', 'text/html');
+			res.setHeader('Content-Length', html.length);
+			res.end(html);
+		});
+	}
+}
+
+class RequestServer extends RequestRouter implements IHTMLServer {
+	public static async create(opts: Omit<IServerOpts, 'baseAddress'>) {
+		const { createServer } = await import('http');
+		const server = createServer((req, res) => {
+			try {
+				if (!instance.route(req, res)) {
+					res.statusCode = 404;
+					res.end('Not Found');
+				}
+			} catch (e) {
+				res.statusCode = 500;
+				res.end(String(e));
+			}
+		});
+
+		const port = await new Promise<number>((resolve, reject) => {
+			server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port)).on('error', reject);
+		});
+
+		const instance = new RequestServer({
+			...opts,
+			baseAddress: `http://127.0.0.1:${port}`,
+		}, server);
+
+		return instance;
+	}
+
+	constructor(opts: IServerOpts, private readonly server: Server) {
+		super(opts);
+	}
+
+	dispose() {
+		this.server.closeAllConnections();
+		this.server.close();
 	}
 }
 

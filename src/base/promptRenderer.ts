@@ -170,6 +170,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			sizing.consume(-reservedTokens);
 
 			this.tracer?.addRenderEpoch?.({
+				inNode: promptElements[0].element.node.parent?.id,
 				flexValue: promptElements[0].element.props.flexGrow ?? 0,
 				tokenBudget: sizing.remainingTokenBudget,
 				reservedTokens,

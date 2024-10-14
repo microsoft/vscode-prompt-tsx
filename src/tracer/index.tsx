@@ -80,6 +80,7 @@ const App = () => {
 	const [epoch, setEpoch] = useState(EPOCHS.length);
 	const [model, setModel] = useState<IHTMLTraceRenderData>(DEFAULT_MODEL);
 	const [scoreBy, setScoreBy] = useState<'priority' | 'tokens'>('tokens');
+	const [activeTab, setActiveTab] = useState<'epoch' | 'tokens'>('epoch');
 
 	const regenModel = useDebouncedCallback(async (tokens: number) => {
 		if (tokens === DEFAULT_TOKENS) {
@@ -93,19 +94,29 @@ const App = () => {
 	const handleTokensChange = (newTokens: number) => {
 		setTokens(newTokens);
 		regenModel(newTokens);
+		setEpoch(EPOCHS.length);
 	};
 
 	return (
 		<div className="app">
 			<div className="controls">
-				<SliderWithInputControl label='Render Epoch' value={epoch} onChange={setEpoch} min={0} max={EPOCHS.length} />
-				{epoch !== EPOCHS.length && <p>Changing the render epoch lets you see the order in which elements are rendered and how the token budget is allocated.</p>}
-				<SliderWithInputControl label='Token Budget' value={tokens} onChange={handleTokensChange} min={0} max={DEFAULT_TOKENS * 2} />
-				{tokens !== DEFAULT_TOKENS && <p>Token changes here will prune elements and re-render 'pure' ones, but the entire prompt is not being re-rendered</p>}
+				<div className="tabs">
+					<div className={`tab ${activeTab === 'epoch' ? 'active' : ''}`} onClick={() => setActiveTab('epoch')}>View Order</div>
+					<div className={`tab ${activeTab === 'tokens' ? 'active' : ''}`} onClick={() => setActiveTab('tokens')}>Change Token Budget</div>
+				</div>
+				<div className={`tab-content ${activeTab === 'epoch' ? 'active' : ''}`}>
+					<SliderWithInputControl label='Render Epoch' value={epoch} onChange={setEpoch} min={0} max={EPOCHS.length} />
+					<p>Changing the render epoch lets you see the order in which elements are rendered and how the token budget is allocated.</p>
+				</div>
+				<div className={`tab-content ${activeTab === 'tokens' ? 'active' : ''}`}>
+					<SliderWithInputControl label='Token Budget' value={tokens} onChange={handleTokensChange} min={0} max={DEFAULT_TOKENS * 2} />
+					<p>Token changes here will prune elements and re-render 'pure' ones, but the entire prompt is not being re-rendered</p>
+				</div>
 				<div className='controls-stats'>
 					<span>Used {model.container.tokens}/{model.budget} tokens</span>
 					<span>Removed {model.removed} nodes</span>
 					<ScoreByControl scoreBy={scoreBy} onScoreByChange={setScoreBy} />
+
 				</div>
 			</div>
 			<Root node={model.container} scoreBy={scoreBy} epoch={epoch} />
