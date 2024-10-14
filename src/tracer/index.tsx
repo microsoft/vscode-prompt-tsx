@@ -6,6 +6,7 @@ import { FunctionComponent, h, render } from 'preact';
 import { useState } from 'preact/hooks';
 import type { HTMLTraceEpoch, IHTMLTraceRenderData } from '../base/htmlTracerTypes';
 import { useDebouncedCallback } from './hooks';
+import { Integer } from './i18n';
 import './index.css';
 import { Root } from './node';
 
@@ -106,17 +107,19 @@ const App = () => {
 				</div>
 				<div className={`tab-content ${activeTab === 'epoch' ? 'active' : ''}`}>
 					<SliderWithInputControl label='Render Epoch' value={epoch} onChange={setEpoch} min={0} max={EPOCHS.length} />
-					<p>Changing the render epoch lets you see the order in which elements are rendered and how the token budget is allocated.</p>
 				</div>
 				<div className={`tab-content ${activeTab === 'tokens' ? 'active' : ''}`}>
 					<SliderWithInputControl label='Token Budget' value={tokens} onChange={handleTokensChange} min={0} max={DEFAULT_TOKENS * 2} />
-					<p>Token changes here will prune elements and re-render 'pure' ones, but the entire prompt is not being re-rendered</p>
 				</div>
+			</div>
+			<div className="control-description">
+				{activeTab === 'tokens'
+					? <p>Token changes here will prune elements and re-render 'pure' ones, but the entire prompt is not being re-rendered</p>
+					: <p>Changing the render epoch lets you see the order in which elements are rendered and how the token budget is allocated.</p>}
 				<div className='controls-stats'>
-					<span>Used {model.container.tokens}/{model.budget} tokens</span>
-					<span>Removed {model.removed} nodes</span>
+					<span>Used <Integer value={model.container.tokens} />/<Integer value={model.budget} /> tokens</span>
+					<span>Removed <Integer value={model.removed} /> nodes</span>
 					<ScoreByControl scoreBy={scoreBy} onScoreByChange={setScoreBy} />
-
 				</div>
 			</div>
 			<Root node={model.container} scoreBy={scoreBy} epoch={epoch} />

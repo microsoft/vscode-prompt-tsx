@@ -53,6 +53,7 @@ export class HTMLTracer implements ITracer {
 }
 
 export interface IHTMLRouter {
+	address: string;
 	route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean;
 }
 
@@ -125,7 +126,7 @@ class RequestRouter implements IHTMLRouter {
 	private onRoot(_url: URL, _req: IncomingMessage, res: OutgoingMessage) {
 		this.getHTML().then(html => {
 			res.setHeader('Content-Type', 'text/html');
-			res.setHeader('Content-Length', html.length);
+			res.setHeader('Content-Length', Buffer.byteLength(html));
 			res.end(html);
 		});
 	}
@@ -170,13 +171,13 @@ class RequestServer extends RequestRouter implements IHTMLServer {
 
 async function serializeRenderData(tokenizer: ITokenizer, tree: ITraceRenderData): Promise<IHTMLTraceRenderData> {
 	return {
-		container: await serializeMaterialized(tokenizer, tree.container) as ITraceMaterializedContainer,
+		container: await serializeMaterialized(tokenizer, tree.container, false) as ITraceMaterializedContainer,
 		removed: tree.removed,
 		budget: tree.budget,
 	};
 }
 
-async function serializeMaterialized(tokenizer: ITokenizer, materialized: MaterializedNode): Promise<ITraceMaterializedNode> {
+async function serializeMaterialized(tokenizer: ITokenizer, materialized: MaterializedNode, inChatMessage: boolean): Promise<ITraceMaterializedNode> {
 	const common = {
 		metadata: materialized.metadata.map(serializeMetadata),
 		priority: materialized.priority,
@@ -194,8 +195,9 @@ async function serializeMaterialized(tokenizer: ITokenizer, materialized: Materi
 			...common,
 			id: materialized.id,
 			name: materialized.name,
-			children: await Promise.all(materialized.children.map(c => serializeMaterialized(tokenizer, c))),
-			tokens: await materialized.tokenCount(tokenizer),
+			children: await Promise.all(materialized.children.map(c =>
+				serializeMaterialized(tokenizer, c, inChatMessage || materialized instanceof MaterializedChatMessage))),
+			tokens: inChatMessage ? await materialized.upperBoundTokenCount(tokenizer) : await materialized.tokenCount(tokenizer),
 		};
 
 		if (materialized instanceof MaterializedContainer) {

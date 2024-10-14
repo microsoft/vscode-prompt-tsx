@@ -5,6 +5,7 @@
 import { FunctionComponent, h } from 'preact';
 import { useState } from 'preact/hooks';
 import { HTMLTraceEpoch, ITraceMaterializedChatMessage, ITraceMaterializedChatMessageTextChunk, ITraceMaterializedContainer, ITraceMaterializedNode, TraceMaterializedNodeType } from '../base/htmlTracerTypes';
+import { Integer } from './i18n';
 
 declare const EPOCHS: HTMLTraceEpoch[];
 
@@ -50,9 +51,9 @@ const Children: FunctionComponent<{ scoreBy: ScoreField; nodes: ITraceMaterializ
 
 const LNNodeStats: FunctionComponent<{ node: ITraceMaterializedNode }> = ({ node }) => (
 	<div className='node-stats'>
-		Used Tokens: {node.tokens}
+		Used Tokens: <Integer value={node.tokens} />
 		{' / '}
-		Priority: {node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : node.priority}
+		Priority: {node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : <Integer value={node.priority} />}
 	</div>
 );
 
@@ -94,23 +95,24 @@ const WrapperNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterial
 		? node.name || node.role.slice(0, 1).toUpperCase() + node.role.slice(1) + 'Message'
 		: node.name;
 
-	if (epoch < epochIndex) {
-		return null;
-	}
+	const className = epochIndex === epoch
+		? 'new-in-epoch'
+		: epoch < epochIndex
+			? 'before-epoch' : '';
 
 	return (
-		<LMNode node={node} scoreBy={scoreBy} className={epochIndex === epoch ? 'new-in-epoch' : undefined}>
+		<LMNode node={node} scoreBy={scoreBy} className={className}>
 			<LNNodeStats node={node} />
 			<div className="node-content node-toggler" onClick={() => setCollapsed(v => !v)}>
 				<span>{thisEpoch?.inNode === node.id ? '🏃 ' : ''}{`<${tag}>`}</span>
 				<span className='indicator'>{collapsed ? '[+]' : '[-]'}</span>
 			</div>
 			{epoch === epochIndex && <div className='node-stats'>
-				Token Budget: {tokenBudget}
+				Token Budget: <Integer value={tokenBudget} />
 			</div>}
 			{thisEpoch?.inNode === node.id && <div className='node-stats'>
 				Rendering flexGrow={thisEpoch.flexValue}<br /><br />
-				Splitting {thisEpoch.reservedTokens ? `${thisEpoch.tokenBudget} - ${thisEpoch.reservedTokens} (reserved) = ${thisEpoch.tokenBudget - thisEpoch.reservedTokens}` : thisEpoch.tokenBudget} tokens among {thisEpoch.elements.length} elements
+				Splitting {thisEpoch.reservedTokens ? `${thisEpoch.tokenBudget} - ${thisEpoch.reservedTokens} (reserved) = ` : ''}<Integer value={thisEpoch.tokenBudget} /> tokens among {thisEpoch.elements.length} elements
 			</div>}
 			{!collapsed && <Children nodes={node.children} scoreBy={scoreBy} epoch={epoch} />}
 		</LMNode>

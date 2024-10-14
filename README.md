@@ -232,7 +232,7 @@ It's important to note that all of the `flex*` properties allow for cooperative 
 
 #### Debugging Budgeting
 
-You can set a `tracer` property on the `PromptElement` to debug how your elements are rendered and how this library allocates your budget. We include a basic `HTMLTracer` you can use:
+You can set a `tracer` property on the `PromptElement` to debug how your elements are rendered and how this library allocates your budget. We include a basic `HTMLTracer` you can use, which can be served on an address:
 
 ```js
 const renderer = new PromptRenderer(/* ... */);
@@ -240,7 +240,9 @@ const tracer = new HTMLTracer();
 renderer.tracer = tracer;
 renderer.render(/* ... */);
 
-fs.writeFile('debug.html', tracer.toHTML());
+tracer.serveHTML().then(server => {
+  console.log('Server address:', server.address);
+});
 ```
 
 ### Usage in Tools
