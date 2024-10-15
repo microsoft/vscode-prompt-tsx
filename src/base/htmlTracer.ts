@@ -5,8 +5,20 @@
 import type { IncomingMessage, OutgoingMessage, Server } from 'http';
 import type { AddressInfo } from 'net';
 import { tracerCss, tracerSrc } from './htmlTracerSrc';
-import { HTMLTraceEpoch, IHTMLTraceRenderData, IMaterializedMetadata, ITraceMaterializedContainer, ITraceMaterializedNode, TraceMaterializedNodeType } from './htmlTracerTypes';
-import { MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer, MaterializedNode } from './materialized';
+import {
+	HTMLTraceEpoch,
+	IHTMLTraceRenderData,
+	IMaterializedMetadata,
+	ITraceMaterializedContainer,
+	ITraceMaterializedNode,
+	TraceMaterializedNodeType,
+} from './htmlTracerTypes';
+import {
+	MaterializedChatMessage,
+	MaterializedChatMessageTextChunk,
+	MaterializedContainer,
+	MaterializedNode,
+} from './materialized';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 import { ITraceData, ITraceEpoch, ITracer, ITraceRenderData } from './tracer';
@@ -72,7 +84,7 @@ interface IServerOpts {
 class RequestRouter implements IHTMLRouter {
 	private serverToken = crypto.randomUUID();
 
-	constructor(private readonly opts: IServerOpts) { }
+	constructor(private readonly opts: IServerOpts) {}
 
 	public route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean {
 		const req = httpIncomingMessage as IncomingMessage;
@@ -105,7 +117,9 @@ class RequestRouter implements IHTMLRouter {
 			<script>
 				const DEFAULT_TOKENS = ${JSON.stringify(traceData.budget)};
 				const EPOCHS = ${JSON.stringify(epochs satisfies HTMLTraceEpoch[])};
-				const DEFAULT_MODEL = ${JSON.stringify(await serializeRenderData(traceData.tokenizer, traceData.renderedTree))};
+				const DEFAULT_MODEL = ${JSON.stringify(
+					await serializeRenderData(traceData.tokenizer, traceData.renderedTree)
+				)};
 				const SERVER_ADDRESS = ${JSON.stringify(this.opts.baseAddress + '/' + this.serverToken + '/')};
 				${tracerSrc}
 			</script>
@@ -116,7 +130,7 @@ class RequestRouter implements IHTMLRouter {
 		const { traceData } = this.opts;
 		const budget = Number(url.searchParams.get('n') || traceData.budget);
 		const renderedTree = await traceData.renderTree(budget);
-		const serialized = await serializeRenderData(traceData.tokenizer, renderedTree)
+		const serialized = await serializeRenderData(traceData.tokenizer, renderedTree);
 		const json = JSON.stringify(serialized);
 		res.setHeader('Content-Type', 'application/json');
 		res.setHeader('Content-Length', Buffer.byteLength(json));
@@ -148,13 +162,18 @@ class RequestServer extends RequestRouter implements IHTMLServer {
 		});
 
 		const port = await new Promise<number>((resolve, reject) => {
-			server.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port)).on('error', reject);
+			server
+				.listen(0, '127.0.0.1', () => resolve((server.address() as AddressInfo).port))
+				.on('error', reject);
 		});
 
-		const instance = new RequestServer({
-			...opts,
-			baseAddress: `http://127.0.0.1:${port}`,
-		}, server);
+		const instance = new RequestServer(
+			{
+				...opts,
+				baseAddress: `http://127.0.0.1:${port}`,
+			},
+			server
+		);
 
 		return instance;
 	}
@@ -169,15 +188,26 @@ class RequestServer extends RequestRouter implements IHTMLServer {
 	}
 }
 
-async function serializeRenderData(tokenizer: ITokenizer, tree: ITraceRenderData): Promise<IHTMLTraceRenderData> {
+async function serializeRenderData(
+	tokenizer: ITokenizer,
+	tree: ITraceRenderData
+): Promise<IHTMLTraceRenderData> {
 	return {
-		container: await serializeMaterialized(tokenizer, tree.container, false) as ITraceMaterializedContainer,
+		container: (await serializeMaterialized(
+			tokenizer,
+			tree.container,
+			false
+		)) as ITraceMaterializedContainer,
 		removed: tree.removed,
 		budget: tree.budget,
 	};
 }
 
-async function serializeMaterialized(tokenizer: ITokenizer, materialized: MaterializedNode, inChatMessage: boolean): Promise<ITraceMaterializedNode> {
+async function serializeMaterialized(
+	tokenizer: ITokenizer,
+	materialized: MaterializedNode,
+	inChatMessage: boolean
+): Promise<ITraceMaterializedNode> {
 	const common = {
 		metadata: materialized.metadata.map(serializeMetadata),
 		priority: materialized.priority,
@@ -189,15 +219,24 @@ async function serializeMaterialized(tokenizer: ITokenizer, materialized: Materi
 			type: TraceMaterializedNodeType.TextChunk,
 			value: materialized.text,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
-		}
+		};
 	} else {
 		const containerCommon = {
 			...common,
 			id: materialized.id,
 			name: materialized.name,
-			children: await Promise.all(materialized.children.map(c =>
-				serializeMaterialized(tokenizer, c, inChatMessage || materialized instanceof MaterializedChatMessage))),
-			tokens: inChatMessage ? await materialized.upperBoundTokenCount(tokenizer) : await materialized.tokenCount(tokenizer),
+			children: await Promise.all(
+				materialized.children.map(c =>
+					serializeMaterialized(
+						tokenizer,
+						c,
+						inChatMessage || materialized instanceof MaterializedChatMessage
+					)
+				)
+			),
+			tokens: inChatMessage
+				? await materialized.upperBoundTokenCount(tokenizer)
+				: await materialized.tokenCount(tokenizer),
 		};
 
 		if (materialized instanceof MaterializedContainer) {
@@ -218,7 +257,6 @@ async function serializeMaterialized(tokenizer: ITokenizer, materialized: Materi
 	assertNever(materialized);
 }
 
-
 function assertNever(x: never): never {
 	throw new Error('unreachable');
 }
@@ -233,4 +271,4 @@ const mustGet = <T>(value: T | undefined): T => {
 	}
 
 	return value;
-}
+};

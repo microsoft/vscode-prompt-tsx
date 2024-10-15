@@ -2,19 +2,42 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Progress } from "vscode";
+import type { CancellationToken, Progress } from 'vscode';
 import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
-import { ContainerFlags, LineBreakBefore, MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
-import { ChatMessage } from "./openai";
-import { PromptElement } from "./promptElement";
-import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, Chunk, Expandable, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
-import { PromptMetadata, PromptReference } from "./results";
-import { ITokenizer } from "./tokenizer/tokenizer";
+import {
+	ContainerFlags,
+	LineBreakBefore,
+	MaterializedChatMessage,
+	MaterializedChatMessageTextChunk,
+	MaterializedContainer,
+} from './materialized';
+import { ChatMessage } from './openai';
+import { PromptElement } from './promptElement';
+import {
+	AssistantMessage,
+	BaseChatMessage,
+	ChatMessagePromptElement,
+	Chunk,
+	Expandable,
+	isChatMessagePromptElement,
+	LegacyPrioritization,
+	TextChunk,
+	ToolMessage,
+} from './promptElements';
+import { PromptMetadata, PromptReference } from './results';
+import { ITokenizer } from './tokenizer/tokenizer';
 import { ITracer } from './tracer';
-import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor, PromptPiece, PromptPieceChild, PromptSizing } from "./types";
-import { URI } from "./util/vs/common/uri";
-import { ChatDocumentContext, ChatResponsePart } from "./vscodeTypes";
+import {
+	BasePromptElementProps,
+	IChatEndpointInfo,
+	PromptElementCtor,
+	PromptPiece,
+	PromptPieceChild,
+	PromptSizing,
+} from './types';
+import { URI } from './util/vs/common/uri';
+import { ChatDocumentContext, ChatResponsePart } from './vscodeTypes';
 
 export interface RenderPromptResult {
 	readonly messages: ChatMessage[];
@@ -57,7 +80,6 @@ export namespace MetadataMap {
  * Note: You must create a fresh prompt renderer instance for each prompt element you want to render.
  */
 export class PromptRenderer<P extends BasePromptElementProps> {
-
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _growables: { initialConsume: number; elem: PromptTreeElement }[] = [];
@@ -66,7 +88,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	public tracer: ITracer | undefined = undefined;
 
 	/**
-	 *
 	 * @param _endpoint The chat endpoint that the rendered prompt will be sent to.
 	 * @param _ctor The prompt element constructor to render.
 	 * @param _props The props to pass to the prompt element.
@@ -76,7 +97,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
 		private readonly _tokenizer: ITokenizer
-	) { }
+	) {}
 
 	public getIgnoredFiles(): URI[] {
 		return Array.from(new Set(this._ignoredFiles));
@@ -90,20 +111,33 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return new element.ctor(element.props);
 	}
 
-	private async _processPromptPieces(sizing: PromptSizingContext, pieces: QueueItem<PromptElementCtor<P, any>, P>[], progress?: Progress<ChatResponsePart>, token?: CancellationToken) {
+	private async _processPromptPieces(
+		sizing: PromptSizingContext,
+		pieces: QueueItem<PromptElementCtor<P, any>, P>[],
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	) {
 		// Collect all prompt elements in the next flex group to render, grouping
 		// by the flex order in which they're rendered.
-		const promptElements = new Map<number, { element: QueueItem<PromptElementCtor<P, any>, P>; promptElementInstance: PromptElement<any, any> }[]>();
+		const promptElements = new Map<
+			number,
+			{
+				element: QueueItem<PromptElementCtor<P, any>, P>;
+				promptElementInstance: PromptElement<any, any>;
+			}[]
+		>();
 		for (const [i, element] of pieces.entries()) {
 			// Set any jsx children as the props.children
 			if (Array.isArray(element.children)) {
-				element.props = (element.props ?? {});
+				element.props = element.props ?? {};
 				(element.props as any).children = element.children; // todo@joyceerhl clean up any
 			}
 
 			// Instantiate the prompt part
 			if (!element.ctor) {
-				throw new Error(`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`);
+				throw new Error(
+					`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`
+				);
 			}
 
 			const promptElement = this.createElement(element);
@@ -124,7 +158,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			return;
 		}
 
-		const flexGroups = [...promptElements.entries()].sort(([a], [b]) => b - a).map(([_, group]) => group);
+		const flexGroups = [...promptElements.entries()]
+			.sort(([a], [b]) => b - a)
+			.map(([_, group]) => group);
 		const setReserved = (groupIndex: number) => {
 			let reservedTokens = 0;
 			for (let i = groupIndex + 1; i < flexGroups.length; i++) {
@@ -132,11 +168,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					if (!element.props.flexReserve) {
 						continue;
 					}
-					const reserve = typeof element.props.flexReserve === 'string'
-						// Typings ensure the string is `/${number}`
-						? Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
-						: element.props.flexReserve;
-					reservedTokens += reserve
+					const reserve =
+						typeof element.props.flexReserve === 'string'
+							? // Typings ensure the string is `/${number}`
+							  Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
+							: element.props.flexReserve;
+					reservedTokens += reserve;
 				}
 			}
 
@@ -162,7 +199,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return {
 					tokenBudget: Math.floor(sizing.remainingTokenBudget * proportion),
 					endpoint: sizing.endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation)
+					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
 				};
 			});
 
@@ -174,18 +211,30 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				flexValue: promptElements[0].element.props.flexGrow ?? 0,
 				tokenBudget: sizing.remainingTokenBudget,
 				reservedTokens,
-				elements: promptElements.map((e, i) => ({ id: e.element.node.id, tokenBudget: elementSizings[i].tokenBudget })),
-			})
+				elements: promptElements.map((e, i) => ({
+					id: e.element.node.id,
+					tokenBudget: elementSizings[i].tokenBudget,
+				})),
+			});
 
-			await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
-				const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token)
-				element.node.setState(state);
-			}));
+			await Promise.all(
+				promptElements.map(async ({ element, promptElementInstance }, i) => {
+					const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token);
+					element.node.setState(state);
+				})
+			);
 
-			const templates = await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
-				const elementSizing = elementSizings[i];
-				return await promptElementInstance.render(element.node.getState(), elementSizing, progress, token)
-			}));
+			const templates = await Promise.all(
+				promptElements.map(async ({ element, promptElementInstance }, i) => {
+					const elementSizing = elementSizings[i];
+					return await promptElementInstance.render(
+						element.node.getState(),
+						elementSizing,
+						progress,
+						token
+					);
+				})
+			);
 
 			// Render
 			for (const [i, { element, promptElementInstance }] of promptElements.entries()) {
@@ -203,7 +252,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					promptElementInstance,
 					template,
 					progress,
-					token,
+					token
 				);
 
 				// Append growables here so that when we go back and expand them we do so in render order.
@@ -223,13 +272,18 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		promptElementInstance: PromptElement<any, any>,
 		template: PromptPiece,
 		progress: Progress<ChatResponsePart> | undefined,
-		token: CancellationToken | undefined,
+		token: CancellationToken | undefined
 	) {
 		const pieces = flattenAndReduce(template);
 
 		// Compute token budget for the pieces that this child wants to render
 		const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
-		const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
+		const { tokensConsumed } = await computeTokensConsumedByLiterals(
+			this._tokenizer,
+			element,
+			promptElementInstance,
+			pieces
+		);
 		childSizing.consume(tokensConsumed);
 		await this._handlePromptChildren(element, pieces, childSizing, progress, token);
 
@@ -247,12 +301,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
 			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
 			undefined,
-			token,
+			token
 		);
 
 		// todo@connor4312: should ignored files, used context, etc. be passed here?
 		return {
-			node: this._root.toJSON()
+			node: this._root.toJSON(),
 		};
 	}
 
@@ -261,21 +315,28 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * @returns A promise that resolves to an object containing the rendered chat messages and the total token count.
 	 * The total token count is guaranteed to be less than or equal to the token budget.
 	 */
-	public async render(progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<RenderPromptResult> {
+	public async render(
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	): Promise<RenderPromptResult> {
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
 			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
 			progress,
-			token,
+			token
 		);
 
-		const { container, allMetadata, removed } = await this._getFinalElementTree(this._endpoint.modelMaxPromptTokens, token);
+		const { container, allMetadata, removed } = await this._getFinalElementTree(
+			this._endpoint.modelMaxPromptTokens,
+			token
+		);
 		this.tracer?.didMaterializeTree?.({
 			budget: this._endpoint.modelMaxPromptTokens,
 			renderedTree: { container, removed, budget: this._endpoint.modelMaxPromptTokens },
 			tokenizer: this._tokenizer,
-			renderTree: budget => this._getFinalElementTree(budget, undefined).then(r => ({ ...r, budget })),
+			renderTree: budget =>
+				this._getFinalElementTree(budget, undefined).then(r => ({ ...r, budget })),
 		});
 
 		// Then finalize the chat messages
@@ -285,36 +346,40 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 		// Remove undefined and duplicate references
 		const referenceNames = new Set<string>();
-		const references = remainingMetadata.map(m => {
-			if (!(m instanceof ReferenceMetadata)) {
-				return;
-			}
+		const references = remainingMetadata
+			.map(m => {
+				if (!(m instanceof ReferenceMetadata)) {
+					return;
+				}
 
-			const ref = m.reference;
-			const isVariableName = 'variableName' in ref.anchor;
-			if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
-				referenceNames.add(ref.anchor.variableName);
-				return ref;
-			} else if (!isVariableName) {
-				return ref;
-			}
-		}).filter(isDefined);
+				const ref = m.reference;
+				const isVariableName = 'variableName' in ref.anchor;
+				if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
+					referenceNames.add(ref.anchor.variableName);
+					return ref;
+				} else if (!isVariableName) {
+					return ref;
+				}
+			})
+			.filter(isDefined);
 
 		// Collect the references for chat message chunks that did not survive prioritization
-		const omittedReferences = allMetadata.map(m => {
-			if (!(m instanceof ReferenceMetadata) || remainingMetadata.includes(m)) {
-				return;
-			}
+		const omittedReferences = allMetadata
+			.map(m => {
+				if (!(m instanceof ReferenceMetadata) || remainingMetadata.includes(m)) {
+					return;
+				}
 
-			const ref = m.reference;
-			const isVariableName = 'variableName' in ref.anchor;
-			if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
-				referenceNames.add(ref.anchor.variableName);
-				return ref;
-			} else if (!isVariableName) {
-				return ref;
-			}
-		}).filter(isDefined);
+				const ref = m.reference;
+				const isVariableName = 'variableName' in ref.anchor;
+				if (isVariableName && !referenceNames.has(ref.anchor.variableName)) {
+					referenceNames.add(ref.anchor.variableName);
+					return ref;
+				} else if (!isVariableName) {
+					return ref;
+				}
+			})
+			.filter(isDefined);
 
 		return {
 			metadata: {
@@ -350,8 +415,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		const allMetadata = [...container.allMetadata()];
 		let removed = 0;
 		while (
-			await container.upperBoundTokenCount(this._tokenizer) > tokenBudget &&
-			await container.tokenCount(this._tokenizer) > tokenBudget
+			(await container.upperBoundTokenCount(this._tokenizer)) > tokenBudget &&
+			(await container.tokenCount(this._tokenizer)) > tokenBudget
 		) {
 			container.removeLowestPriorityChild();
 			removed++;
@@ -361,7 +426,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 
 	/** Grows all Expandable elements, returns if any changes were made. */
-	private async _grow(tree: MaterializedContainer, tokensUsed: number, tokenBudget: number, token: CancellationToken | undefined): Promise<boolean> {
+	private async _grow(
+		tree: MaterializedContainer,
+		tokensUsed: number,
+		tokenBudget: number,
+		token: CancellationToken | undefined
+	): Promise<boolean> {
 		if (!this._growables.length) {
 			return false;
 		}
@@ -375,7 +445,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			const tempRoot = new PromptTreeElement(null, 0, growable.elem.id);
 			// Sizing for the grow is the remaining excess plus the initial consumption,
 			// since the element consuming the initial amount of tokens will be replaced
-			const sizing = new PromptSizingContext(tokenBudget - tokensUsed + growable.initialConsume, this._endpoint);
+			const sizing = new PromptSizingContext(
+				tokenBudget - tokensUsed + growable.initialConsume,
+				this._endpoint
+			);
 
 			const newConsumed = await this._processPromptRenderPiece(
 				sizing,
@@ -384,10 +457,10 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				await obj.render(undefined, {
 					tokenBudget: sizing.tokenBudget,
 					endpoint: this._endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation)
+					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
 				}),
 				undefined,
-				token,
+				token
 			);
 
 			const newContainer = tempRoot.materialize() as MaterializedContainer;
@@ -406,7 +479,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		return true;
 	}
 
-	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
+	private _handlePromptChildren(
+		element: QueueItem<PromptElementCtor<any, any>, P>,
+		pieces: ProcessedPromptPiece[],
+		sizing: PromptSizingContext,
+		progress: Progress<ChatResponsePart> | undefined,
+		token: CancellationToken | undefined
+	) {
 		if (element.ctor === TextChunk) {
 			this._handleExtrinsicTextChunkChildren(element.node, element.node, element.props, pieces);
 			return;
@@ -415,23 +494,45 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		let todo: QueueItem<PromptElementCtor<P, any>, P>[] = [];
 		for (const piece of pieces) {
 			if (piece.kind === 'literal') {
-				element.node.appendStringChild(piece.value, element.props.priority ?? Number.MAX_SAFE_INTEGER);
+				element.node.appendStringChild(
+					piece.value,
+					element.props.priority ?? Number.MAX_SAFE_INTEGER
+				);
 				continue;
 			}
 			if (piece.kind === 'intrinsic') {
 				// intrinsic element
-				this._handleIntrinsic(element.node, piece.name, { priority: element.props.priority ?? Number.MAX_SAFE_INTEGER, ...piece.props }, flattenAndReduceArr(piece.children));
+				this._handleIntrinsic(
+					element.node,
+					piece.name,
+					{
+						priority: element.props.priority ?? Number.MAX_SAFE_INTEGER,
+						...piece.props,
+					},
+					flattenAndReduceArr(piece.children)
+				);
 				continue;
 			}
 
 			const childNode = element.node.createChild();
-			todo.push({ node: childNode, ctor: piece.ctor, props: { priority: element.props.priority, ...piece.props }, children: piece.children });
+			todo.push({
+				node: childNode,
+				ctor: piece.ctor,
+				props: { priority: element.props.priority, ...piece.props },
+				children: piece.children,
+			});
 		}
 
 		return this._processPromptPieces(sizing, todo, progress, token);
 	}
 
-	private _handleIntrinsic(node: PromptTreeElement, name: string, props: any, children: ProcessedPromptPiece[], sortIndex?: number): void {
+	private _handleIntrinsic(
+		node: PromptTreeElement,
+		name: string,
+		props: any,
+		children: ProcessedPromptPiece[],
+		sortIndex?: number
+	): void {
 		switch (name) {
 			case 'meta':
 				return this._handleIntrinsicMeta(node, props, children);
@@ -449,7 +550,11 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		throw new Error(`Unknown intrinsic element ${name}!`);
 	}
 
-	private _handleIntrinsicMeta(node: PromptTreeElement, props: JSX.IntrinsicElements['meta'], children: ProcessedPromptPiece[]) {
+	private _handleIntrinsicMeta(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['meta'],
+		children: ProcessedPromptPiece[]
+	) {
 		if (children.length > 0) {
 			throw new Error(`<meta /> must not have children!`);
 		}
@@ -461,7 +566,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 	}
 
-	private _handleIntrinsicLineBreak(node: PromptTreeElement, props: JSX.IntrinsicElements['br'], children: ProcessedPromptPiece[], inheritedPriority?: number, sortIndex?: number) {
+	private _handleIntrinsicLineBreak(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['br'],
+		children: ProcessedPromptPiece[],
+		inheritedPriority?: number,
+		sortIndex?: number
+	) {
 		if (children.length > 0) {
 			throw new Error(`<br /> must not have children!`);
 		}
@@ -472,14 +583,22 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		node.appendPieceJSON(data.node);
 	}
 
-	private _handleIntrinsicUsedContext(node: PromptTreeElement, props: JSX.IntrinsicElements['usedContext'], children: ProcessedPromptPiece[]) {
+	private _handleIntrinsicUsedContext(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['usedContext'],
+		children: ProcessedPromptPiece[]
+	) {
 		if (children.length > 0) {
 			throw new Error(`<usedContext /> must not have children!`);
 		}
 		this._usedContext.push(...props.value);
 	}
 
-	private _handleIntrinsicReferences(node: PromptTreeElement, props: JSX.IntrinsicElements['references'], children: ProcessedPromptPiece[]) {
+	private _handleIntrinsicReferences(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['references'],
+		children: ProcessedPromptPiece[]
+	) {
 		if (children.length > 0) {
 			throw new Error(`<reference /> must not have children!`);
 		}
@@ -488,8 +607,11 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 	}
 
-
-	private _handleIntrinsicIgnoredFiles(node: PromptTreeElement, props: JSX.IntrinsicElements['ignoredFiles'], children: ProcessedPromptPiece[]) {
+	private _handleIntrinsicIgnoredFiles(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['ignoredFiles'],
+		children: ProcessedPromptPiece[]
+	) {
 		if (children.length > 0) {
 			throw new Error(`<ignoredFiles /> must not have children!`);
 		}
@@ -503,7 +625,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * @param props Props of the <TextChunk />
 	 * @param children Rendered children of the <TextChunk />
 	 */
-	private _handleExtrinsicTextChunkChildren(node: PromptTreeElement, textChunkNode: PromptTreeElement, props: BasePromptElementProps, children: ProcessedPromptPiece[]) {
+	private _handleExtrinsicTextChunkChildren(
+		node: PromptTreeElement,
+		textChunkNode: PromptTreeElement,
+		props: BasePromptElementProps,
+		children: ProcessedPromptPiece[]
+	) {
 		const content: string[] = [];
 		const metadata: PromptMetadata[] = [];
 
@@ -526,21 +653,41 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 						metadata.push(new ReferenceMetadata(reference));
 					}
 				} else {
-					this._handleIntrinsic(node, child.name, child.props, flattenAndReduceArr(child.children), textChunkNode.childIndex);
+					this._handleIntrinsic(
+						node,
+						child.name,
+						child.props,
+						flattenAndReduceArr(child.children),
+						textChunkNode.childIndex
+					);
 				}
 			}
 		}
 
-		node.appendStringChild(content.join(''), props?.priority ?? Number.MAX_SAFE_INTEGER, metadata, textChunkNode.childIndex, true);
+		node.appendStringChild(
+			content.join(''),
+			props?.priority ?? Number.MAX_SAFE_INTEGER,
+			metadata,
+			textChunkNode.childIndex,
+			true
+		);
 	}
 }
 
-async function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: QueueItem<PromptElementCtor<any, any>, any>
-	, instance: PromptElement<any, any>, pieces: ProcessedPromptPiece[]) {
+async function computeTokensConsumedByLiterals(
+	tokenizer: ITokenizer,
+	element: QueueItem<PromptElementCtor<any, any>, any>,
+	instance: PromptElement<any, any>,
+	pieces: ProcessedPromptPiece[]
+) {
 	let tokensConsumed = 0;
 
 	if (isChatMessagePromptElement(instance)) {
-		tokensConsumed += await tokenizer.countMessageTokens({ role: element.props.role, content: '', ...(element.props.name ? { name: element.props.name } : undefined) });
+		tokensConsumed += await tokenizer.countMessageTokens({
+			role: element.props.role,
+			content: '',
+			...(element.props.name ? { name: element.props.name } : undefined),
+		});
 	}
 
 	for (const piece of pieces) {
@@ -553,7 +700,9 @@ async function computeTokensConsumedByLiterals(tokenizer: ITokenizer, element: Q
 }
 
 // Flatten nested fragments and normalize children
-function flattenAndReduce(c: string | number | PromptPiece<any> | undefined): ProcessedPromptPiece[] {
+function flattenAndReduce(
+	c: string | number | PromptPiece<any> | undefined
+): ProcessedPromptPiece[] {
 	if (typeof c === 'undefined' || typeof c === 'boolean') {
 		// booleans are ignored to allow for the pattern: { cond && <Element ... /> }
 		return [];
@@ -584,7 +733,7 @@ class IntrinsicPromptPiece<K extends keyof JSX.IntrinsicElements> {
 		public readonly name: string,
 		public readonly props: JSX.IntrinsicElements[K],
 		public readonly children: PromptPieceChild[]
-	) { }
+	) {}
 }
 
 class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
@@ -594,19 +743,19 @@ class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
 		public readonly ctor: PromptElementCtor<P, S>,
 		public readonly props: P,
 		public readonly children: PromptPieceChild[]
-	) { }
+	) {}
 }
 
 class LiteralPromptPiece {
 	public readonly kind = 'literal';
 
-	constructor(
-		public readonly value: string,
-		public readonly priority?: number
-	) { }
+	constructor(public readonly value: string, public readonly priority?: number) {}
 }
 
-type ProcessedPromptPiece = LiteralPromptPiece | IntrinsicPromptPiece<any> | ExtrinsicPromptPiece<any, any>;
+type ProcessedPromptPiece =
+	| LiteralPromptPiece
+	| IntrinsicPromptPiece<any>
+	| ExtrinsicPromptPiece<any, any>;
 
 type PromptNode = PromptTreeElement | PromptText;
 type LeafPromptNode = PromptText;
@@ -618,10 +767,7 @@ type LeafPromptNode = PromptText;
 class PromptSizingContext {
 	private _consumed = 0;
 
-	constructor(
-		public readonly tokenBudget: number,
-		public readonly endpoint: IChatEndpointInfo,
-	) { }
+	constructor(public readonly tokenBudget: number, public readonly endpoint: IChatEndpointInfo) {}
 
 	public get consumed() {
 		return this._consumed > this.tokenBudget ? this.tokenBudget : this._consumed;
@@ -642,17 +788,20 @@ class PromptTreeElement {
 
 	public static fromJSON(index: number, json: JSONT.PieceJSON): PromptTreeElement {
 		const element = new PromptTreeElement(null, index);
-		element._metadata = json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))) ?? [];
-		element._children = json.children.map((childJson, i) => {
-			switch (childJson.type) {
-				case JSONT.PromptNodeType.Piece:
-					return PromptTreeElement.fromJSON(i, childJson);
-				case JSONT.PromptNodeType.Text:
-					return PromptText.fromJSON(element, i, childJson);
-				default:
-					softAssertNever(childJson);
-			}
-		}).filter(isDefined);
+		element._metadata =
+			json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))) ?? [];
+		element._children = json.children
+			.map((childJson, i) => {
+				switch (childJson.type) {
+					case JSONT.PromptNodeType.Piece:
+						return PromptTreeElement.fromJSON(i, childJson);
+					case JSONT.PromptNodeType.Text:
+						return PromptText.fromJSON(element, i, childJson);
+					default:
+						softAssertNever(childJson);
+				}
+			})
+			.filter(isDefined);
 
 		switch (json.ctor) {
 			case JSONT.PieceCtorKind.BaseChatMessage:
@@ -677,8 +826,8 @@ class PromptTreeElement {
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
 		public readonly childIndex: number,
-		public readonly id = PromptTreeElement._nextId++,
-	) { }
+		public readonly id = PromptTreeElement._nextId++
+	) {}
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
@@ -708,7 +857,13 @@ class PromptTreeElement {
 		return child;
 	}
 
-	public appendStringChild(text: string, priority?: number, metadata?: PromptMetadata[], sortIndex = this._children.length, lineBreakBefore = false) {
+	public appendStringChild(
+		text: string,
+		priority?: number,
+		metadata?: PromptMetadata[],
+		sortIndex = this._children.length,
+		lineBreakBefore = false
+	) {
 		this._children.push(new PromptText(this, sortIndex, text, priority, metadata, lineBreakBefore));
 	}
 
@@ -720,9 +875,14 @@ class PromptTreeElement {
 		const json: JSONT.PieceJSON = {
 			type: JSONT.PromptNodeType.Piece,
 			ctor: JSONT.PieceCtorKind.Other,
-			children: this._children.slice().sort((a, b) => a.childIndex - b.childIndex).map(c => c.toJSON()),
+			children: this._children
+				.slice()
+				.sort((a, b) => a.childIndex - b.childIndex)
+				.map(c => c.toJSON()),
 			priority: this._obj?.props.priority,
-			references: this._metadata.filter(m => m instanceof ReferenceMetadata).map(r => r.reference.toJSON()),
+			references: this._metadata
+				.filter(m => m instanceof ReferenceMetadata)
+				.map(r => r.reference.toJSON()),
 		};
 
 		if (this._obj instanceof BaseChatMessage) {
@@ -753,7 +913,7 @@ class PromptTreeElement {
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority ?? 0,
 				this._metadata,
-				this._children.map(child => child.materialize()),
+				this._children.map(child => child.materialize())
 			);
 			return parent;
 		} else {
@@ -767,7 +927,7 @@ class PromptTreeElement {
 				this._obj?.props.priority || 0,
 				this._children.map(child => child.materialize()),
 				this._metadata,
-				flags,
+				flags
 			);
 		}
 	}
@@ -777,10 +937,20 @@ class PromptTreeElement {
 	}
 }
 
-
 class PromptText {
-	public static fromJSON(parent: PromptTreeElement, index: number, json: JSONT.TextJSON): PromptText {
-		return new PromptText(parent, index, json.text, json.priority, json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))), json.lineBreakBefore);
+	public static fromJSON(
+		parent: PromptTreeElement,
+		index: number,
+		json: JSONT.TextJSON
+	): PromptText {
+		return new PromptText(
+			parent,
+			index,
+			json.text,
+			json.priority,
+			json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))),
+			json.lineBreakBefore
+		);
 	}
 
 	public readonly kind = PromptNodeType.Text;
@@ -791,8 +961,8 @@ class PromptText {
 		public readonly text: string,
 		public readonly priority?: number,
 		public readonly metadata?: PromptMetadata[],
-		public readonly lineBreakBefore = false,
-	) { }
+		public readonly lineBreakBefore = false
+	) {}
 
 	public collectLeafs(result: LeafPromptNode[]) {
 		result.push(this);
@@ -802,9 +972,14 @@ class PromptText {
 		const lineBreak = this.lineBreakBefore
 			? LineBreakBefore.Always
 			: this.childIndex === 0
-				? LineBreakBefore.IfNotTextSibling
-				: LineBreakBefore.None;
-		return new MaterializedChatMessageTextChunk(this.text, this.priority ?? Number.MAX_SAFE_INTEGER, this.metadata || [], lineBreak);
+			? LineBreakBefore.IfNotTextSibling
+			: LineBreakBefore.None;
+		return new MaterializedChatMessageTextChunk(
+			this.text,
+			this.priority ?? Number.MAX_SAFE_INTEGER,
+			this.metadata || [],
+			lineBreak
+		);
 	}
 
 	public toJSON(): JSONT.TextJSON {
@@ -812,7 +987,9 @@ class PromptText {
 			type: JSONT.PromptNodeType.Text,
 			priority: this.priority,
 			text: this.text,
-			references: this.metadata?.filter(m => m instanceof ReferenceMetadata).map(r => r.reference.toJSON()),
+			references: this.metadata
+				?.filter(m => m instanceof ReferenceMetadata)
+				.map(r => r.reference.toJSON()),
 			lineBreakBefore: this.lineBreakBefore,
 		};
 	}
@@ -831,7 +1008,7 @@ function isDefined<T>(x: T | undefined): x is T {
 	return x !== undefined;
 }
 
-class InternalMetadata extends PromptMetadata { }
+class InternalMetadata extends PromptMetadata {}
 
 class ReferenceMetadata extends InternalMetadata {
 	constructor(public readonly reference: PromptReference) {

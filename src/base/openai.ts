@@ -7,7 +7,12 @@
  *
  * Reference: https://platform.openai.com/docs/api-reference/chat/create
  */
-export type ChatMessage = AssistantChatMessage | SystemChatMessage | UserChatMessage | ToolChatMessage | FunctionChatMessage;
+export type ChatMessage =
+	| AssistantChatMessage
+	| SystemChatMessage
+	| UserChatMessage
+	| ToolChatMessage
+	| FunctionChatMessage;
 
 export interface SystemChatMessage {
 	role: ChatRole.System;

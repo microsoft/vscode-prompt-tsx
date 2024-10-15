@@ -7,6 +7,7 @@ This library enables you to declare prompts using TSX when you develop VS Code e
 As AI engineers, our products communicate with large language models using chat messages composed of text prompts. While developing Copilot Chat, we've found that composing prompts with just bare strings is unwieldy and frustrating.
 
 Some of the challenges we ran into include:
+
 1. We used either programmatic string concatenation or template strings for composing prompts. Programmatic string concatenation made prompt text increasingly difficult to read, maintain, and update over time. Template string-based prompts were rigid and prone to issues like unnecessary whitespace.
 2. In both cases, our prompts and RAG-generated context could not adapt to changing context window constraints as we upgraded our models. Prompts are ultimately bare strings, which makes them hard to edit once they are composed via string concatenation.
 
@@ -33,114 +34,126 @@ npm install --save @vscode/prompt-tsx
 This library exports a `renderPrompt` utility for rendering a TSX component to `vscode.LanguageModelChatMessage`s.
 
 To enable TSX use in your extension, add the following configuration options to your `tsconfig.json`:
+
 ```json
 {
 	"compilerOptions": {
-    // ...
-    "jsx": "react",
-    "jsxFactory": "vscpp",
-    "jsxFragmentFactory": "vscppf"
-  }
-  // ...
+		// ...
+		"jsx": "react",
+		"jsxFactory": "vscpp",
+		"jsxFragmentFactory": "vscppf"
+	}
+	// ...
 }
 ```
 
 Note: if your codebase depends on both `@vscode/prompt-tsx` and another library that uses JSX, for example in a monorepo where a parent folder has dependencies on React, you may encounter compilation errors when trying to add this library to your project. This is because [by default](https://www.typescriptlang.org/tsconfig/#types%5D), TypeScript includes all `@types` packages during compilation. You can address this by explicitly listing the types that you want considered during compilation, e.g.:
+
 ```json
 {
-  "compilerOptions": {
-    "types": ["node", "jest", "express"]
-  }
+	"compilerOptions": {
+		"types": ["node", "jest", "express"]
+	}
 }
 ```
 
 ### Rendering a Prompt
 
 Next, your extension can use `renderPrompt` to render a TSX prompt. Here is an example of using TSX prompts in a Copilot chat participant that suggests SQL queries based on database context:
+
 ```ts
 import { renderPrompt } from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 import { TestPrompt } from './prompt';
 
 const participant = vscode.chat.createChatParticipant(
-  "mssql",
-  async (
-    request: vscode.ChatRequest,
-    context: vscode.ChatContext,
-    response: vscode.ChatResponseStream,
-    token: vscode.CancellationToken
-  ) => {
-    response.progress("Reading database context...");
+	'mssql',
+	async (
+		request: vscode.ChatRequest,
+		context: vscode.ChatContext,
+		response: vscode.ChatResponseStream,
+		token: vscode.CancellationToken
+	) => {
+		response.progress('Reading database context...');
 
-    const models = await vscode.lm.selectChatModels({ family: 'gpt-4' });
-    if (models.length === 0) {
-      // No models available, return early
-      return;
-    }
-    const chatModel = models[0];
+		const models = await vscode.lm.selectChatModels({ family: 'gpt-4' });
+		if (models.length === 0) {
+			// No models available, return early
+			return;
+		}
+		const chatModel = models[0];
 
-    // Render TSX prompt
-    const { messages } = await renderPrompt(
-      TestPrompt,
-      { userQuery: request.prompt },
-      { modelMaxPromptTokens: 4096 },
-      chatModel
-    );
+		// Render TSX prompt
+		const { messages } = await renderPrompt(
+			TestPrompt,
+			{ userQuery: request.prompt },
+			{ modelMaxPromptTokens: 4096 },
+			chatModel
+		);
 
-    const chatRequest = await chatModel.sendChatRequest(
-      messages,
-      {},
-      token
-    );
+		const chatRequest = await chatModel.sendChatRequest(messages, {}, token);
 
-    // ... Report stream data to VS Code UI
-  }
+		// ... Report stream data to VS Code UI
+	}
 );
 ```
 
 Here is how you would declare the TSX prompt rendered above:
 
-```tsx
-import { BasePromptElementProps, PromptElement, PromptSizing, AssistantMessage, UserMessage } from '@vscode/prompt-tsx';
+````tsx
+import {
+	AssistantMessage,
+	BasePromptElementProps,
+	PromptElement,
+	PromptSizing,
+	UserMessage,
+} from '@vscode/prompt-tsx';
 import * as vscode from 'vscode';
 
 export interface PromptProps extends BasePromptElementProps {
-    userQuery: string;
+	userQuery: string;
 }
 
 export interface PromptState {
-    creationScript: string;
+	creationScript: string;
 }
 
 export class TestPrompt extends PromptElement<PromptProps, PromptState> {
-    override async prepare() {
-      }
+	override async prepare() {}
 
-    async render(state: PromptState, sizing: PromptSizing) {
-        const sqlExtensionApi = await vscode.extensions.getExtension('ms-mssql.mssql')?.activate();
-        const creationScript = await sqlExtensionApi.getDatabaseCreateScript?.();
+	async render(state: PromptState, sizing: PromptSizing) {
+		const sqlExtensionApi = await vscode.extensions.getExtension('ms-mssql.mssql')?.activate();
+		const creationScript = await sqlExtensionApi.getDatabaseCreateScript?.();
 
-        return (
-            <>
-                <AssistantMessage>
-                    You are a SQL expert.<br />
-                    Your task is to help the user craft SQL queries that perform their task.<br />
-                    You should suggest SQL queries that are performant and correct.<br />
-                    Return your suggested SQL query in a Markdown code block that begins with ```sql and ends with ```.<br />
-                </AssistantMessage>
-                <UserMessage>
-                    Here are the creation scripts that were used to create the tables in my database. Pay close attention to the tables and columns that are available in my database:<br />
-                    {state.creationScript}<br />
-                    {this.props.userQuery}
-                </UserMessage>
-            </>
-        );
-    }
+		return (
+			<>
+				<AssistantMessage>
+					You are a SQL expert.
+					<br />
+					Your task is to help the user craft SQL queries that perform their task.
+					<br />
+					You should suggest SQL queries that are performant and correct.
+					<br />
+					Return your suggested SQL query in a Markdown code block that begins with ```sql and ends
+					with ```.
+					<br />
+				</AssistantMessage>
+				<UserMessage>
+					Here are the creation scripts that were used to create the tables in my database. Pay
+					close attention to the tables and columns that are available in my database:
+					<br />
+					{state.creationScript}
+					<br />
+					{this.props.userQuery}
+				</UserMessage>
+			</>
+		);
+	}
 }
-
-```
+````
 
 Please note:
+
 - If your prompt does asynchronous work e.g. VS Code extension API calls or additional requests to the Copilot API for chunk reranking, you can precompute this state in an optional async `prepare` method. `prepare` is called before `render` and the prepared state will be passed back to your prompt component's sync `render` method.
 - Newlines are not preserved in JSX text or between JSX elements when rendered, and must be explicitly declared with the builtin `<br />` attribute.
 
@@ -152,9 +165,11 @@ In the above example, each message had the same priority, so they would be prune
 
 ```jsx
 <>
-  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
-  <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
-  <UserMessage priority={100}>{this.props.userQuery}</UserMessage>
+	<AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
+	<UserMessage priority={200}>
+		Here are the creation scripts that were used to create the tables in my database...
+	</UserMessage>
+	<UserMessage priority={100}>{this.props.userQuery}</UserMessage>
 </>
 ```
 
@@ -189,9 +204,13 @@ Wholesale pruning is not always ideal. Instead, we'd prefer to include as much o
 
 ```tsx
 <>
-  <AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
-  <UserMessage priority={200}>Here are the creation scripts that were used to create the tables in my database...</UserMessage>
-  <UserMessage priority={100}><TextChunk breakOn=' '>{this.props.userQuery}</TextChunk></UserMessage>
+	<AssistantMessage priority={300}>You are a SQL expert...</AssistantMessage>
+	<UserMessage priority={200}>
+		Here are the creation scripts that were used to create the tables in my database...
+	</UserMessage>
+	<UserMessage priority={100}>
+		<TextChunk breakOn=" ">{this.props.userQuery}</TextChunk>
+	</UserMessage>
 </>
 ```
 
@@ -200,16 +219,16 @@ When `flexGrow` is set for an element, other elements are rendered first, and th
 ```tsx
 class SimpleTextChunk extends PromptElement<{ text: string }, string> {
 	prepare(sizing: PromptSizing): Promise<string> {
-    const words = text.split(' ');
-    let str = '';
+		const words = text.split(' ');
+		let str = '';
 
-    for (const word of words) {
-      if (tokenizer.tokenLength(str + ' ' + word) > sizing.tokenBudget) {
-        break
-      }
+		for (const word of words) {
+			if (tokenizer.tokenLength(str + ' ' + word) > sizing.tokenBudget) {
+				break;
+			}
 
-      str += ' ' + word;
-    }
+			str += ' ' + word;
+		}
 
 		return str;
 	}
@@ -262,7 +281,7 @@ renderer.tracer = tracer;
 renderer.render(/* ... */);
 
 tracer.serveHTML().then(server => {
-  console.log('Server address:', server.address);
+	console.log('Server address:', server.address);
 });
 ```
 
@@ -280,12 +299,14 @@ Note that when VS Code invokes your language model tool, the `options` may conta
 // 1. Import prompt-tsx's well-known content type:
 import { contentType } from '@vscode/prompt-tsx';
 
-async function doToolInvocation(options: LanguageModelToolInvocationOptions): vscode.LanguageModelToolResult {
-  return {
-    // In constructing your response, render the tree as JSON.
-    [contentType]: await renderElementJSON(MyElement, options.parameters, options.tokenOptions),
-    toString: () => '...',
-  };
+async function doToolInvocation(
+	options: LanguageModelToolInvocationOptions
+): vscode.LanguageModelToolResult {
+	return {
+		// In constructing your response, render the tree as JSON.
+		[contentType]: await renderElementJSON(MyElement, options.parameters, options.tokenOptions),
+		toString: () => '...',
+	};
 }
 ```
 
@@ -301,11 +322,10 @@ class MyElement extends PromptElement {
 			tokenOptions: {
 				tokenBudget: sizing.tokenBudget,
 				countTokens: (text, token) => sizing.countTokens(text, token),
-			}
+			},
 		});
 
 		return <ToolResult data={result} priority={20} />;
 	}
 }
 ```
-

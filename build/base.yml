@@ -57,11 +57,11 @@ extends:
           - script: npm run compile
             displayName: Compile npm package
             env:
-              DISPLAY: ":99.0"
+              DISPLAY: ':99.0'
 
           - script: npm run test
             displayName: Test npm package
             env:
-              DISPLAY: ":99.0"
+              DISPLAY: ':99.0'
 
         publishPackage: ${{ parameters.publishPackage }}

@@ -13,7 +13,7 @@ declare global {
 			/**
 			 * Add meta data which can be retrieved after the prompt is rendered.
 			 */
-			"meta": {
+			meta: {
 				value: PromptMetadata;
 				/**
 				 * If set, the metadata will only be included in the rendered result
@@ -24,32 +24,32 @@ declare global {
 			/**
 			 * `\n` character.
 			 */
-			"br": {};
+			br: {};
 			/**
 			 * Expose context used for creating the prompt.
 			 */
-			"usedContext": {
+			usedContext: {
 				value: ChatDocumentContext[];
 			};
 			/**
 			 * Expose the references used for creating the prompt.
 			 * Will be displayed to the user.
 			 */
-			"references": {
+			references: {
 				value: PromptReference[];
 			};
 			/**
 			 * Files that were excluded from the prompt.
 			 */
-			"ignoredFiles": {
+			ignoredFiles: {
 				value: URI[];
 			};
 			/**
 			 * A JSON element previously rendered in {@link renderElementJSON}.
 			 */
-			"elementJSON": {
+			elementJSON: {
 				data: PromptElementJSON;
-			}
+			};
 		}
 	}
 }

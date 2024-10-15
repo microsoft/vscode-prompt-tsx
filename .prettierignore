@@ -1,9 +1,8 @@
 dist/**
 .vscode/**
 .vscode-test/**
-test/.vscode-test/**
 .git-blame-ignore-revs
-**/*.md
-**/*.ts
 **/*.js
-**/*.yml
+src/base/util/vs/**
+SECURITY.md
+SUPPORT.md

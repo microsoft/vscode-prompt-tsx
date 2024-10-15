@@ -3,7 +3,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { LineBreakBefore, MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from '../materialized';
+import {
+	LineBreakBefore,
+	MaterializedChatMessage,
+	MaterializedChatMessageTextChunk,
+	MaterializedContainer,
+} from '../materialized';
 import { ChatRole } from '../openai';
 import { ITokenizer } from '../tokenizer/tokenizer';
 class MockTokenizer implements ITokenizer {
@@ -19,7 +24,16 @@ suite('Materialized', () => {
 		const tokenizer = new MockTokenizer();
 		const child1 = new MaterializedChatMessageTextChunk('Hello', 1, [], LineBreakBefore.None);
 		const child2 = new MaterializedChatMessageTextChunk('World', 1, [], LineBreakBefore.None);
-		const message = new MaterializedChatMessage(0, ChatRole.User, 'user', undefined, undefined, 1, [], [child1, child2]);
+		const message = new MaterializedChatMessage(
+			0,
+			ChatRole.User,
+			'user',
+			undefined,
+			undefined,
+			1,
+			[],
+			[child1, child2]
+		);
 		const container = new MaterializedContainer(1, undefined, 1, [message], [], 0);
 
 		assert.deepStrictEqual(await container.tokenCount(tokenizer), 13);
@@ -31,7 +45,16 @@ suite('Materialized', () => {
 		const tokenizer = new MockTokenizer();
 		const child1 = new MaterializedChatMessageTextChunk('Hello', 1, [], LineBreakBefore.None);
 		const child2 = new MaterializedChatMessageTextChunk('World', 1, [], LineBreakBefore.None);
-		const message = new MaterializedChatMessage(0, ChatRole.User, 'user', undefined, undefined, 1, [], [child1, child2]);
+		const message = new MaterializedChatMessage(
+			0,
+			ChatRole.User,
+			'user',
+			undefined,
+			undefined,
+			1,
+			[],
+			[child1, child2]
+		);
 		const container = new MaterializedContainer(1, undefined, 1, [message], [], 0);
 
 		assert.deepStrictEqual(await container.upperBoundTokenCount(tokenizer), 13);

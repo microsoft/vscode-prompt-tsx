@@ -6,7 +6,6 @@ import type { Range } from 'vscode';
 import { ChatResponseReferencePartStatusKind } from './results';
 import { UriComponents } from './util/vs/common/uri';
 
-
 // Types in this region are the JSON representation of prompt elements. These
 // can be transmitted between tools and tool callers.
 //
@@ -51,11 +50,11 @@ export interface PieceJSON {
 
 export type PromptNodeJSON = PieceJSON | TextJSON;
 
-export type UriOrLocationJSON = UriComponents | { uri: UriComponents, range: Range };
+export type UriOrLocationJSON = UriComponents | { uri: UriComponents; range: Range };
 
 export interface PromptReferenceJSON {
 	anchor: UriOrLocationJSON | { variableName: string; value?: UriOrLocationJSON };
-	iconPath?: UriComponents | { id: string; } | { light: UriComponents; dark: UriComponents };
+	iconPath?: UriComponents | { id: string } | { light: UriComponents; dark: UriComponents };
 	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
 }
 
