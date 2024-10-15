@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0-alpha.5
+
+- **feat:** add `Expandable` elements to the renderer. See the [readme](./README.md#expandable-text) for details.
+
 ## 0.3.0-alpha.4
 
 - **feat:** enhance the `HTMLTracer` to allow consumers to visualize element pruning order

@@ -114,7 +114,7 @@ const App = () => {
 			</div>
 			<div className="control-description">
 				{activeTab === 'tokens'
-					? <p>Token changes here will prune elements and re-render 'pure' ones, but the entire prompt is not being re-rendered</p>
+					? <p>Token changes here will prune elements and re-render Expandable ones, but the entire prompt is not being re-rendered</p>
 					: <p>Changing the render epoch lets you see the order in which elements are rendered and how the token budget is allocated.</p>}
 				<div className='controls-stats'>
 					<span>Used <Integer value={model.container.tokens} />/<Integer value={model.budget} /> tokens</span>

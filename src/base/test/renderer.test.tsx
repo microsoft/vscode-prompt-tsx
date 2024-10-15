@@ -3,12 +3,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { contentType, renderElementJSON, renderPrompt } from '..';
+import { contentType, HTMLTracer, renderElementJSON, renderPrompt } from '..';
 import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
 	Chunk,
+	Expandable,
 	LegacyPrioritization,
 	PrioritizedList,
 	SystemMessage,
@@ -1618,6 +1619,164 @@ suite('PromptRenderer', () => {
 			).render();
 
 			assert.deepStrictEqual(res.metadata.getAll(MyMeta), [new MyMeta(true), new MyMeta(false)]);
+		});
+	});
+
+	suite('growable', () => {
+		test('grows basic', async () => {
+			const sizingInCalls: number[] = [];
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 50 },
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<Expandable value={async sizing => {
+								sizingInCalls.push(sizing.tokenBudget);
+								let str = 'hi';
+								while (await sizing.countTokens(str + 'a') <= sizing.tokenBudget) {
+									str += 'a';
+								}
+								return str;
+							}} />
+							<TextChunk>smaller</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(sizingInCalls, [
+				23,
+				43,
+			]);
+			assert.strictEqual(res.tokenCount, 50);
+			assert.deepStrictEqual(res.messages, [{
+				role: 'user',
+				content: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+			}]);
+		});
+
+		test('grows multiple in render order and uses budget', async () => {
+			const sizingInCalls: string[] = [];
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 50 },
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<Expandable flexGrow={1} value={async sizing => {
+								let str = 'hi';
+								while (await sizing.countTokens(str + 'a') < sizing.tokenBudget / 2) {
+									str += 'a';
+								}
+								sizingInCalls.push(`a=${sizing.tokenBudget}`);
+								return str;
+							}} />
+							<Expandable value={async sizing => {
+								let str = 'hi';
+								while (await sizing.countTokens(str + 'b') < sizing.tokenBudget / 2) {
+									str += 'b';
+								}
+								sizingInCalls.push(`b=${sizing.tokenBudget}`);
+								return str;
+							}} />
+							<TextChunk>smaller</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(sizingInCalls, [
+				'b=23',
+				'a=33',
+				'b=26',
+				'a=30',
+			]);
+			assert.deepStrictEqual(res.messages, [{
+				role: 'user',
+				content: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsmaller',
+			}]);
+			assert.strictEqual(res.tokenCount, 34);
+		});
+
+		test('stops growing early if over budget', async () => {
+			const sizingInCalls: string[] = [];
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 50 },
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<Expandable flexGrow={1} value={async sizing => {
+								sizingInCalls.push(`a=${sizing.tokenBudget}`);
+								return 'hi';
+							}} />
+							<Expandable value={async sizing => {
+								sizingInCalls.push(`b=${sizing.tokenBudget}`);
+								if (sizing.tokenBudget < 30) {
+									return 'hi';
+								}
+								let str = 'hi';
+								while (await sizing.countTokens(str + 'a') <= sizing.tokenBudget) {
+									str += 'a';
+								}
+								return str;
+							}} />
+							<TextChunk>smaller</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(sizingInCalls, [
+				'b=23',
+				'a=43',
+				'b=41',
+			]);
+			assert.deepStrictEqual(res.messages, [{
+				role: 'user',
+				content: 'hi\nhiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+			}]);
+		});
+
+		test('still prunes over budget', async () => {
+			const sizingInCalls: string[] = [];
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: 50 },
+				class extends PromptElement {
+					render() {
+						return <UserMessage>
+							<Expandable flexGrow={1} value={async sizing => {
+								sizingInCalls.push(`a=${sizing.tokenBudget}`);
+								return 'hi';
+							}} />
+							<Expandable value={async sizing => {
+								sizingInCalls.push(`b=${sizing.tokenBudget}`);
+								if (sizing.tokenBudget < 30) {
+									return 'hi';
+								}
+								return 'hi'.repeat(1000);
+							}} />
+							<TextChunk>smaller</TextChunk>
+						</UserMessage>;
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(sizingInCalls, [
+				'b=23',
+				'a=43',
+				'b=41',
+			]);
+			assert.deepStrictEqual(res.messages, [{
+				role: 'user',
+				content: 'smaller',
+			}]);
 		});
 	});
 });

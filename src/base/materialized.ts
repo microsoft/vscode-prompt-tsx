@@ -71,6 +71,13 @@ export class MaterializedContainer implements IMaterializedNode {
 	}
 
 	/**
+	 * Replaces a node in the tree with the given one, by its ID.
+	 */
+	replaceNode(nodeId: number, withNode: MaterializedNode): MaterializedNode | undefined {
+		return replaceNode(nodeId, this.children, withNode);
+	}
+
+	/**
 	 * Gets all metadata the container holds.
 	 */
 	allMetadata(): Generator<PromptMetadata> {
@@ -160,6 +167,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return !/\S/.test(this.text) && !this.toolCalls?.length && !this.toolCallId;
 	}
 
+	/**
+	 * Replaces a node in the tree with the given one, by its ID.
+	 */
+	replaceNode(nodeId: number, withNode: MaterializedNode): MaterializedNode | undefined {
+		const replaced = replaceNode(nodeId, this.children, withNode);
+		if (replaced) {
+			this.onChunksChange();
+		}
+
+		return replaced;
+	}
+
 	/** Remove the lowest priority chunk among this message's children. */
 	removeLowestPriorityChild() {
 		removeLowestPriorityChild(this.children);
@@ -240,12 +259,15 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 }
 
+function isContainerType(node: MaterializedNode): node is MaterializedContainer | MaterializedChatMessage {
+	return !(node instanceof MaterializedChatMessageTextChunk);
+}
+
 function assertContainerOrChatMessage(v: MaterializedNode): asserts v is MaterializedContainer | MaterializedChatMessage {
 	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage)) {
 		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
 	}
 }
-
 
 function* textChunks(node: MaterializedContainer | MaterializedChatMessage, isTextSibling = false): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
 	for (const child of node.children) {
@@ -343,7 +365,7 @@ function removeLowestPriorityChild(children: MaterializedNode[]) {
 }
 
 function getLowestPriorityAmongChildren(node: MaterializedNode): number {
-	if (node instanceof MaterializedChatMessageTextChunk) {
+	if (!(isContainerType(node))) {
 		return -1;
 	}
 
@@ -358,10 +380,28 @@ function getLowestPriorityAmongChildren(node: MaterializedNode): number {
 function* allMetadata(node: MaterializedContainer | MaterializedChatMessage): Generator<PromptMetadata> {
 	yield* node.metadata;
 	for (const child of node.children) {
-		if (child instanceof MaterializedChatMessageTextChunk) {
-			yield* child.metadata;
-		} else {
+		if (isContainerType(child)) {
 			yield* allMetadata(child);
+		} else {
+			yield* child.metadata;
+		}
+	}
+}
+
+function replaceNode(nodeId: number, children: MaterializedNode[], withNode: MaterializedNode): MaterializedNode | undefined {
+	for (let i = 0; i < children.length; i++) {
+		const child = children[i];
+		if (isContainerType(child)) {
+			if (child.id === nodeId) {
+				const oldNode = children[i];
+				children[i] = withNode;
+				return oldNode;
+			}
+
+			const inner = child.replaceNode(nodeId, withNode);
+			if (inner) {
+				return inner;
+			}
 		}
 	}
 }
