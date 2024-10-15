@@ -61,6 +61,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
+	/** Epoch used to tracing the order in which elements render. */
+	private _epoch = 0;
 	public tracer: ITracer | undefined = undefined;
 
 	/**
@@ -122,8 +124,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			return;
 		}
 
-		this.tracer?.startRenderPass();
-
 		const flexGroups = [...promptElements.entries()].sort(([a], [b]) => b - a).map(([_, group]) => group);
 		const setReserved = (groupIndex: number) => {
 			let reservedTokens = 0;
@@ -148,7 +148,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		for (const [groupIndex, promptElements] of flexGroups.entries()) {
 			// Temporarily consume any reserved budget for later elements so that the sizing is calculated correctly here.
 			const reservedTokens = setReserved(groupIndex);
-			this.tracer?.startRenderFlex(groupIndex, reservedTokens, sizing.remainingTokenBudget);
 
 			// Calculate the flex basis for dividing the budget amongst siblings in this group.
 			let flexBasisSum = 0;
@@ -167,9 +166,16 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				};
 			});
 
-
 			// Free the previously-reserved budget now that we calculated sizing
 			sizing.consume(-reservedTokens);
+
+			this.tracer?.addRenderEpoch?.({
+				inNode: promptElements[0].element.node.parent?.id,
+				flexValue: promptElements[0].element.props.flexGrow ?? 0,
+				tokenBudget: sizing.remainingTokenBudget,
+				reservedTokens,
+				elements: promptElements.map((e, i) => ({ id: e.element.node.id, tokenBudget: elementSizings[i].tokenBudget })),
+			})
 
 			await Promise.all(promptElements.map(async ({ element, promptElementInstance }, i) => {
 				const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token)
@@ -196,18 +202,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				// Compute token budget for the pieces that this child wants to render
 				const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
 				const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
-				this.tracer?.didRenderElement(element.ctor.name, pieces.filter(p => p.kind === 'literal').map(p => p.value));
 				childSizing.consume(tokensConsumed);
 				await this._handlePromptChildren(element, pieces, childSizing, progress, token);
-				this.tracer?.didRenderChildren(childSizing.consumed);
 
 				// Tally up the child consumption into the parent context for any subsequent flex group
 				sizing.consume(childSizing.consumed);
 			}
-
-			this.tracer?.endRenderFlex();
 		}
-		this.tracer?.endRenderPass();
 	}
 
 	/**
@@ -216,6 +217,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * The total token count is guaranteed to be less than or equal to the token budget.
 	 */
 	public async renderElementJSON(token?: CancellationToken): Promise<JSONT.PromptElementJSON> {
+		this._epoch = 0;
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
 			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
@@ -235,6 +237,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * The total token count is guaranteed to be less than or equal to the token budget.
 	 */
 	public async render(progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<RenderPromptResult> {
+		this._epoch = 0;
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
@@ -243,16 +246,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			token,
 		);
 
-		// Trim the elements to fit within the token budget. We check the "lower bound"
-		// first because that's much more cache-friendly as we remove elements.
-		const container = this._root.materialize() as MaterializedContainer;
-		const allMetadata = [...container.allMetadata()];
-		while (
-			await container.upperBoundTokenCount(this._tokenizer) > this._endpoint.modelMaxPromptTokens &&
-			await container.tokenCount(this._tokenizer) > this._endpoint.modelMaxPromptTokens
-		) {
-			container.removeLowestPriorityChild();
-		}
+		const { container, allMetadata, removed } = await this._getFinalElementTree(this._endpoint.modelMaxPromptTokens);
+		this.tracer?.didMaterializeTree?.({
+			budget: this._endpoint.modelMaxPromptTokens,
+			renderedTree: { container, removed, budget: this._endpoint.modelMaxPromptTokens },
+			tokenizer: this._tokenizer,
+			renderTree: budget => this._getFinalElementTree(budget).then(r => ({ ...r, budget })),
+		});
 
 		// Then finalize the chat messages
 		const messageResult = [...container.toChatMessages()];
@@ -303,6 +303,23 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			references,
 			omittedReferences,
 		};
+	}
+
+	private async _getFinalElementTree(tokenBudget: number) {
+		// Trim the elements to fit within the token budget. We check the "lower bound"
+		// first because that's much more cache-friendly as we remove elements.
+		const container = this._root.materialize() as MaterializedContainer;
+		const allMetadata = [...container.allMetadata()];
+		let removed = 0;
+		while (
+			await container.upperBoundTokenCount(this._tokenizer) > tokenBudget &&
+			await container.tokenCount(this._tokenizer) > tokenBudget
+		) {
+			container.removeLowestPriorityChild();
+			removed++;
+		}
+
+		return { container, allMetadata, removed };
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
@@ -537,6 +554,8 @@ class PromptSizingContext {
 }
 
 class PromptTreeElement {
+	private static _nextId = 0;
+
 	public static fromJSON(index: number, json: JSONT.PieceJSON): PromptTreeElement {
 		const element = new PromptTreeElement(null, index);
 		element._metadata = json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))) ?? [];
@@ -565,6 +584,7 @@ class PromptTreeElement {
 	}
 
 	public readonly kind = PromptNodeType.Piece;
+	public readonly id = PromptTreeElement._nextId++;
 
 	private _obj: PromptElement | null = null;
 	private _state: any | undefined = undefined;
@@ -638,12 +658,12 @@ class PromptTreeElement {
 				throw new Error(`Invalid ChatMessage!`);
 			}
 			const parent = new MaterializedChatMessage(
+				this.id,
 				this._obj.props.role,
 				this._obj.props.name,
 				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority ?? 0,
-				this.childIndex,
 				this._metadata,
 				this._children.map(child => child.materialize()),
 			);
@@ -654,6 +674,8 @@ class PromptTreeElement {
 			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
 
 			return new MaterializedContainer(
+				this.id,
+				this._obj?.constructor.name,
 				this._obj?.props.priority || 0,
 				this._children.map(child => child.materialize()),
 				this._metadata,

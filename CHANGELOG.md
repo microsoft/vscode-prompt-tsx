@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0-alpha.4
+
+- **feat:** enhance the `HTMLTracer` to allow consumers to visualize element pruning order
+
+## 0.3.0-alpha.3
+
+- **feat:** add `MetadataMap.getAll()`
+- **fix:** don't drop empty messages that have tool calls
+
+## 0.3.0-alpha.2
+
+- **fix:** update to match proposed VS Code tools API
+
 ## 0.3.0-alpha.1
 
 - ⚠️ **breaking refactor:** `priority` is now local within tree elements

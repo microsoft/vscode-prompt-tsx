@@ -19,8 +19,8 @@ suite('Materialized', () => {
 		const tokenizer = new MockTokenizer();
 		const child1 = new MaterializedChatMessageTextChunk('Hello', 1, [], LineBreakBefore.None);
 		const child2 = new MaterializedChatMessageTextChunk('World', 1, [], LineBreakBefore.None);
-		const message = new MaterializedChatMessage(ChatRole.User, 'user', undefined, undefined, 1, 0, [], [child1, child2]);
-		const container = new MaterializedContainer(1, [message], [], 0);
+		const message = new MaterializedChatMessage(0, ChatRole.User, 'user', undefined, undefined, 1, [], [child1, child2]);
+		const container = new MaterializedContainer(1, undefined, 1, [message], [], 0);
 
 		assert.deepStrictEqual(await container.tokenCount(tokenizer), 13);
 		container.removeLowestPriorityChild();
@@ -31,8 +31,8 @@ suite('Materialized', () => {
 		const tokenizer = new MockTokenizer();
 		const child1 = new MaterializedChatMessageTextChunk('Hello', 1, [], LineBreakBefore.None);
 		const child2 = new MaterializedChatMessageTextChunk('World', 1, [], LineBreakBefore.None);
-		const message = new MaterializedChatMessage(ChatRole.User, 'user', undefined, undefined, 1, 0, [], [child1, child2]);
-		const container = new MaterializedContainer(1, [message], [], 0);
+		const message = new MaterializedChatMessage(0, ChatRole.User, 'user', undefined, undefined, 1, [], [child1, child2]);
+		const container = new MaterializedContainer(1, undefined, 1, [message], [], 0);
 
 		assert.deepStrictEqual(await container.upperBoundTokenCount(tokenizer), 13);
 		container.removeLowestPriorityChild();
