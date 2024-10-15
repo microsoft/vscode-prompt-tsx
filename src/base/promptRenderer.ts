@@ -8,7 +8,7 @@ import { PromptNodeType } from './jsonTypes';
 import { ContainerFlags, LineBreakBefore, MaterializedChatMessage, MaterializedChatMessageTextChunk, MaterializedContainer } from './materialized';
 import { ChatMessage } from "./openai";
 import { PromptElement } from "./promptElement";
-import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, Chunk, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
+import { AssistantMessage, BaseChatMessage, ChatMessagePromptElement, Chunk, Expandable, LegacyPrioritization, TextChunk, ToolMessage, isChatMessagePromptElement } from "./promptElements";
 import { PromptMetadata, PromptReference } from "./results";
 import { ITokenizer } from "./tokenizer/tokenizer";
 import { ITracer } from './tracer';
@@ -60,9 +60,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
+	private readonly _growables: { initialConsume: number; elem: PromptTreeElement }[] = [];
 	private readonly _root = new PromptTreeElement(null, 0);
 	/** Epoch used to tracing the order in which elements render. */
-	private _epoch = 0;
 	public tracer: ITracer | undefined = undefined;
 
 	/**
@@ -197,18 +197,44 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					continue;
 				}
 
-				const pieces = flattenAndReduce(template);
+				const childConsumption = await this._processPromptRenderPiece(
+					new PromptSizingContext(elementSizing.tokenBudget, this._endpoint),
+					element,
+					promptElementInstance,
+					template,
+					progress,
+					token,
+				);
 
-				// Compute token budget for the pieces that this child wants to render
-				const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
-				const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
-				childSizing.consume(tokensConsumed);
-				await this._handlePromptChildren(element, pieces, childSizing, progress, token);
+				// Append growables here so that when we go back and expand them we do so in render order.
+				if (promptElementInstance instanceof Expandable) {
+					this._growables.push({ initialConsume: childConsumption, elem: element.node });
+				}
 
 				// Tally up the child consumption into the parent context for any subsequent flex group
-				sizing.consume(childSizing.consumed);
+				sizing.consume(childConsumption);
 			}
 		}
+	}
+
+	private async _processPromptRenderPiece(
+		elementSizing: PromptSizingContext,
+		element: QueueItem<PromptElementCtor<any, any>, any>,
+		promptElementInstance: PromptElement<any, any>,
+		template: PromptPiece,
+		progress: Progress<ChatResponsePart> | undefined,
+		token: CancellationToken | undefined,
+	) {
+		const pieces = flattenAndReduce(template);
+
+		// Compute token budget for the pieces that this child wants to render
+		const childSizing = new PromptSizingContext(elementSizing.tokenBudget, this._endpoint);
+		const { tokensConsumed } = await computeTokensConsumedByLiterals(this._tokenizer, element, promptElementInstance, pieces);
+		childSizing.consume(tokensConsumed);
+		await this._handlePromptChildren(element, pieces, childSizing, progress, token);
+
+		// Tally up the child consumption into the parent context for any subsequent flex group
+		return childSizing.consumed;
 	}
 
 	/**
@@ -217,7 +243,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * The total token count is guaranteed to be less than or equal to the token budget.
 	 */
 	public async renderElementJSON(token?: CancellationToken): Promise<JSONT.PromptElementJSON> {
-		this._epoch = 0;
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
 			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
@@ -237,7 +262,6 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * The total token count is guaranteed to be less than or equal to the token budget.
 	 */
 	public async render(progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<RenderPromptResult> {
-		this._epoch = 0;
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
@@ -246,12 +270,12 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			token,
 		);
 
-		const { container, allMetadata, removed } = await this._getFinalElementTree(this._endpoint.modelMaxPromptTokens);
+		const { container, allMetadata, removed } = await this._getFinalElementTree(this._endpoint.modelMaxPromptTokens, token);
 		this.tracer?.didMaterializeTree?.({
 			budget: this._endpoint.modelMaxPromptTokens,
 			renderedTree: { container, removed, budget: this._endpoint.modelMaxPromptTokens },
 			tokenizer: this._tokenizer,
-			renderTree: budget => this._getFinalElementTree(budget).then(r => ({ ...r, budget })),
+			renderTree: budget => this._getFinalElementTree(budget, undefined).then(r => ({ ...r, budget })),
 		});
 
 		// Then finalize the chat messages
@@ -305,10 +329,24 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		};
 	}
 
-	private async _getFinalElementTree(tokenBudget: number) {
+	/**
+	 * Note: this may be called multiple times from the tracer as users play
+	 * around with budgets. It should be side-effect-free.
+	 */
+	private async _getFinalElementTree(tokenBudget: number, token: CancellationToken | undefined) {
 		// Trim the elements to fit within the token budget. We check the "lower bound"
 		// first because that's much more cache-friendly as we remove elements.
 		const container = this._root.materialize() as MaterializedContainer;
+		const initialTokenCount = await container.tokenCount(this._tokenizer);
+		if (initialTokenCount < tokenBudget) {
+			const didChange = await this._grow(container, initialTokenCount, tokenBudget, token);
+
+			// if nothing grew, we already counted tokens so we can safely return
+			if (!didChange) {
+				return { container, allMetadata: [...container.allMetadata()], removed: 0 };
+			}
+		}
+
 		const allMetadata = [...container.allMetadata()];
 		let removed = 0;
 		while (
@@ -320,6 +358,52 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		}
 
 		return { container, allMetadata, removed };
+	}
+
+	/** Grows all Expandable elements, returns if any changes were made. */
+	private async _grow(tree: MaterializedContainer, tokensUsed: number, tokenBudget: number, token: CancellationToken | undefined): Promise<boolean> {
+		if (!this._growables.length) {
+			return false;
+		}
+
+		for (const growable of this._growables) {
+			const obj = growable.elem.getObj();
+			if (!(obj instanceof Expandable)) {
+				throw new Error('unreachable: expected growable');
+			}
+
+			const tempRoot = new PromptTreeElement(null, 0, growable.elem.id);
+			// Sizing for the grow is the remaining excess plus the initial consumption,
+			// since the element consuming the initial amount of tokens will be replaced
+			const sizing = new PromptSizingContext(tokenBudget - tokensUsed + growable.initialConsume, this._endpoint);
+
+			const newConsumed = await this._processPromptRenderPiece(
+				sizing,
+				{ node: tempRoot, ctor: this._ctor, props: {}, children: [] },
+				obj,
+				await obj.render(undefined, {
+					tokenBudget: sizing.tokenBudget,
+					endpoint: this._endpoint,
+					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation)
+				}),
+				undefined,
+				token,
+			);
+
+			const newContainer = tempRoot.materialize() as MaterializedContainer;
+			const oldContainer = tree.replaceNode(growable.elem.id, newContainer);
+			if (!oldContainer) {
+				throw new Error('unreachable: could not find old element to replace');
+			}
+
+			tokensUsed -= growable.initialConsume;
+			tokensUsed += newConsumed;
+			if (tokensUsed >= tokenBudget) {
+				break;
+			}
+		}
+
+		return true;
 	}
 
 	private _handlePromptChildren(element: QueueItem<PromptElementCtor<any, any>, P>, pieces: ProcessedPromptPiece[], sizing: PromptSizingContext, progress: Progress<ChatResponsePart> | undefined, token: CancellationToken | undefined) {
@@ -584,7 +668,6 @@ class PromptTreeElement {
 	}
 
 	public readonly kind = PromptNodeType.Piece;
-	public readonly id = PromptTreeElement._nextId++;
 
 	private _obj: PromptElement | null = null;
 	private _state: any | undefined = undefined;
@@ -594,10 +677,15 @@ class PromptTreeElement {
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
 		public readonly childIndex: number,
+		public readonly id = PromptTreeElement._nextId++,
 	) { }
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
+	}
+
+	public getObj(): PromptElement | null {
+		return this._obj;
 	}
 
 	public setState(state: any) {

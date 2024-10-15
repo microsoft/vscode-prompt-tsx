@@ -303,3 +303,19 @@ export class Chunk extends PromptElement<BasePromptElementProps> {
 		return <>{this.props.children}</>;
 	}
 }
+
+export interface ExpandableProps extends BasePromptElementProps {
+	value: (sizing: PromptSizing) => string | Promise<string>;
+}
+
+/**
+ * An element that can expand to fill the remaining token budget. Takes
+ * a `value` function that is initially called with the element's token budget,
+ * and may be called multiple times with the new token budget as the prompt
+ * is resized.
+ */
+export class Expandable extends PromptElement<ExpandableProps> {
+	async render(_state: void, sizing: PromptSizing): Promise<PromptPiece> {
+		return <>{await this.props.value(sizing)}</>;
+	}
+}

@@ -183,7 +183,7 @@ Continuous text strings and elements can both be pruned from the tree. If you ha
 
 ### Flex Behavior
 
-Wholesale pruning is not always already. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
+Wholesale pruning is not always ideal. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.
 
 `prompt-tsx` provides a utility component that supports this use case: `TextChunk`. Given input text, and optionally a delimiting string or regular expression, it'll include as much of the text as possible to fit within its budget:
 
@@ -229,6 +229,27 @@ There are a few similar properties which control budget allocation you mind find
 - `flexBasis`: controls the proportion of tokens allocated from the container's budget to this element. It defaults to `1` on all elements. For example, if you have the elements `<><Foo /><Bar /></>` and a 100 token budget, each element would be allocated 50 tokens in its `PromptSizing.tokenBudget`. If you instead render `<><Foo /><Bar flexBasis={2} /></>`, `Bar` would receive 66 tokens and `Foo` would receive 33.
 
 It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
+
+### Expandable Text
+
+The tools provided by `flex*` attributes are good, but sometimes you may still end up with unused space in your token budget that you'd like to utilize. We provide a special `<Expandable />` element that can be used in this case. It takes a callback that can return a text string.
+
+```tsx
+<Expandable value={async sizing => {
+  let data = 'hi';
+  while (true) {
+    const more = getMoreUsefulData();
+    if (await sizing.countTokens(data + more) > sizing.tokenBudget) { break }
+    data += more;
+  }
+  }
+  return data;
+}} />
+```
+
+After the prompt is rendered, the renderer sums up the tokens used by all messages. If there is unused budget, then any `<Expandable />` elements' values are called again with their `PromptSizing` is increased by the token excess.
+
+If there are multiple `<Expandable />` elements, then they're re-called in the order in which they were initially rendered. Because they're designed to fill up any remaining space, it usually makes sense to have at most one `<Expandable />` element per prompt.
 
 #### Debugging Budgeting
 
