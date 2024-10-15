@@ -2,7 +2,12 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { TikTokenizer, createTokenizer, getRegexByEncoder, getSpecialTokensByEncoder } from '@microsoft/tiktokenizer';
+import {
+	createTokenizer,
+	getRegexByEncoder,
+	getSpecialTokensByEncoder,
+	TikTokenizer,
+} from '@microsoft/tiktokenizer';
 import { join } from 'path';
 import { BaseTokensPerMessage, BaseTokensPerName, ChatMessage } from '../openai';
 import { ITokenizer } from './tokenizer';
@@ -20,7 +25,7 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	private readonly baseTokensPerMessage = BaseTokensPerMessage;
 	private readonly baseTokensPerName = BaseTokensPerName;
 
-	constructor() { }
+	constructor() {}
 
 	/**
 	 * Tokenizes the given text using the Cl100K tokenizer.

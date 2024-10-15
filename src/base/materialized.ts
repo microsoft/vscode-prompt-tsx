@@ -21,7 +21,10 @@ export interface IMaterializedNode {
 	tokenCount(tokenizer: ITokenizer): Promise<number>;
 }
 
-export type MaterializedNode = MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageTextChunk;
+export type MaterializedNode =
+	| MaterializedContainer
+	| MaterializedChatMessage
+	| MaterializedChatMessageTextChunk;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -31,15 +34,14 @@ export const enum ContainerFlags {
 }
 
 export class MaterializedContainer implements IMaterializedNode {
-
 	constructor(
 		public readonly id: number,
 		public readonly name: string | undefined,
 		public readonly priority: number,
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
-		public readonly flags: number,
-	) { }
+		public readonly flags: number
+	) {}
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -48,25 +50,29 @@ export class MaterializedContainer implements IMaterializedNode {
 	/** @inheritdoc */
 	async tokenCount(tokenizer: ITokenizer): Promise<number> {
 		let total = 0;
-		await Promise.all(this.children.map(async (child) => {
-			// note: this method is not called when the container is inside a chat
-			// message, because in that case the chat message generates the text
-			// and counts that.
-			assertContainerOrChatMessage(child);
+		await Promise.all(
+			this.children.map(async child => {
+				// note: this method is not called when the container is inside a chat
+				// message, because in that case the chat message generates the text
+				// and counts that.
+				assertContainerOrChatMessage(child);
 
-			const amt = await child.tokenCount(tokenizer);
-			total += amt;
-		}));
+				const amt = await child.tokenCount(tokenizer);
+				total += amt;
+			})
+		);
 		return total;
 	}
 
 	/** @inheritdoc */
 	async upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
 		let total = 0;
-		await Promise.all(this.children.map(async (child) => {
-			const amt = await child.upperBoundTokenCount(tokenizer);
-			total += amt;
-		}));
+		await Promise.all(
+			this.children.map(async child => {
+				const amt = await child.upperBoundTokenCount(tokenizer);
+				total += amt;
+			})
+		);
 		return total;
 	}
 
@@ -122,20 +128,22 @@ export class MaterializedChatMessageTextChunk {
 		public readonly text: string,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
-		public readonly lineBreakBefore: LineBreakBefore,
-	) { }
+		public readonly lineBreakBefore: LineBreakBefore
+	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
 	}
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		return await tokenizer.tokenLength(this.text) + (this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0);
+		return (
+			(await tokenizer.tokenLength(this.text)) +
+			(this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0)
+		);
 	});
 }
 
 export class MaterializedChatMessage implements IMaterializedNode {
-
 	constructor(
 		public readonly id: number,
 		public readonly role: ChatRole,
@@ -144,8 +152,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly toolCallId: string | undefined,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
-		public readonly children: MaterializedNode[],
-	) { }
+		public readonly children: MaterializedNode[]
+	) {}
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -159,7 +167,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 	/** Gets the text this message contains */
 	public get text(): string {
-		return this._text()
+		return this._text();
 	}
 
 	/** Gets whether the message is empty */
@@ -196,11 +204,13 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	});
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		let total = await this._baseMessageTokenCount(tokenizer)
-		await Promise.all(this.children.map(async (chunk) => {
-			const amt = await chunk.upperBoundTokenCount(tokenizer);
-			total += amt;
-		}));
+		let total = await this._baseMessageTokenCount(tokenizer);
+		await Promise.all(
+			this.children.map(async chunk => {
+				const amt = await chunk.upperBoundTokenCount(tokenizer);
+				total += amt;
+			})
+		);
 		return total;
 	});
 
@@ -211,7 +221,10 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	private readonly _text = once(() => {
 		let result = '';
 		for (const { text, isTextSibling } of textChunks(this)) {
-			if (text.lineBreakBefore === LineBreakBefore.Always || (text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)) {
+			if (
+				text.lineBreakBefore === LineBreakBefore.Always ||
+				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
+			) {
 				if (result.length && !result.endsWith('\n')) {
 					result += '\n';
 				}
@@ -228,48 +241,55 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			return {
 				role: this.role,
 				content: this.text,
-				...(this.name ? { name: this.name } : {})
+				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Assistant) {
 			return {
 				role: this.role,
 				content: this.text,
 				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
-				...(this.name ? { name: this.name } : {})
+				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.User) {
 			return {
 				role: this.role,
 				content: this.text,
-				...(this.name ? { name: this.name } : {})
-			}
+				...(this.name ? { name: this.name } : {}),
+			};
 		} else if (this.role === ChatRole.Tool) {
 			return {
 				role: this.role,
 				content: this.text,
-				tool_call_id: this.toolCallId
+				tool_call_id: this.toolCallId,
 			};
 		} else {
 			return {
 				role: this.role,
 				content: this.text,
-				name: this.name!
+				name: this.name!,
 			};
 		}
 	}
 }
 
-function isContainerType(node: MaterializedNode): node is MaterializedContainer | MaterializedChatMessage {
+function isContainerType(
+	node: MaterializedNode
+): node is MaterializedContainer | MaterializedChatMessage {
 	return !(node instanceof MaterializedChatMessageTextChunk);
 }
 
-function assertContainerOrChatMessage(v: MaterializedNode): asserts v is MaterializedContainer | MaterializedChatMessage {
+function assertContainerOrChatMessage(
+	v: MaterializedNode
+): asserts v is MaterializedContainer | MaterializedChatMessage {
 	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage)) {
 		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
 	}
 }
 
-function* textChunks(node: MaterializedContainer | MaterializedChatMessage, isTextSibling = false): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
+function* textChunks(
+	node: MaterializedContainer | MaterializedChatMessage,
+	isTextSibling = false
+): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
 			yield { text: child, isTextSibling };
@@ -282,12 +302,17 @@ function* textChunks(node: MaterializedContainer | MaterializedChatMessage, isTe
 }
 
 function removeLowestPriorityLegacy(root: MaterializedNode) {
-	let lowest: undefined | {
-		chain: (MaterializedContainer | MaterializedChatMessage)[],
-		node: MaterializedChatMessageTextChunk;
-	};
+	let lowest:
+		| undefined
+		| {
+				chain: (MaterializedContainer | MaterializedChatMessage)[];
+				node: MaterializedChatMessageTextChunk;
+		  };
 
-	function findLowestInTree(node: MaterializedNode, chain: (MaterializedContainer | MaterializedChatMessage)[]) {
+	function findLowestInTree(
+		node: MaterializedNode,
+		chain: (MaterializedContainer | MaterializedChatMessage)[]
+	) {
 		if (node instanceof MaterializedChatMessageTextChunk) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
@@ -354,7 +379,10 @@ function removeLowestPriorityChild(children: MaterializedNode[]) {
 	}
 
 	const lowest = children[lowestIndex];
-	if (lowest instanceof MaterializedChatMessageTextChunk || (lowest instanceof MaterializedContainer && lowest.has(ContainerFlags.IsChunk))) {
+	if (
+		lowest instanceof MaterializedChatMessageTextChunk ||
+		(lowest instanceof MaterializedContainer && lowest.has(ContainerFlags.IsChunk))
+	) {
 		children.splice(lowestIndex, 1);
 	} else {
 		lowest.removeLowestPriorityChild();
@@ -365,7 +393,7 @@ function removeLowestPriorityChild(children: MaterializedNode[]) {
 }
 
 function getLowestPriorityAmongChildren(node: MaterializedNode): number {
-	if (!(isContainerType(node))) {
+	if (!isContainerType(node)) {
 		return -1;
 	}
 
@@ -377,7 +405,9 @@ function getLowestPriorityAmongChildren(node: MaterializedNode): number {
 	return lowest;
 }
 
-function* allMetadata(node: MaterializedContainer | MaterializedChatMessage): Generator<PromptMetadata> {
+function* allMetadata(
+	node: MaterializedContainer | MaterializedChatMessage
+): Generator<PromptMetadata> {
 	yield* node.metadata;
 	for (const child of node.children) {
 		if (isContainerType(child)) {
@@ -388,7 +418,11 @@ function* allMetadata(node: MaterializedContainer | MaterializedChatMessage): Ge
 	}
 }
 
-function replaceNode(nodeId: number, children: MaterializedNode[], withNode: MaterializedNode): MaterializedNode | undefined {
+function replaceNode(
+	nodeId: number,
+	children: MaterializedNode[],
+	withNode: MaterializedNode
+): MaterializedNode | undefined {
 	for (let i = 0; i < children.length; i++) {
 		const child = children[i];
 		if (isContainerType(child)) {

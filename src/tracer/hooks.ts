@@ -4,7 +4,10 @@
 
 import { useEffect, useRef } from 'preact/hooks';
 
-export function useDebouncedCallback<T extends (...args: any[]) => any>(callback: T, delay: number) {
+export function useDebouncedCallback<T extends (...args: any[]) => any>(
+	callback: T,
+	delay: number
+) {
 	const timeoutIdRef = useRef<number | undefined>(undefined);
 
 	const debouncedCallback = (...args: Parameters<T>) => {

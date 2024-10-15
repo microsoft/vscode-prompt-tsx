@@ -9,14 +9,9 @@ import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
 import { LanguageModelToolResult } from './vscodeTypes';
 
-export type ChatMessagePromptElement =
-	| SystemMessage
-	| UserMessage
-	| AssistantMessage;
+export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
 
-export function isChatMessagePromptElement(
-	element: unknown
-): element is ChatMessagePromptElement {
+export function isChatMessagePromptElement(element: unknown): element is ChatMessagePromptElement {
 	return (
 		element instanceof SystemMessage ||
 		element instanceof UserMessage ||
@@ -29,7 +24,9 @@ export interface ChatMessageProps extends BasePromptElementProps {
 	name?: string;
 }
 
-export class BaseChatMessage<T extends ChatMessageProps = ChatMessageProps> extends PromptElement<T> {
+export class BaseChatMessage<
+	T extends ChatMessageProps = ChatMessageProps
+> extends PromptElement<T> {
 	render() {
 		return <>{this.props.children}</>;
 	}
@@ -131,7 +128,6 @@ export interface TextChunkProps extends BasePromptElementProps {
 	breakOnWhitespace?: boolean;
 }
 
-
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
@@ -140,7 +136,11 @@ export interface TextChunkProps extends BasePromptElementProps {
  * Like other {@link PromptElement}s, it can specify `priority` to determine how it should be prioritized.
  */
 export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
-	async prepare(sizing: PromptSizing, _progress?: unknown, token?: CancellationToken): Promise<PromptPiece> {
+	async prepare(
+		sizing: PromptSizing,
+		_progress?: unknown,
+		token?: CancellationToken
+	): Promise<PromptPiece> {
 		const breakOn = this.props.breakOnWhitespace ? WHITESPACE_RE : this.props.breakOn;
 		if (!breakOn) {
 			return <>{this.props.children}</>;
@@ -163,7 +163,12 @@ export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
 		}
 
 		const text = await getTextContentBelowBudget(sizing, breakOn, fullText, token);
-		return <>{intrinsics}{text}</>;
+		return (
+			<>
+				{intrinsics}
+				{text}
+			</>
+		);
 	}
 
 	render(piece: PromptPiece) {
@@ -171,7 +176,12 @@ export class TextChunk extends PromptElement<TextChunkProps, PromptPiece> {
 	}
 }
 
-async function getTextContentBelowBudget(sizing: PromptSizing, breakOn: string | RegExp, fullText: string, cancellation: CancellationToken | undefined) {
+async function getTextContentBelowBudget(
+	sizing: PromptSizing,
+	breakOn: string | RegExp,
+	fullText: string,
+	cancellation: CancellationToken | undefined
+) {
 	if (breakOn instanceof RegExp) {
 		if (!breakOn.global) {
 			throw new Error(`\`breakOn\` expression must have the global flag set (got ${breakOn})`);
@@ -195,7 +205,7 @@ async function getTextContentBelowBudget(sizing: PromptSizing, breakOn: string |
 		}
 
 		const next = outputText + fullText.slice(Math.max(0, lastIndex), index);
-		if (await sizing.countTokens(next, cancellation) > sizing.tokenBudget) {
+		if ((await sizing.countTokens(next, cancellation)) > sizing.tokenBudget) {
 			return outputText;
 		}
 
@@ -237,9 +247,9 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 
 					const priority = this.props.descending
 						? // First element in array of children has highest priority
-						this.props.priority - i
+						  this.props.priority - i
 						: // Last element in array of children has highest priority
-						this.props.priority - children.length + i;
+						  this.props.priority - children.length + i;
 
 					if (typeof child !== 'object') {
 						return <TextChunk priority={priority}>{child}</TextChunk>;

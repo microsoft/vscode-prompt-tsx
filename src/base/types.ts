@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { CancellationToken } from 'vscode';
-import { PromptElement } from "./promptElement";
+import { PromptElement } from './promptElement';
 
 /**
  * Represents information about a chat endpoint.
@@ -79,7 +79,7 @@ export interface BasePromptElementProps {
 
 export interface PromptElementCtor<P extends BasePromptElementProps, S> {
 	isFragment?: boolean;
-	new(props: P, ...args: any[]): PromptElement<P, S>;
+	new (props: P, ...args: any[]): PromptElement<P, S>;
 }
 
 export interface RuntimePromptElementProps {

@@ -13,14 +13,35 @@ import { ChatDocumentContext, LanguageModelChatMessage } from './vscodeTypes.d';
 
 export * from './htmlTracer';
 export * as JSONTree from './jsonTypes';
-export { AssistantChatMessage, ChatMessage, ChatRole, FunctionChatMessage, SystemChatMessage, ToolChatMessage, UserChatMessage } from './openai';
+export {
+	AssistantChatMessage,
+	ChatMessage,
+	ChatRole,
+	FunctionChatMessage,
+	SystemChatMessage,
+	ToolChatMessage,
+	UserChatMessage,
+} from './openai';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
 export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
 
-export { AssistantMessage, Chunk, FunctionMessage, LegacyPrioritization, PrioritizedList, PrioritizedListProps, SystemMessage, TextChunk, TextChunkProps, UserMessage, ToolCall, ToolMessage } from './promptElements';
+export {
+	AssistantMessage,
+	Chunk,
+	FunctionMessage,
+	LegacyPrioritization,
+	PrioritizedList,
+	PrioritizedListProps,
+	SystemMessage,
+	TextChunk,
+	TextChunkProps,
+	ToolCall,
+	ToolMessage,
+	UserMessage,
+} from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
@@ -45,8 +66,14 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	tokenizerMetadata: ITokenizer | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
-	mode?: 'vscode',
-): Promise<{ messages: LanguageModelChatMessage[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }>;
+	mode?: 'vscode'
+): Promise<{
+	messages: LanguageModelChatMessage[];
+	tokenCount: number;
+	metadatas: MetadataMap;
+	usedContext: ChatDocumentContext[];
+	references: PromptReference[];
+}>;
 /**
  * Renders a prompt element and returns the result.
  *
@@ -67,8 +94,14 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	tokenizerMetadata: ITokenizer,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
-	mode?: 'none',
-): Promise<{ messages: ChatMessage[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }>;
+	mode?: 'none'
+): Promise<{
+	messages: ChatMessage[];
+	tokenCount: number;
+	metadatas: MetadataMap;
+	usedContext: ChatDocumentContext[];
+	references: PromptReference[];
+}>;
 export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
@@ -76,11 +109,18 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	tokenizerMetadata: ITokenizer | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
-	mode: 'vscode' | 'none' = 'vscode',
-): Promise<{ messages: (ChatMessage | LanguageModelChatMessage)[]; tokenCount: number; metadatas: MetadataMap; usedContext: ChatDocumentContext[]; references: PromptReference[] }> {
-	let tokenizer = 'countTokens' in tokenizerMetadata
-		? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
-		: tokenizerMetadata;
+	mode: 'vscode' | 'none' = 'vscode'
+): Promise<{
+	messages: (ChatMessage | LanguageModelChatMessage)[];
+	tokenCount: number;
+	metadatas: MetadataMap;
+	usedContext: ChatDocumentContext[];
+	references: PromptReference[];
+}> {
+	let tokenizer =
+		'countTokens' in tokenizerMetadata
+			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
+			: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	let { messages, tokenCount, references, metadata } = await renderer.render(progress, token);
 	const usedContext = renderer.getUsedContext();
@@ -130,11 +170,13 @@ export const contentType = 'application/vnd.codechat.prompt+json.1';
 export function renderElementJSON<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
-	budgetInformation: {
-		tokenBudget: number;
-		countTokens(text: string, token?: CancellationToken): Thenable<number>;
-	} | undefined,
-	token?: CancellationToken,
+	budgetInformation:
+		| {
+				tokenBudget: number;
+				countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		  }
+		| undefined,
+	token?: CancellationToken
 ): Promise<PromptElementJSON> {
 	const renderer = new PromptRenderer(
 		{ modelMaxPromptTokens: budgetInformation?.tokenBudget ?? Number.MAX_SAFE_INTEGER },
@@ -149,7 +191,7 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 			tokenLength(text, token) {
 				return Promise.resolve(budgetInformation?.countTokens(text, token) ?? Promise.resolve(1));
 			},
-		},
+		}
 	);
 
 	return renderer.renderElementJSON(token);
@@ -162,13 +204,21 @@ export function renderElementJSON<P extends BasePromptElementProps>(
  */
 export function toVsCodeChatMessages(messages: ChatMessage[]) {
 	const vscode = require('vscode');
-	return messages.map((m) => {
+	return messages.map(m => {
 		switch (m.role) {
 			case ChatRole.Assistant:
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(m.content, m.name);
+				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(
+					m.content,
+					m.name
+				);
 				if (m.tool_calls) {
 					message.content2 = [m.content];
-					message.content2.push(...m.tool_calls.map(tc => new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)));
+					message.content2.push(
+						...m.tool_calls.map(
+							tc =>
+								new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)
+						)
+					);
 				}
 				return message;
 			case ChatRole.User:
@@ -184,7 +234,9 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				return message;
 			}
 			default:
-				throw new Error(`Converting chat message with role ${m.role} to VS Code chat message is not supported.`);
+				throw new Error(
+					`Converting chat message with role ${m.role} to VS Code chat message is not supported.`
+				);
 		}
 	});
 }

@@ -4,7 +4,7 @@
 
 import type { CancellationToken, Progress } from 'vscode';
 import './tsx';
-import { BasePromptElementProps, PromptElementProps, PromptPiece, PromptSizing } from "./types";
+import { BasePromptElementProps, PromptElementProps, PromptPiece, PromptSizing } from './types';
 import { ChatResponsePart } from './vscodeTypes';
 
 /**
@@ -22,8 +22,10 @@ import { ChatResponsePart } from './vscodeTypes';
  * @method prepare - Optionally prepares asynchronous state before the prompt element is rendered.
  * @method render - Renders the prompt element. This method is abstract and must be implemented by subclasses.
  */
-export abstract class PromptElement<P extends BasePromptElementProps = BasePromptElementProps, S = void> {
-
+export abstract class PromptElement<
+	P extends BasePromptElementProps = BasePromptElementProps,
+	S = void
+> {
 	public readonly props: PromptElementProps<P>;
 
 	get priority(): number {
@@ -45,7 +47,11 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 *
 	 * @returns A promise that resolves to the prompt element's state.
 	 */
-	prepare?(sizing: PromptSizing, progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<S>;
+	prepare?(
+		sizing: PromptSizing,
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	): Promise<S>;
 
 	/**
 	 * Renders the prompt element.
@@ -56,5 +62,10 @@ export abstract class PromptElement<P extends BasePromptElementProps = BasePromp
 	 * @param token - A cancellation token that can be used to signal cancellation to the prompt element.
 	 * @returns The rendered prompt piece or undefined if the element does not want to render anything.
 	 */
-	abstract render(state: S, sizing: PromptSizing, progress?: Progress<ChatResponsePart>, token?: CancellationToken): Promise<PromptPiece | undefined> | PromptPiece | undefined;
+	abstract render(
+		state: S,
+		sizing: PromptSizing,
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	): Promise<PromptPiece | undefined> | PromptPiece | undefined;
 }

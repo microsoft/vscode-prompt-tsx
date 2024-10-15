@@ -51,10 +51,10 @@
 
   There is a new `LegacyPrioritization` which can be used to wrap other elements in order to fall-back to the classic global prioritization model. This is a stepping stone and will be removed in future versions.
 
-  ```html
+  ```tsx
   <LegacyPrioritization>
-    <UserMessage>...</UserMessage>
-    <SystemMessage>...</SystemMessage>
+  	<UserMessage>...</UserMessage>
+  	<SystemMessage>...</SystemMessage>
   </LegacyPrioritization>
   ```
 
@@ -62,7 +62,7 @@
 
   The new `Chunk` element can be used to group elements that should either be all retained, or all pruned. This is similar to a `TextChunk`, but it also allows for extrinsic children. For example, you might wrap content like this to ensure the `FileLink` isn't present without its `FileContents` and vise-versa:
 
-  ```html
+  ```tsx
   <Chunk priority={42}>
     The file I'm editing is: <FileLink file={f}><br />
     <br />
@@ -74,10 +74,10 @@
 
   Previously, metadata in a prompt was always globally available regardless of where it was positioned and whether the position it was in survived pruning. There is a new `local` flag you can apply such that the metadata is only retained if the element it's in was included in the prompt:
 
-  ```html
+  ```tsx
   <TextChunk>
-    <meta value={new MyMetaData()} local />
-    Hello world!
+  	<meta value={new MyMetaData()} local />
+  	Hello world!
   </TextChunk>
   ```
 

@@ -2,7 +2,16 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, Command, Location, MarkdownString, ProviderResult, Range, ThemeIcon, Uri } from 'vscode';
+import type {
+	CancellationToken,
+	Command,
+	Location,
+	MarkdownString,
+	ProviderResult,
+	Range,
+	ThemeIcon,
+	Uri,
+} from 'vscode';
 
 /**
  * Represents a part of a chat response that is formatted as Markdown.
@@ -108,32 +117,41 @@ export class ChatResponseReferencePart {
 	/**
 	 * The icon for the reference.
 	 */
-	iconPath?: Uri | ThemeIcon | {
-		/**
-		 * The icon path for the light theme.
-		 */
-		light: Uri;
-		/**
-		 * The icon path for the dark theme.
-		 */
-		dark: Uri;
-	};
+	iconPath?:
+		| Uri
+		| ThemeIcon
+		| {
+				/**
+				 * The icon path for the light theme.
+				 */
+				light: Uri;
+				/**
+				 * The icon path for the dark theme.
+				 */
+				dark: Uri;
+		  };
 
 	/**
 	 * Create a new ChatResponseReferencePart.
 	 * @param value A uri or location
 	 * @param iconPath Icon for the reference shown in UI
 	 */
-	constructor(value: Uri | Location, iconPath?: Uri | ThemeIcon | {
-		/**
-		 * The icon path for the light theme.
-		 */
-		light: Uri;
-		/**
-		 * The icon path for the dark theme.
-		 */
-		dark: Uri;
-	});
+	constructor(
+		value: Uri | Location,
+		iconPath?:
+			| Uri
+			| ThemeIcon
+			| {
+					/**
+					 * The icon path for the light theme.
+					 */
+					light: Uri;
+					/**
+					 * The icon path for the dark theme.
+					 */
+					dark: Uri;
+			  }
+	);
 }
 
 /**
@@ -155,16 +173,19 @@ export class ChatResponseCommandButtonPart {
 /**
  * Represents the different chat response types.
  */
-export type ChatResponsePart = ChatResponseMarkdownPart | ChatResponseFileTreePart | ChatResponseAnchorPart
-	| ChatResponseProgressPart | ChatResponseReferencePart | ChatResponseCommandButtonPart;
-
+export type ChatResponsePart =
+	| ChatResponseMarkdownPart
+	| ChatResponseFileTreePart
+	| ChatResponseAnchorPart
+	| ChatResponseProgressPart
+	| ChatResponseReferencePart
+	| ChatResponseCommandButtonPart;
 
 export interface ChatDocumentContext {
 	uri: Uri;
 	version: number;
 	ranges: Range[];
 }
-
 
 /**
  * Represents the role of a chat message. This is either the user or the assistant.
@@ -185,7 +206,6 @@ export enum LanguageModelChatMessageRole {
  * Represents a message in a chat. Can assume different roles, like user or assistant.
  */
 export class LanguageModelChatMessage {
-
 	/**
 	 * Utility to create a new user message.
 	 *
@@ -233,7 +253,6 @@ export class LanguageModelChatMessage {
  * @see {@link LanguageModelChat.sendRequest}
  */
 export interface LanguageModelChatRequestOptions {
-
 	/**
 	 * A human-readable message that explains why access to a language model is needed and what feature is enabled by it.
 	 */
@@ -246,14 +265,12 @@ export interface LanguageModelChatRequestOptions {
 	modelOptions?: { [name: string]: any };
 }
 
-
 /**
  * Represents a language model response.
  *
  * @see {@link LanguageModelAccess.chatRequest}
-*/
+ */
 export interface LanguageModelChatResponse {
-
 	/**
 	 * An async iterable that is a stream of text chunks forming the overall response.
 	 *
@@ -281,12 +298,11 @@ export interface LanguageModelChatResponse {
 }
 
 /**
-	 * Represents a language model for making chat requests.
-	 *
-	 * @see {@link lm.selectChatModels}
-	 */
+ * Represents a language model for making chat requests.
+ *
+ * @see {@link lm.selectChatModels}
+ */
 export interface LanguageModelChat {
-
 	/**
 	 * Human-readable name of the language model.
 	 */
@@ -341,7 +357,11 @@ export interface LanguageModelChat {
 	 * @param token A cancellation token which controls the request. See {@link CancellationTokenSource} for how to create one.
 	 * @returns A thenable that resolves to a {@link LanguageModelChatResponse}. The promise will reject when the request couldn't be made.
 	 */
-	sendRequest(messages: LanguageModelChatMessage[], options?: LanguageModelChatRequestOptions, token?: CancellationToken): Thenable<LanguageModelChatResponse>;
+	sendRequest(
+		messages: LanguageModelChatMessage[],
+		options?: LanguageModelChatRequestOptions,
+		token?: CancellationToken
+	): Thenable<LanguageModelChatResponse>;
 
 	/**
 	 * Count the number of tokens in a message using the model specific tokenizer-logic.
@@ -390,7 +410,6 @@ export class LanguageModelTextPart {
 export interface LanguageModelChatResponse {
 	stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
 }
-
 
 // USER -> LM: the result of a function call
 export class LanguageModelToolResultPart {
@@ -445,7 +464,11 @@ export namespace lm {
 	/**
 	 * Invoke a tool with the given parameters.
 	 */
-	export function invokeTool<T>(id: string, options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): Thenable<LanguageModelToolResult>;
+	export function invokeTool<T>(
+		id: string,
+		options: LanguageModelToolInvocationOptions<T>,
+		token: CancellationToken
+	): Thenable<LanguageModelToolResult>;
 }
 
 /**
@@ -581,13 +604,19 @@ export interface LanguageModelTool<T> {
 	/**
 	 * Invoke the tool with the given parameters and return a result.
 	 */
-	invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
+	invoke(
+		options: LanguageModelToolInvocationOptions<T>,
+		token: CancellationToken
+	): ProviderResult<LanguageModelToolResult>;
 
 	/**
 	 * Called once before a tool is invoked. May be implemented to customize the progress message that appears while the tool
 	 * is running, and the messages that appear when the tool needs confirmation.
 	 */
-	prepareToolInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
+	prepareToolInvocation?(
+		options: LanguageModelToolInvocationPrepareOptions<T>,
+		token: CancellationToken
+	): ProviderResult<PreparedToolInvocation>;
 }
 
 /**

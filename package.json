@@ -5,6 +5,7 @@
 	"main": "./dist/base/index.js",
 	"types": "./dist/base/index.d.ts",
 	"scripts": {
+		"fmt": "prettier . --write",
 		"prepack": "npm run compile",
 		"compile": "tsx ./build/build-tracer.ts && tsc -p tsconfig.json && tsx ./build/postcompile.ts",
 		"watch": "concurrently \"npm run -s watch:base\" \"npm run -s watch:tracer\"",
@@ -32,7 +33,7 @@
 		"esbuild": "^0.24.0",
 		"mocha": "^10.2.0",
 		"preact": "^10.24.2",
-		"prettier": "^2.8.7",
+		"prettier": "^2.8.8",
 		"tsx": "^4.19.1",
 		"typescript": "^5.6.2"
 	}

@@ -27,7 +27,7 @@ import {
 	IChatEndpointInfo,
 	PromptElementCtor,
 	PromptPiece,
-	PromptSizing
+	PromptSizing,
 } from '../types';
 
 suite('PromptRenderer', () => {
@@ -42,8 +42,8 @@ suite('PromptRenderer', () => {
 				return (
 					<>
 						<SystemMessage>
-							You are a helpful, pattern-following assistant that
-							translates corporate jargon into plain English.
+							You are a helpful, pattern-following assistant that translates corporate jargon into
+							plain English.
 						</SystemMessage>
 						<SystemMessage name="example_user">
 							New synergies will help drive top-line growth.
@@ -52,16 +52,14 @@ suite('PromptRenderer', () => {
 							Things working well together will increase revenue.
 						</SystemMessage>
 						<SystemMessage name="example_user">
-							Let's circle back when we have more bandwidth to
-							touch base on opportunities for increased leverage.
+							Let's circle back when we have more bandwidth to touch base on opportunities for
+							increased leverage.
 						</SystemMessage>
 						<SystemMessage name="example_assistant">
-							Let's talk later when we're less busy about how to
-							do better.
+							Let's talk later when we're less busy about how to do better.
 						</SystemMessage>
 						<UserMessage>
-							This late pivot means we don't have time to boil the
-							ocean for the client deliverable.
+							This late pivot means we don't have time to boil the ocean for the client deliverable.
 						</UserMessage>
 					</>
 				);
@@ -95,8 +93,7 @@ suite('PromptRenderer', () => {
 			{
 				role: 'system',
 				name: 'example_assistant',
-				content:
-					"Let's talk later when we're less busy about how to do better.",
+				content: "Let's talk later when we're less busy about how to do better.",
 			},
 			{
 				role: 'user',
@@ -112,9 +109,7 @@ suite('PromptRenderer', () => {
 			{ timeout: number; index: number } & BasePromptElementProps
 		> {
 			override async prepare() {
-				await new Promise((resolve) =>
-					setTimeout(resolve, this.props.timeout)
-				);
+				await new Promise(resolve => setTimeout(resolve, this.props.timeout));
 			}
 			render() {
 				return <UserMessage>Hello {this.props.index}!</UserMessage>;
@@ -136,12 +131,7 @@ suite('PromptRenderer', () => {
 		// First measure the time to render all elements sequentially
 		let sequentialElapsedTime = 0;
 		for (const promptElement of promptElements) {
-			const inst1 = new PromptRenderer(
-				fakeEndpoint,
-				Prompt3,
-				promptElement.props,
-				tokenizer
-			);
+			const inst1 = new PromptRenderer(fakeEndpoint, Prompt3, promptElement.props, tokenizer);
 			const start = Date.now();
 			await inst1.render(undefined, undefined);
 			sequentialElapsedTime += Date.now() - start;
@@ -178,9 +168,7 @@ suite('PromptRenderer', () => {
 	test('maintains element order', async () => {
 		class Prompt2 extends PromptElement<{ content: string } & BasePromptElementProps> {
 			render() {
-				return (
-					<TextChunk>{this.props.content}</TextChunk>
-				);
+				return <TextChunk>{this.props.content}</TextChunk>;
 			}
 		}
 
@@ -190,14 +178,9 @@ suite('PromptRenderer', () => {
 					<>
 						<SystemMessage>
 							a
-							<Prompt2 content='b' />
-							c
-							<TextChunk>d</TextChunk>
-							e
-							<TextChunk flexGrow={2}>f</TextChunk>
+							<Prompt2 content="b" />c<TextChunk>d</TextChunk>e<TextChunk flexGrow={2}>f</TextChunk>
 							g
-							<Prompt2 content='h' flexGrow={1} />
-							i
+							<Prompt2 content="h" flexGrow={1} />i
 						</SystemMessage>
 					</>
 				);
@@ -215,8 +198,18 @@ suite('PromptRenderer', () => {
 			render() {
 				return (
 					<>
-						<AssistantMessage toolCalls={[{ id: 'call_123', type: 'function', function: { name: 'tool1', arguments: '"{a: 1, b: [2]}"' } }]}>assistant</AssistantMessage>
-						<ToolMessage toolCallId='call_123'>tool result</ToolMessage>
+						<AssistantMessage
+							toolCalls={[
+								{
+									id: 'call_123',
+									type: 'function',
+									function: { name: 'tool1', arguments: '"{a: 1, b: [2]}"' },
+								},
+							]}
+						>
+							assistant
+						</AssistantMessage>
+						<ToolMessage toolCallId="call_123">tool result</ToolMessage>
 					</>
 				);
 			}
@@ -233,9 +226,9 @@ suite('PromptRenderer', () => {
 						type: 'function',
 						function: {
 							name: 'tool1',
-							arguments: '"{a: 1, b: [2]}"'
-						}
-					}
+							arguments: '"{a: 1, b: [2]}"',
+						},
+					},
 				],
 				content: 'assistant',
 			},
@@ -243,7 +236,7 @@ suite('PromptRenderer', () => {
 				role: 'tool',
 				tool_call_id: 'call_123',
 				content: 'tool result',
-			}
+			},
 		]);
 	});
 
@@ -262,7 +255,7 @@ suite('PromptRenderer', () => {
 
 			let tokens = initialRender.tokenCount;
 			let last = '';
-			for (let i = 0; i < order.length;) {
+			for (let i = 0; i < order.length; ) {
 				const res = await new PromptRenderer(
 					{ modelMaxPromptTokens: tokens } as any,
 					class extends PromptElement {
@@ -282,12 +275,16 @@ suite('PromptRenderer', () => {
 
 				for (let k = 0; k < i; k++) {
 					if (res.messages.some(m => m.content.includes(order[k]))) {
-						throw new Error(`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`);
+						throw new Error(
+							`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
+						);
 					}
 				}
 				for (let k = i; k < order.length; k++) {
 					if (!res.messages.some(m => m.content.includes(order[k]))) {
-						throw new Error(`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`);
+						throw new Error(
+							`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
+						);
 					}
 				}
 
@@ -298,157 +295,196 @@ suite('PromptRenderer', () => {
 		}
 
 		test('basic siblings', async () => {
-			await assertPruningOrder(<>
-				<UserMessage>
-					<TextChunk priority={1}>a</TextChunk>
-					<TextChunk priority={2}>b</TextChunk>
-					<TextChunk priority={3}>c</TextChunk>
-				</UserMessage>
-			</>, ['a', 'b', 'c']);
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={2}>b</TextChunk>
+						<TextChunk priority={3}>c</TextChunk>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c']
+			);
 		});
 
 		test('chunks together', async () => {
-			await assertPruningOrder(<>
-				<UserMessage>
-					<Chunk priority={1}>
-						<TextChunk priority={1}>a</TextChunk>
-						<TextChunk priority={2}>b</TextChunk>
-					</Chunk>
-					<TextChunk priority={3}>c</TextChunk>
-				</UserMessage>
-			</>, ['a', 'c']); // 'b' should not get individually removed and cause a change
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<Chunk priority={1}>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={2}>b</TextChunk>
+						</Chunk>
+						<TextChunk priority={3}>c</TextChunk>
+					</UserMessage>
+				</>,
+				['a', 'c']
+			); // 'b' should not get individually removed and cause a change
 		});
 
 		test('does not scope priorities in fragments', async () => {
-			await assertPruningOrder(<>
-				<UserMessage>
-					<TextChunk priority={1}>b</TextChunk>
-					<>
-						<TextChunk priority={0}>a</TextChunk>
-						<TextChunk priority={2}>c</TextChunk>
-					</>
-					<TextChunk priority={3}>d</TextChunk>
-				</UserMessage>
-			</>, ['a', 'b', 'c', 'd']);
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<TextChunk priority={1}>b</TextChunk>
+						<>
+							<TextChunk priority={0}>a</TextChunk>
+							<TextChunk priority={2}>c</TextChunk>
+						</>
+						<TextChunk priority={3}>d</TextChunk>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c', 'd']
+			);
 		});
 
 		test('scopes priorities normally', async () => {
 			class Wrap1 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={1}>a</TextChunk>
-						<TextChunk priority={10}>b</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={10}>b</TextChunk>
+						</>
+					);
 				}
 			}
 			class Wrap2 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={2}>c</TextChunk>
-						<TextChunk priority={15}>d</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={2}>c</TextChunk>
+							<TextChunk priority={15}>d</TextChunk>
+						</>
+					);
 				}
 			}
-			await assertPruningOrder(<>
-				<UserMessage>
-					<Wrap1 priority={1} />
-					<Wrap2 priority={2} />
-				</UserMessage>
-			</>, ['a', 'b', 'c', 'd']);
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<Wrap1 priority={1} />
+						<Wrap2 priority={2} />
+					</UserMessage>
+				</>,
+				['a', 'b', 'c', 'd']
+			);
 		});
 
 		test('balances priorities of equal children', async () => {
 			class Wrap1 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={1}>a</TextChunk>
-						<TextChunk priority={10}>b</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={10}>b</TextChunk>
+						</>
+					);
 				}
 			}
 			class Wrap2 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={2}>c</TextChunk>
-						<TextChunk priority={15}>d</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={2}>c</TextChunk>
+							<TextChunk priority={15}>d</TextChunk>
+						</>
+					);
 				}
 			}
-			await assertPruningOrder(<>
-				<UserMessage>
-					<Wrap1 />
-					<Wrap2 />
-				</UserMessage>
-			</>, ['a', 'c', 'b', 'd']);
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<Wrap1 />
+						<Wrap2 />
+					</UserMessage>
+				</>,
+				['a', 'c', 'b', 'd']
+			);
 		});
 
 		test('priority list', async () => {
-			await assertPruningOrder(<UserMessage>
-				<PrioritizedList priority={1} descending={false}>
-					<TextChunk>a</TextChunk>
-					<TextChunk>b</TextChunk>
-					<TextChunk>c</TextChunk>
-				</PrioritizedList>
-				<PrioritizedList priority={2} descending={true}>
-					<TextChunk>d</TextChunk>
-					<TextChunk>e</TextChunk>
-					<TextChunk>f</TextChunk>
-				</PrioritizedList>
-			</UserMessage>, ['a', 'b', 'c', 'f', 'e', 'd']);
+			await assertPruningOrder(
+				<UserMessage>
+					<PrioritizedList priority={1} descending={false}>
+						<TextChunk>a</TextChunk>
+						<TextChunk>b</TextChunk>
+						<TextChunk>c</TextChunk>
+					</PrioritizedList>
+					<PrioritizedList priority={2} descending={true}>
+						<TextChunk>d</TextChunk>
+						<TextChunk>e</TextChunk>
+						<TextChunk>f</TextChunk>
+					</PrioritizedList>
+				</UserMessage>,
+				['a', 'b', 'c', 'f', 'e', 'd']
+			);
 		});
 
 		test('balances priorities of equal across chat messages', async () => {
-			await assertPruningOrder(<>
-				<UserMessage>
-					<TextChunk priority={1}>a</TextChunk>
-					<TextChunk priority={10}>b</TextChunk>
-				</UserMessage>
-				<SystemMessage>
-					<TextChunk priority={2}>c</TextChunk>
-					<TextChunk priority={15}>d</TextChunk>
-				</SystemMessage>
-			</>, ['a', 'c', 'b', 'd']);
+			await assertPruningOrder(
+				<>
+					<UserMessage>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</UserMessage>
+					<SystemMessage>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</SystemMessage>
+				</>,
+				['a', 'c', 'b', 'd']
+			);
 		});
 
 		test('scopes priorities in messages', async () => {
-			await assertPruningOrder(<>
-				<UserMessage priority={1}>
-					<TextChunk priority={1}>a</TextChunk>
-					<TextChunk priority={10}>b</TextChunk>
-				</UserMessage>
-				<SystemMessage priority={2}>
-					<TextChunk priority={2}>c</TextChunk>
-					<TextChunk priority={15}>d</TextChunk>
-				</SystemMessage>
-			</>, ['a', 'b', 'c', 'd']);
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<TextChunk priority={10}>b</TextChunk>
+					</UserMessage>
+					<SystemMessage priority={2}>
+						<TextChunk priority={2}>c</TextChunk>
+						<TextChunk priority={15}>d</TextChunk>
+					</SystemMessage>
+				</>,
+				['a', 'b', 'c', 'd']
+			);
 		});
 
 		test('uses legacy prioritization', async () => {
 			class Wrap1 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={1}>a</TextChunk>
-						<TextChunk priority={10}>b</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={10}>b</TextChunk>
+						</>
+					);
 				}
 			}
 			class Wrap2 extends PromptElement {
 				render() {
-					return <>
-						<TextChunk priority={2}>c</TextChunk>
-						<TextChunk priority={15}>d</TextChunk>
-					</>
+					return (
+						<>
+							<TextChunk priority={2}>c</TextChunk>
+							<TextChunk priority={15}>d</TextChunk>
+						</>
+					);
 				}
 			}
-			await assertPruningOrder(<LegacyPrioritization>
-				<UserMessage>
-					<Wrap1 priority={1} />
-					<Wrap2 priority={2} />
-				</UserMessage>
-				<UserMessage>
-					<TextChunk priority={5}>e</TextChunk>
-				</UserMessage>
-			</LegacyPrioritization>, ['a', 'c', 'e', 'b', 'd']);
+			await assertPruningOrder(
+				<LegacyPrioritization>
+					<UserMessage>
+						<Wrap1 priority={1} />
+						<Wrap2 priority={2} />
+					</UserMessage>
+					<UserMessage>
+						<TextChunk priority={5}>e</TextChunk>
+					</UserMessage>
+				</LegacyPrioritization>,
+				['a', 'c', 'e', 'b', 'd']
+			);
 		});
 	});
 
@@ -478,15 +514,9 @@ suite('PromptRenderer', () => {
 						<SystemMessage priority={700} name="example_assistant">
 							My name is Happy Copilot.
 						</SystemMessage>
-						<UserMessage priority={499}>
-							Hello, how are you?
-						</UserMessage>
-						<AssistantMessage priority={500}>
-							I am terrific, how are you?
-						</AssistantMessage>
-						<UserMessage priority={900}>
-							What time is it?
-						</UserMessage>
+						<UserMessage priority={499}>Hello, how are you?</UserMessage>
+						<AssistantMessage priority={500}>I am terrific, how are you?</AssistantMessage>
+						<UserMessage priority={900}>What time is it?</UserMessage>
 					</>
 				);
 			}
@@ -502,12 +532,7 @@ suite('PromptRenderer', () => {
 			const fakeEndpoint: any = {
 				modelMaxPromptTokens: maxPromptTokens,
 			} satisfies Partial<IChatEndpointInfo>;
-			const inst = new PromptRenderer(
-				fakeEndpoint,
-				Prompt1,
-				{},
-				tokenizer
-			);
+			const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
 			return await inst.render(undefined, undefined);
 		}
 
@@ -516,8 +541,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
-					content:
-						'You are a helpful assistant that cheers people up.',
+					content: 'You are a helpful assistant that cheers people up.',
 				},
 				{
 					role: 'system',
@@ -561,8 +585,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
-					content:
-						'You are a helpful assistant that cheers people up.',
+					content: 'You are a helpful assistant that cheers people up.',
 				},
 				{
 					role: 'system',
@@ -606,8 +629,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
-					content:
-						'You are a helpful assistant that cheers people up.',
+					content: 'You are a helpful assistant that cheers people up.',
 				},
 				{
 					role: 'system',
@@ -646,8 +668,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
-					content:
-						'You are a helpful assistant that cheers people up.',
+					content: 'You are a helpful assistant that cheers people up.',
 				},
 				{
 					role: 'system',
@@ -681,8 +702,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: 'system',
-					content:
-						'You are a helpful assistant that cheers people up.',
+					content: 'You are a helpful assistant that cheers people up.',
 				},
 				{
 					role: 'system',
@@ -746,21 +766,12 @@ suite('PromptRenderer', () => {
 			const fakeEndpoint: any = {
 				modelMaxPromptTokens: 100 - BaseTokensPerCompletion, // Total allowed tokens
 			} satisfies Partial<IChatEndpointInfo>;
-			const inst = new PromptRenderer(
-				fakeEndpoint,
-				FlexPrompt,
-				{},
-				tokenizer
-			);
+			const inst = new PromptRenderer(fakeEndpoint, FlexPrompt, {}, tokenizer);
 			const res = await inst.render(undefined, undefined);
 
 			// Ensure that the prompt received budget based on the flex
-			assert.ok(
-				res.messages[0].content.length > res.messages[1].content.length
-			);
-			assert.ok(
-				res.messages[2].content.length > res.messages[0].content.length
-			);
+			assert.ok(res.messages[0].content.length > res.messages[1].content.length);
+			assert.ok(res.messages[2].content.length > res.messages[0].content.length);
 
 			// Ensure that children received budget based on the parent budget
 			const firstMessageContent = res.messages[0].content;
@@ -773,164 +784,141 @@ suite('PromptRenderer', () => {
 		});
 	});
 
-	suite(
-		'supports prioritizing and shaving chunks within a message',
-		function () {
-			class PromptWithChunks extends PromptElement {
-				render() {
-					return (
-						<>
-							<SystemMessage>
-								<TextChunk priority={21}>
-									You are a helpful assistant that cheers
-									people up.
-								</TextChunk>
-								<TextChunk priority={20}>
-									Here are some examples of how you should
-									respond to the user:
-								</TextChunk>
-								{/* TextChunks can be used to express multiline fragments within a ChatMessage with variable priority levels. */}
-								<TextChunk priority={12}>
-									Example 1:
-									<br />
-									User: "I have a list of numbers, how do I
-									sum them?"
-									<br />
-									Assistant: "You can use the reduce
-									function."
-								</TextChunk>
-								<TextChunk priority={11}>
-									Example 2:
-									<br />
-									User: "What is the airspeed velocity of an
-									unladen swallow?"
-									<br />
-									Assistant: "Sorry, I can't assist with
-									that."
-								</TextChunk>
-								<TextChunk priority={10}>
-									Example 3:
-									<br />
-									User: "What is the difference between map
-									and forEach?"
-									<br />
-									Assistant: "The map function returns a new
-									array, the forEach function does not."
-								</TextChunk>
-							</SystemMessage>
-							<UserMessage>
-								Here are some relevant code snippets:
+	suite('supports prioritizing and shaving chunks within a message', function () {
+		class PromptWithChunks extends PromptElement {
+			render() {
+				return (
+					<>
+						<SystemMessage>
+							<TextChunk priority={21}>
+								You are a helpful assistant that cheers people up.
+							</TextChunk>
+							<TextChunk priority={20}>
+								Here are some examples of how you should respond to the user:
+							</TextChunk>
+							{/* TextChunks can be used to express multiline fragments within a ChatMessage with variable priority levels. */}
+							<TextChunk priority={12}>
+								Example 1:
 								<br />
-								<TextChunk priority={13}>
-									```ts
-									<br />
-									console.log(42)
-									<br />
-									```
-								</TextChunk>
-								<TextChunk priority={9}>
-									```ts
-									<br />
-									console.log("Don't Panic")
-									<br />
-									```
-								</TextChunk>
-							</UserMessage>
-							<UserMessage priority={31}>
-								What is your name?
-							</UserMessage>
-						</>
-					);
-				}
+								User: "I have a list of numbers, how do I sum them?"
+								<br />
+								Assistant: "You can use the reduce function."
+							</TextChunk>
+							<TextChunk priority={11}>
+								Example 2:
+								<br />
+								User: "What is the airspeed velocity of an unladen swallow?"
+								<br />
+								Assistant: "Sorry, I can't assist with that."
+							</TextChunk>
+							<TextChunk priority={10}>
+								Example 3:
+								<br />
+								User: "What is the difference between map and forEach?"
+								<br />
+								Assistant: "The map function returns a new array, the forEach function does not."
+							</TextChunk>
+						</SystemMessage>
+						<UserMessage>
+							Here are some relevant code snippets:
+							<br />
+							<TextChunk priority={13}>
+								```ts
+								<br />
+								console.log(42)
+								<br />
+								```
+							</TextChunk>
+							<TextChunk priority={9}>
+								```ts
+								<br />
+								console.log("Don't Panic")
+								<br />
+								```
+							</TextChunk>
+						</UserMessage>
+						<UserMessage priority={31}>What is your name?</UserMessage>
+					</>
+				);
 			}
-
-			test('are rendered to chat messages', async () => {
-				// First render with large token budget so nothing gets dropped
-				const largeTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
-				} satisfies Partial<IChatEndpointInfo>;
-				const inst1 = new PromptRenderer(
-					largeTokenBudgetEndpoint,
-					PromptWithChunks,
-					{},
-					tokenizer
-				);
-				const res1 = await inst1.render(undefined, undefined);
-				assert.deepStrictEqual(res1.messages, [
-					{
-						role: 'system',
-						content: [
-							'You are a helpful assistant that cheers people up.',
-							'Here are some examples of how you should respond to the user:',
-							'Example 1:',
-							'User: "I have a list of numbers, how do I sum them?"',
-							'Assistant: "You can use the reduce function."',
-							'Example 2:',
-							'User: "What is the airspeed velocity of an unladen swallow?"',
-							'Assistant: "Sorry, I can\'t assist with that."',
-							'Example 3:',
-							'User: "What is the difference between map and forEach?"',
-							'Assistant: "The map function returns a new array, the forEach function does not."',
-						].join('\n'),
-					},
-					{
-						role: 'user',
-						content: [
-							'Here are some relevant code snippets:',
-							'```ts',
-							'console.log(42)',
-							'```',
-							'```ts',
-							'console.log("Don\'t Panic")',
-							'```',
-						].join('\n'),
-					},
-					{ role: 'user', content: 'What is your name?' },
-				]);
-				assert.deepStrictEqual(res1.tokenCount, 165 - BaseTokensPerCompletion);
-			});
-
-			test('are prioritized and fit within token budget', async () => {
-				// Render with smaller token budget and ensure that messages are reduced in size
-				const smallTokenBudgetEndpoint: any = {
-					modelMaxPromptTokens: 140 - BaseTokensPerCompletion,
-				} satisfies Partial<IChatEndpointInfo>;
-				const inst2 = new PromptRenderer(
-					smallTokenBudgetEndpoint,
-					PromptWithChunks,
-					{},
-					tokenizer
-				);
-				const res2 = await inst2.render(undefined, undefined);
-				assert.deepStrictEqual(res2.messages, [
-					{
-						role: 'system',
-						content: [
-							'You are a helpful assistant that cheers people up.',
-							'Here are some examples of how you should respond to the user:',
-							'Example 1:',
-							'User: "I have a list of numbers, how do I sum them?"',
-							'Assistant: "You can use the reduce function."',
-							'Example 2:',
-							'User: "What is the airspeed velocity of an unladen swallow?"',
-							'Assistant: "Sorry, I can\'t assist with that."',
-						].join('\n'),
-					},
-					{
-						role: 'user',
-						content: [
-							'Here are some relevant code snippets:',
-							'```ts',
-							'console.log(42)',
-							'```',
-						].join('\n'),
-					},
-					{ role: 'user', content: 'What is your name?' },
-				]);
-				assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
-			});
 		}
-	);
+
+		test('are rendered to chat messages', async () => {
+			// First render with large token budget so nothing gets dropped
+			const largeTokenBudgetEndpoint: any = {
+				modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
+			} satisfies Partial<IChatEndpointInfo>;
+			const inst1 = new PromptRenderer(largeTokenBudgetEndpoint, PromptWithChunks, {}, tokenizer);
+			const res1 = await inst1.render(undefined, undefined);
+			assert.deepStrictEqual(res1.messages, [
+				{
+					role: 'system',
+					content: [
+						'You are a helpful assistant that cheers people up.',
+						'Here are some examples of how you should respond to the user:',
+						'Example 1:',
+						'User: "I have a list of numbers, how do I sum them?"',
+						'Assistant: "You can use the reduce function."',
+						'Example 2:',
+						'User: "What is the airspeed velocity of an unladen swallow?"',
+						'Assistant: "Sorry, I can\'t assist with that."',
+						'Example 3:',
+						'User: "What is the difference between map and forEach?"',
+						'Assistant: "The map function returns a new array, the forEach function does not."',
+					].join('\n'),
+				},
+				{
+					role: 'user',
+					content: [
+						'Here are some relevant code snippets:',
+						'```ts',
+						'console.log(42)',
+						'```',
+						'```ts',
+						'console.log("Don\'t Panic")',
+						'```',
+					].join('\n'),
+				},
+				{ role: 'user', content: 'What is your name?' },
+			]);
+			assert.deepStrictEqual(res1.tokenCount, 165 - BaseTokensPerCompletion);
+		});
+
+		test('are prioritized and fit within token budget', async () => {
+			// Render with smaller token budget and ensure that messages are reduced in size
+			const smallTokenBudgetEndpoint: any = {
+				modelMaxPromptTokens: 140 - BaseTokensPerCompletion,
+			} satisfies Partial<IChatEndpointInfo>;
+			const inst2 = new PromptRenderer(smallTokenBudgetEndpoint, PromptWithChunks, {}, tokenizer);
+			const res2 = await inst2.render(undefined, undefined);
+			assert.deepStrictEqual(res2.messages, [
+				{
+					role: 'system',
+					content: [
+						'You are a helpful assistant that cheers people up.',
+						'Here are some examples of how you should respond to the user:',
+						'Example 1:',
+						'User: "I have a list of numbers, how do I sum them?"',
+						'Assistant: "You can use the reduce function."',
+						'Example 2:',
+						'User: "What is the airspeed velocity of an unladen swallow?"',
+						'Assistant: "Sorry, I can\'t assist with that."',
+					].join('\n'),
+				},
+				{
+					role: 'user',
+					content: [
+						'Here are some relevant code snippets:',
+						'```ts',
+						'console.log(42)',
+						'```',
+					].join('\n'),
+				},
+				{ role: 'user', content: 'What is your name?' },
+			]);
+			assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
+		});
+	});
 
 	suite('tracks surviving prompt references', async () => {
 		const variableReference = { variableName: 'foo' };
@@ -941,16 +929,24 @@ suite('PromptRenderer', () => {
 						<UserMessage>
 							<TextChunk>
 								<references value={[new PromptReference(variableReference)]} />
-								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+								incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+								exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
+								irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+								pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia
+								deserunt mollit anim id est laborum.
 							</TextChunk>
 							<TextChunk>
 								<references value={[new PromptReference(variableReference)]} />
-								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+								incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+								exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
+								irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+								pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia
+								deserunt mollit anim id est laborum.
 							</TextChunk>
 						</UserMessage>
-						<UserMessage>
-							Foo
-						</UserMessage>
+						<UserMessage>Foo</UserMessage>
 					</>
 				);
 			}
@@ -961,12 +957,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 4096 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 
-			const inst = new PromptRenderer(
-				endpoint,
-				PromptWithReference,
-				{},
-				tokenizer
-			);
+			const inst = new PromptRenderer(endpoint, PromptWithReference, {}, tokenizer);
 			const res = await inst.render(undefined, undefined);
 			assert.equal(res.messages.length, 2);
 			assert.equal(res.references.length, 1);
@@ -978,12 +969,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 10,
 			} satisfies Partial<IChatEndpointInfo>;
 
-			const inst = new PromptRenderer(
-				endpoint,
-				PromptWithReference,
-				{},
-				tokenizer
-			);
+			const inst = new PromptRenderer(endpoint, PromptWithReference, {}, tokenizer);
 			const res = await inst.render(undefined, undefined);
 			assert.equal(res.messages.length, 1);
 			assert.equal(res.references.length, 0);
@@ -1009,7 +995,12 @@ suite('PromptRenderer', () => {
 						<>
 							<UserMessage>
 								<references value={[new PromptReference(variableReference1)]} />
-								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
+								Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor
+								incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud
+								exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute
+								irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla
+								pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia
+								deserunt mollit anim id est laborum.
 							</UserMessage>
 							<UserMessage>
 								<NestedTextChunkComponent />
@@ -1023,12 +1014,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 4096 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 
-			const inst = new PromptRenderer(
-				endpoint,
-				PromptWithReferences,
-				{},
-				tokenizer
-			);
+			const inst = new PromptRenderer(endpoint, PromptWithReferences, {}, tokenizer);
 			const res = await inst.render(undefined, undefined);
 			assert.equal(res.messages.length, 2);
 			assert.equal(res.references.length, 2);
@@ -1091,10 +1077,11 @@ suite('PromptRenderer', () => {
 		}
 
 		test('passes budget to children based on declared flex', async () => {
-			await flexTest(<>
-				<EchoBudget name='content' useBudget={10} />
-				<EchoBudget name='grow' flexGrow={1} />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="content" useBudget={10} />
+					<EchoBudget name="grow" flexGrow={1} />
+				</>,
 				[
 					{
 						content: 'consume=10, content=100',
@@ -1103,16 +1090,17 @@ suite('PromptRenderer', () => {
 					{
 						content: 'grow=90',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
 		});
 
 		test('applies flex reserve', async () => {
-			await flexTest(<>
-				<EchoBudget name='content' useBudget={10} />
-				<EchoBudget name='grow' flexGrow={1} flexReserve={20} />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="content" useBudget={10} />
+					<EchoBudget name="grow" flexGrow={1} flexReserve={20} />
+				</>,
 				[
 					{
 						content: 'consume=10, content=80',
@@ -1121,17 +1109,18 @@ suite('PromptRenderer', () => {
 					{
 						content: 'grow=90',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
 		});
 
 		test('applies proportional flex reserve', async () => {
-			await flexTest(<>
-				<EchoBudget name='content' useBudget={10} />
-				<EchoBudget name='grow1' flexGrow={1} flexReserve='/4' />
-				<EchoBudget name='grow2' flexGrow={1} flexReserve='/4' />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="content" useBudget={10} />
+					<EchoBudget name="grow1" flexGrow={1} flexReserve="/4" />
+					<EchoBudget name="grow2" flexGrow={1} flexReserve="/4" />
+				</>,
 				[
 					{
 						content: 'consume=10, content=50',
@@ -1144,17 +1133,18 @@ suite('PromptRenderer', () => {
 					{
 						content: 'grow2=45',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
 		});
 
 		test('shared between multiple in flex groups', async () => {
-			await flexTest(<>
-				<EchoBudget name='content' useBudget={10} />
-				<EchoBudget name='grow1' flexGrow={1} />
-				<EchoBudget name='grow2' flexGrow={1} />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="content" useBudget={10} />
+					<EchoBudget name="grow1" flexGrow={1} />
+					<EchoBudget name="grow2" flexGrow={1} />
+				</>,
 				[
 					{
 						content: 'consume=10, content=100',
@@ -1167,7 +1157,7 @@ suite('PromptRenderer', () => {
 					{
 						content: 'grow2=45',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
 		});
@@ -1177,10 +1167,12 @@ suite('PromptRenderer', () => {
 				fakeEndpoint,
 				class extends PromptElement {
 					render() {
-						return <>
-							<SystemMessage></SystemMessage>
-							<UserMessage>Hello!</UserMessage>
-						</>;
+						return (
+							<>
+								<SystemMessage></SystemMessage>
+								<UserMessage>Hello!</UserMessage>
+							</>
+						);
 					}
 				},
 				{},
@@ -1191,7 +1183,7 @@ suite('PromptRenderer', () => {
 				{
 					role: 'user',
 					content: 'Hello!',
-				}
+				},
 			]);
 		});
 
@@ -1205,9 +1197,13 @@ suite('PromptRenderer', () => {
 				fakeEndpoint,
 				class extends PromptElement {
 					render() {
-						return <>
-							<UserMessage>Hello <Inner />!</UserMessage>
-						</>;
+						return (
+							<>
+								<UserMessage>
+									Hello <Inner />!
+								</UserMessage>
+							</>
+						);
 					}
 				},
 				{},
@@ -1218,7 +1214,7 @@ suite('PromptRenderer', () => {
 				{
 					role: 'user',
 					content: 'Hello world!',
-				}
+				},
 			]);
 		});
 
@@ -1232,9 +1228,14 @@ suite('PromptRenderer', () => {
 				fakeEndpoint,
 				class extends PromptElement {
 					render() {
-						return <>
-							<UserMessage><Inner /><Inner /></UserMessage>
-						</>;
+						return (
+							<>
+								<UserMessage>
+									<Inner />
+									<Inner />
+								</UserMessage>
+							</>
+						);
 					}
 				},
 				{},
@@ -1245,19 +1246,19 @@ suite('PromptRenderer', () => {
 				{
 					role: 'user',
 					content: 'world\nworld',
-				}
+				},
 			]);
 		});
 
 		test('none-grow, greedy-grow, grow elements', async () => {
-
-			await flexTest(<>
-				<EchoBudget name='1' useBudget={5} />
-				<EchoBudget name='2' useBudget={10} />
-				<EchoBudget name='3' useBudget={5} />
-				<EchoBudget name='grow4' flexGrow={2} useBudget={1} />
-				<EchoBudget name='grow5' flexGrow={3} useBudget={79} />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="1" useBudget={5} />
+					<EchoBudget name="2" useBudget={10} />
+					<EchoBudget name="3" useBudget={5} />
+					<EchoBudget name="grow4" flexGrow={2} useBudget={1} />
+					<EchoBudget name="grow5" flexGrow={3} useBudget={79} />
+				</>,
 				[
 					{
 						content: 'consume=5, 1=33',
@@ -1278,13 +1279,12 @@ suite('PromptRenderer', () => {
 					{
 						content: 'consume=79, grow5=80',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
-		})
+		});
 
 		test('none-grow, greedy-grow, grow elements, nested', async () => {
-
 			class StringEchoBudget extends PromptElement<IProps, number> {
 				prepare(sizing: PromptSizing): Promise<number> {
 					return Promise.resolve(sizing.tokenBudget);
@@ -1299,15 +1299,16 @@ suite('PromptRenderer', () => {
 				}
 			}
 
-			await flexTest(<>
-				<UserMessage>
-					<StringEchoBudget name='1' useBudget={5} />
-					<StringEchoBudget name='2' useBudget={10} />
-					<StringEchoBudget name='3' useBudget={5} />
-					<StringEchoBudget name='grow4' flexGrow={2} useBudget={1} />
-					<StringEchoBudget name='grow5' flexGrow={3} useBudget={79} />
-				</UserMessage>
-			</>,
+			await flexTest(
+				<>
+					<UserMessage>
+						<StringEchoBudget name="1" useBudget={5} />
+						<StringEchoBudget name="2" useBudget={10} />
+						<StringEchoBudget name="3" useBudget={5} />
+						<StringEchoBudget name="grow4" flexGrow={2} useBudget={1} />
+						<StringEchoBudget name="grow5" flexGrow={3} useBudget={79} />
+					</UserMessage>
+				</>,
 				[
 					{
 						content: [
@@ -1315,20 +1316,18 @@ suite('PromptRenderer', () => {
 							'consume=10, 2=33',
 							'consume=5, 3=33',
 							'consume=1, grow4=1',
-							'consume=79, grow5=80'
+							'consume=79, grow5=80',
 						].join('\n'),
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
-		})
+		});
 
 		test('counts budget used in nested elements', async () => {
 			class Nested extends PromptElement {
 				render() {
-					return (
-						<NestedB />
-					);
+					return <NestedB />;
 				}
 			}
 			class NestedB extends PromptElement<BasePromptElementProps, number> {
@@ -1336,16 +1335,15 @@ suite('PromptRenderer', () => {
 					return Promise.resolve(42);
 				}
 				render(consume: number) {
-					return (
-						<SystemMessage>{`consume=${consume}`}</SystemMessage>
-					);
+					return <SystemMessage>{`consume=${consume}`}</SystemMessage>;
 				}
 			}
-			await flexTest(<>
-				<Nested />
-				<EchoBudget name='grow1' flexGrow={1} />
-				<EchoBudget name='grow2' flexGrow={1} />
-			</>,
+			await flexTest(
+				<>
+					<Nested />
+					<EchoBudget name="grow1" flexGrow={1} />
+					<EchoBudget name="grow2" flexGrow={1} />
+				</>,
 				[
 					{
 						content: 'consume=42',
@@ -1358,20 +1356,21 @@ suite('PromptRenderer', () => {
 					{
 						content: 'grow2=29',
 						role: ChatRole.User,
-					}
+					},
 				]
 			);
 		});
 
 		test('all together now 🙌', async () => {
-			await flexTest(<>
-				<EchoBudget name='content1' useBudget={10} />
-				<EchoBudget name='content2' useBudget={20} flexBasis={2} />
-				<EchoBudget name='grow2a' flexGrow={2} flexReserve={20} useBudget={15} />
-				<EchoBudget name='grow1a' flexGrow={1} flexReserve={10} />
-				<EchoBudget name='grow1b' flexGrow={1} flexReserve={10} flexBasis={2} />
-				<EchoBudget name='grow2b' flexGrow={2} flexReserve={20} useBudget={20} />
-			</>,
+			await flexTest(
+				<>
+					<EchoBudget name="content1" useBudget={10} />
+					<EchoBudget name="content2" useBudget={20} flexBasis={2} />
+					<EchoBudget name="grow2a" flexGrow={2} flexReserve={20} useBudget={15} />
+					<EchoBudget name="grow1a" flexGrow={1} flexReserve={10} />
+					<EchoBudget name="grow1b" flexGrow={1} flexReserve={10} flexBasis={2} />
+					<EchoBudget name="grow2b" flexGrow={2} flexReserve={20} useBudget={20} />
+				</>,
 				[
 					{
 						content: 'consume=10, content1=13', // non-flex elements have 40 unreserved budget, #2 uses flex=2 to get a bigger share
@@ -1411,13 +1410,15 @@ suite('PromptRenderer', () => {
 				const json = await renderElementJSON(
 					class extends PromptElement {
 						render() {
-							return <>
-								<TextChunk priority={50}>hello50</TextChunk>
-								<TextChunk priority={60}>hello60</TextChunk>
-								<TextChunk priority={70}>hello70</TextChunk>
-								<TextChunk priority={80}>hello80</TextChunk>
-								<TextChunk priority={90}>hello90</TextChunk>
-							</>;
+							return (
+								<>
+									<TextChunk priority={50}>hello50</TextChunk>
+									<TextChunk priority={60}>hello60</TextChunk>
+									<TextChunk priority={70}>hello70</TextChunk>
+									<TextChunk priority={80}>hello80</TextChunk>
+									<TextChunk priority={90}>hello90</TextChunk>
+								</>
+							);
 						}
 					},
 					{},
@@ -1427,57 +1428,81 @@ suite('PromptRenderer', () => {
 				const actual = await renderPrompt(
 					class extends PromptElement {
 						render() {
-							return <UserMessage>
-								<TextChunk priority={40}>outer40</TextChunk>
-								<ToolResult priority={50} data={{ [contentType]: json }} />
-								<TextChunk priority={60}>outer60</TextChunk>
-								<TextChunk priority={70}>outer70</TextChunk>
-								<TextChunk priority={80}>outer80</TextChunk>
-								<TextChunk priority={90}>outer90</TextChunk>
-							</UserMessage>
+							return (
+								<UserMessage>
+									<TextChunk priority={40}>outer40</TextChunk>
+									<ToolResult priority={50} data={{ [contentType]: json }} />
+									<TextChunk priority={60}>outer60</TextChunk>
+									<TextChunk priority={70}>outer70</TextChunk>
+									<TextChunk priority={80}>outer80</TextChunk>
+									<TextChunk priority={90}>outer90</TextChunk>
+								</UserMessage>
+							);
 						}
 					},
-					{}, { modelMaxPromptTokens: 20 }, tokenizer
+					{},
+					{ modelMaxPromptTokens: 20 },
+					tokenizer
 				);
 
 				// if priorities were not scoped, we'd see hello80 here instead of outer70
-				assert.strictEqual(actual.messages[0].content, 'hello90\nouter60\nouter70\nouter80\nouter90');
+				assert.strictEqual(
+					actual.messages[0].content,
+					'hello90\nouter60\nouter70\nouter80\nouter90'
+				);
 			});
 
 			test('round trips messages', async () => {
 				class MyElement extends PromptElement {
 					render() {
-						return <>
-							Hello world!
-							<TextChunk priority={10}>
-								chunk1
-								<references value={[new PromptReference({ variableName: 'foo', value: undefined })]} />
-							</TextChunk>
-							<TextChunk priority={20}>chunk2</TextChunk>
-						</>;
+						return (
+							<>
+								Hello world!
+								<TextChunk priority={10}>
+									chunk1
+									<references
+										value={[new PromptReference({ variableName: 'foo', value: undefined })]}
+									/>
+								</TextChunk>
+								<TextChunk priority={20}>chunk2</TextChunk>
+							</>
+						);
 					}
 				}
 				const r = await renderElementJSON(
-					MyElement, {}, { tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+					MyElement,
+					{},
+					{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
 				);
 
-				const expected = await renderPrompt(class extends PromptElement {
-					render() {
-						return <UserMessage>
-							<MyElement />
-						</UserMessage>;
-					}
-				}, {}, fakeEndpoint, tokenizer);
+				const expected = await renderPrompt(
+					class extends PromptElement {
+						render() {
+							return (
+								<UserMessage>
+									<MyElement />
+								</UserMessage>
+							);
+						}
+					},
+					{},
+					fakeEndpoint,
+					tokenizer
+				);
 
 				const actual = await renderPrompt(
 					class extends PromptElement {
 						render() {
-							return <UserMessage>
-								<ToolResult data={{ [contentType]: r }} />
-							</UserMessage>;
+							return (
+								<UserMessage>
+									<ToolResult data={{ [contentType]: r }} />
+								</UserMessage>
+							);
 						}
 					},
-					{}, fakeEndpoint, tokenizer
+					{},
+					fakeEndpoint,
+					tokenizer
 				);
 
 				assert.deepStrictEqual(actual.messages, expected.messages);
@@ -1491,9 +1516,11 @@ suite('PromptRenderer', () => {
 			render() {
 				return (
 					<>
-						inbefore<br />
+						inbefore
+						<br />
 						{this.props.children}
-						inafter<br />
+						inafter
+						<br />
 					</>
 				);
 			}
@@ -1502,9 +1529,13 @@ suite('PromptRenderer', () => {
 			render() {
 				return (
 					<UserMessage>
-						before<br />
+						before
+						<br />
 						<Wrapper>
-							<TextChunk>wrapped<br /></TextChunk>
+							<TextChunk>
+								wrapped
+								<br />
+							</TextChunk>
 						</Wrapper>
 						after
 					</UserMessage>
@@ -1514,13 +1545,10 @@ suite('PromptRenderer', () => {
 
 		const inst = new PromptRenderer(fakeEndpoint, Outer, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
-		assert.deepStrictEqual(res.messages.map(m => m.content).join('\n'), [
-			'before',
-			'inbefore',
-			'wrapped',
-			'inafter',
-			'after',
-		].join('\n'));
+		assert.deepStrictEqual(
+			res.messages.map(m => m.content).join('\n'),
+			['before', 'inbefore', 'wrapped', 'inafter', 'after'].join('\n')
+		);
 	});
 
 	suite('metadata', () => {
@@ -1535,10 +1563,12 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							Hello world!
-							<meta value={new MyMeta(true)} />
-						</UserMessage>;
+						return (
+							<UserMessage>
+								Hello world!
+								<meta value={new MyMeta(true)} />
+							</UserMessage>
+						);
 					}
 				},
 				{},
@@ -1553,10 +1583,14 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<TextChunk>Hello <meta value={new MyMeta(true)} local /></TextChunk>
-							<TextChunk>world!</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<TextChunk>
+									Hello <meta value={new MyMeta(true)} local />
+								</TextChunk>
+								<TextChunk>world!</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
@@ -1571,10 +1605,14 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 1 } as any,
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<TextChunk priority={1}>Hello <meta value={new MyMeta(true)} local /></TextChunk>
-							<TextChunk>world!</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<TextChunk priority={1}>
+									Hello <meta value={new MyMeta(true)} local />
+								</TextChunk>
+								<TextChunk>world!</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
@@ -1589,10 +1627,14 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 5 } as any,
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<TextChunk priority={1}>Hello <meta value={new MyMeta(true)} /></TextChunk>
-							<TextChunk>world!</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<TextChunk priority={1}>
+									Hello <meta value={new MyMeta(true)} />
+								</TextChunk>
+								<TextChunk>world!</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
@@ -1607,11 +1649,13 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							Hello world!
-							<meta value={new MyMeta(true)} />
-							<meta value={new MyMeta(false)} />
-						</UserMessage>;
+						return (
+							<UserMessage>
+								Hello world!
+								<meta value={new MyMeta(true)} />
+								<meta value={new MyMeta(false)} />
+							</UserMessage>
+						);
 					}
 				},
 				{},
@@ -1629,32 +1673,36 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 50 },
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<Expandable value={async sizing => {
-								sizingInCalls.push(sizing.tokenBudget);
-								let str = 'hi';
-								while (await sizing.countTokens(str + 'a') <= sizing.tokenBudget) {
-									str += 'a';
-								}
-								return str;
-							}} />
-							<TextChunk>smaller</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<Expandable
+									value={async sizing => {
+										sizingInCalls.push(sizing.tokenBudget);
+										let str = 'hi';
+										while ((await sizing.countTokens(str + 'a')) <= sizing.tokenBudget) {
+											str += 'a';
+										}
+										return str;
+									}}
+								/>
+								<TextChunk>smaller</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
 				tokenizer
 			).render();
 
-			assert.deepStrictEqual(sizingInCalls, [
-				23,
-				43,
-			]);
+			assert.deepStrictEqual(sizingInCalls, [23, 43]);
 			assert.strictEqual(res.tokenCount, 50);
-			assert.deepStrictEqual(res.messages, [{
-				role: 'user',
-				content: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
-			}]);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content:
+						'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+				},
+			]);
 		});
 
 		test('grows multiple in render order and uses budget', async () => {
@@ -1663,41 +1711,46 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 50 },
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<Expandable flexGrow={1} value={async sizing => {
-								let str = 'hi';
-								while (await sizing.countTokens(str + 'a') < sizing.tokenBudget / 2) {
-									str += 'a';
-								}
-								sizingInCalls.push(`a=${sizing.tokenBudget}`);
-								return str;
-							}} />
-							<Expandable value={async sizing => {
-								let str = 'hi';
-								while (await sizing.countTokens(str + 'b') < sizing.tokenBudget / 2) {
-									str += 'b';
-								}
-								sizingInCalls.push(`b=${sizing.tokenBudget}`);
-								return str;
-							}} />
-							<TextChunk>smaller</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<Expandable
+									flexGrow={1}
+									value={async sizing => {
+										let str = 'hi';
+										while ((await sizing.countTokens(str + 'a')) < sizing.tokenBudget / 2) {
+											str += 'a';
+										}
+										sizingInCalls.push(`a=${sizing.tokenBudget}`);
+										return str;
+									}}
+								/>
+								<Expandable
+									value={async sizing => {
+										let str = 'hi';
+										while ((await sizing.countTokens(str + 'b')) < sizing.tokenBudget / 2) {
+											str += 'b';
+										}
+										sizingInCalls.push(`b=${sizing.tokenBudget}`);
+										return str;
+									}}
+								/>
+								<TextChunk>smaller</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
 				tokenizer
 			).render();
 
-			assert.deepStrictEqual(sizingInCalls, [
-				'b=23',
-				'a=33',
-				'b=26',
-				'a=30',
+			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=33', 'b=26', 'a=30']);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content:
+						'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsmaller',
+				},
 			]);
-			assert.deepStrictEqual(res.messages, [{
-				role: 'user',
-				content: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsmaller',
-			}]);
 			assert.strictEqual(res.tokenCount, 34);
 		});
 
@@ -1707,39 +1760,45 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 50 },
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<Expandable flexGrow={1} value={async sizing => {
-								sizingInCalls.push(`a=${sizing.tokenBudget}`);
-								return 'hi';
-							}} />
-							<Expandable value={async sizing => {
-								sizingInCalls.push(`b=${sizing.tokenBudget}`);
-								if (sizing.tokenBudget < 30) {
-									return 'hi';
-								}
-								let str = 'hi';
-								while (await sizing.countTokens(str + 'a') <= sizing.tokenBudget) {
-									str += 'a';
-								}
-								return str;
-							}} />
-							<TextChunk>smaller</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<Expandable
+									flexGrow={1}
+									value={async sizing => {
+										sizingInCalls.push(`a=${sizing.tokenBudget}`);
+										return 'hi';
+									}}
+								/>
+								<Expandable
+									value={async sizing => {
+										sizingInCalls.push(`b=${sizing.tokenBudget}`);
+										if (sizing.tokenBudget < 30) {
+											return 'hi';
+										}
+										let str = 'hi';
+										while ((await sizing.countTokens(str + 'a')) <= sizing.tokenBudget) {
+											str += 'a';
+										}
+										return str;
+									}}
+								/>
+								<TextChunk>smaller</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
 				tokenizer
 			).render();
 
-			assert.deepStrictEqual(sizingInCalls, [
-				'b=23',
-				'a=43',
-				'b=41',
+			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content:
+						'hi\nhiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+				},
 			]);
-			assert.deepStrictEqual(res.messages, [{
-				role: 'user',
-				content: 'hi\nhiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
-			}]);
 		});
 
 		test('still prunes over budget', async () => {
@@ -1748,35 +1807,40 @@ suite('PromptRenderer', () => {
 				{ modelMaxPromptTokens: 50 },
 				class extends PromptElement {
 					render() {
-						return <UserMessage>
-							<Expandable flexGrow={1} value={async sizing => {
-								sizingInCalls.push(`a=${sizing.tokenBudget}`);
-								return 'hi';
-							}} />
-							<Expandable value={async sizing => {
-								sizingInCalls.push(`b=${sizing.tokenBudget}`);
-								if (sizing.tokenBudget < 30) {
-									return 'hi';
-								}
-								return 'hi'.repeat(1000);
-							}} />
-							<TextChunk>smaller</TextChunk>
-						</UserMessage>;
+						return (
+							<UserMessage>
+								<Expandable
+									flexGrow={1}
+									value={async sizing => {
+										sizingInCalls.push(`a=${sizing.tokenBudget}`);
+										return 'hi';
+									}}
+								/>
+								<Expandable
+									value={async sizing => {
+										sizingInCalls.push(`b=${sizing.tokenBudget}`);
+										if (sizing.tokenBudget < 30) {
+											return 'hi';
+										}
+										return 'hi'.repeat(1000);
+									}}
+								/>
+								<TextChunk>smaller</TextChunk>
+							</UserMessage>
+						);
 					}
 				},
 				{},
 				tokenizer
 			).render();
 
-			assert.deepStrictEqual(sizingInCalls, [
-				'b=23',
-				'a=43',
-				'b=41',
+			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'smaller',
+				},
 			]);
-			assert.deepStrictEqual(res.messages, [{
-				role: 'user',
-				content: 'smaller',
-			}]);
 		});
 	});
 });

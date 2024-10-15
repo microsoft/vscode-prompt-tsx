@@ -10,7 +10,6 @@ import type { LanguageModelChatMessage } from '../vscodeTypes';
  * Represents a tokenizer that can be used to tokenize text in chat messages.
  */
 export interface ITokenizer {
-
 	/**
 	 * Return the length of `text` in number of tokens.
 	 *
@@ -23,8 +22,12 @@ export interface ITokenizer {
 }
 
 export class AnyTokenizer implements ITokenizer {
-
-	constructor(private countTokens: (text: string | LanguageModelChatMessage, token?: CancellationToken) => Thenable<number>) { }
+	constructor(
+		private countTokens: (
+			text: string | LanguageModelChatMessage,
+			token?: CancellationToken
+		) => Thenable<number>
+	) {}
 
 	async tokenLength(text: string, token?: CancellationToken): Promise<number> {
 		return this.countTokens(text, token);
@@ -35,17 +38,22 @@ export class AnyTokenizer implements ITokenizer {
 			role: this.toChatRole(message.role),
 			content: message.content,
 			content2: [message.content],
-			name: 'name' in message ? message.name : undefined
+			name: 'name' in message ? message.name : undefined,
 		});
 	}
 
 	private toChatRole(role: ChatRole) {
 		switch (role) {
-			case ChatRole.User: return 1;
-			case ChatRole.Assistant: return 2;
-			case ChatRole.System: return 1;
-			case ChatRole.Function: return 1;
-			case ChatRole.Tool: return 1;
+			case ChatRole.User:
+				return 1;
+			case ChatRole.Assistant:
+				return 2;
+			case ChatRole.System:
+				return 1;
+			case ChatRole.Function:
+				return 1;
+			case ChatRole.Tool:
+				return 1;
 		}
 	}
 }

@@ -4,7 +4,14 @@
 
 import { FunctionComponent, h } from 'preact';
 import { useState } from 'preact/hooks';
-import { HTMLTraceEpoch, ITraceMaterializedChatMessage, ITraceMaterializedChatMessageTextChunk, ITraceMaterializedContainer, ITraceMaterializedNode, TraceMaterializedNodeType } from '../base/htmlTracerTypes';
+import {
+	HTMLTraceEpoch,
+	ITraceMaterializedChatMessage,
+	ITraceMaterializedChatMessageTextChunk,
+	ITraceMaterializedContainer,
+	ITraceMaterializedNode,
+	TraceMaterializedNodeType,
+} from '../base/htmlTracerTypes';
 import { Integer } from './i18n';
 
 declare const EPOCHS: HTMLTraceEpoch[];
@@ -22,7 +29,11 @@ const RANGE_COLORS = [
 
 type ScoreField = { field: 'priority' | 'tokens'; min: number; max: number };
 
-const Children: FunctionComponent<{ scoreBy: ScoreField; nodes: ITraceMaterializedNode[]; epoch: number }> = ({ scoreBy, nodes, epoch }) => {
+const Children: FunctionComponent<{
+	scoreBy: ScoreField;
+	nodes: ITraceMaterializedNode[];
+	epoch: number;
+}> = ({ scoreBy, nodes, epoch }) => {
 	if (nodes.length === 0) {
 		return null;
 	}
@@ -39,25 +50,31 @@ const Children: FunctionComponent<{ scoreBy: ScoreField; nodes: ITraceMaterializ
 		nextScoreBy = { field: scoreBy.field, max, min };
 	}
 
-
-	return <div className="node-children">
-		{nodes.map((child, index) => (
-			child.type === TraceMaterializedNodeType.TextChunk
-				? <TextNode scoreBy={nextScoreBy} key={index} node={child} />
-				: <WrapperNode scoreBy={nextScoreBy} key={index} node={child} epoch={epoch} />
-		))}
-	</div>
+	return (
+		<div className="node-children">
+			{nodes.map((child, index) =>
+				child.type === TraceMaterializedNodeType.TextChunk ? (
+					<TextNode scoreBy={nextScoreBy} key={index} node={child} />
+				) : (
+					<WrapperNode scoreBy={nextScoreBy} key={index} node={child} epoch={epoch} />
+				)
+			)}
+		</div>
+	);
 };
 
 const LNNodeStats: FunctionComponent<{ node: ITraceMaterializedNode }> = ({ node }) => (
-	<div className='node-stats'>
+	<div className="node-stats">
 		Used Tokens: <Integer value={node.tokens} />
 		{' / '}
-		Priority: {node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : <Integer value={node.priority} />}
+		Priority:{' '}
+		{node.priority === Number.MAX_SAFE_INTEGER ? 'MAX' : <Integer value={node.priority} />}
 	</div>
 );
 
-const LMNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedNode } & h.JSX.HTMLAttributes<HTMLDivElement>> = ({ scoreBy, node, children, ...attrs }) => {
+const LMNode: FunctionComponent<
+	{ scoreBy: ScoreField; node: ITraceMaterializedNode } & h.JSX.HTMLAttributes<HTMLDivElement>
+> = ({ scoreBy, node, children, ...attrs }) => {
 	let step = 0;
 	if (scoreBy.max !== scoreBy.min) {
 		const pct = (node[scoreBy.field] - scoreBy.min) / (scoreBy.max - scoreBy.min);
@@ -65,24 +82,33 @@ const LMNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedN
 	}
 
 	return (
-		<div {...attrs} className={`node ${attrs.className || ''}`} style={{ backgroundColor: RANGE_COLORS[step].bg, color: RANGE_COLORS[step].fg }}>
+		<div
+			{...attrs}
+			className={`node ${attrs.className || ''}`}
+			style={{ backgroundColor: RANGE_COLORS[step].bg, color: RANGE_COLORS[step].fg }}
+		>
 			{children}
 		</div>
 	);
-}
+};
 
-const TextNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedChatMessageTextChunk; }> = ({ scoreBy, node }) => {
+const TextNode: FunctionComponent<{
+	scoreBy: ScoreField;
+	node: ITraceMaterializedChatMessageTextChunk;
+}> = ({ scoreBy, node }) => {
 	return (
-		<LMNode node={node} scoreBy={scoreBy} tabIndex={0} className='node-text'>
+		<LMNode node={node} scoreBy={scoreBy} tabIndex={0} className="node-text">
 			<LNNodeStats node={node} />
-			<div className="node-content">
-				{node.value}
-			</div>
+			<div className="node-content">{node.value}</div>
 		</LMNode>
 	);
 };
 
-const WrapperNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterializedContainer | ITraceMaterializedChatMessage; epoch: number }> = ({ scoreBy, node, epoch }) => {
+const WrapperNode: FunctionComponent<{
+	scoreBy: ScoreField;
+	node: ITraceMaterializedContainer | ITraceMaterializedChatMessage;
+	epoch: number;
+}> = ({ scoreBy, node, epoch }) => {
 	const [collapsed, setCollapsed] = useState(false);
 	const epochIndex = EPOCHS.findIndex(e => e.elements.some(e => e.id === node.id));
 	if (epochIndex === undefined) {
@@ -91,35 +117,52 @@ const WrapperNode: FunctionComponent<{ scoreBy: ScoreField; node: ITraceMaterial
 	const myEpoch = EPOCHS[epochIndex];
 	const thisEpoch = EPOCHS.at(epoch);
 	const tokenBudget = myEpoch.elements.find(e => e.id === node.id)!.tokenBudget;
-	const tag = node.type === TraceMaterializedNodeType.ChatMessage
-		? node.name || node.role.slice(0, 1).toUpperCase() + node.role.slice(1) + 'Message'
-		: node.name;
+	const tag =
+		node.type === TraceMaterializedNodeType.ChatMessage
+			? node.name || node.role.slice(0, 1).toUpperCase() + node.role.slice(1) + 'Message'
+			: node.name;
 
-	const className = epochIndex === epoch
-		? 'new-in-epoch'
-		: epoch < epochIndex
-			? 'before-epoch' : '';
+	const className =
+		epochIndex === epoch ? 'new-in-epoch' : epoch < epochIndex ? 'before-epoch' : '';
 
 	return (
 		<LMNode node={node} scoreBy={scoreBy} className={className}>
 			<LNNodeStats node={node} />
 			<div className="node-content node-toggler" onClick={() => setCollapsed(v => !v)}>
-				<span>{thisEpoch?.inNode === node.id ? '🏃 ' : ''}{`<${tag}>`}</span>
-				<span className='indicator'>{collapsed ? '[+]' : '[-]'}</span>
+				<span>
+					{thisEpoch?.inNode === node.id ? '🏃 ' : ''}
+					{`<${tag}>`}
+				</span>
+				<span className="indicator">{collapsed ? '[+]' : '[-]'}</span>
 			</div>
-			{epoch === epochIndex && <div className='node-stats'>
-				Token Budget: <Integer value={tokenBudget} />
-			</div>}
-			{thisEpoch?.inNode === node.id && <div className='node-stats'>
-				Rendering flexGrow={thisEpoch.flexValue}<br /><br />
-				Splitting {thisEpoch.reservedTokens ? `${thisEpoch.tokenBudget} - ${thisEpoch.reservedTokens} (reserved) = ` : ''}<Integer value={thisEpoch.tokenBudget} /> tokens among {thisEpoch.elements.length} elements
-			</div>}
+			{epoch === epochIndex && (
+				<div className="node-stats">
+					Token Budget: <Integer value={tokenBudget} />
+				</div>
+			)}
+			{thisEpoch?.inNode === node.id && (
+				<div className="node-stats">
+					Rendering flexGrow={thisEpoch.flexValue}
+					<br />
+					<br />
+					Splitting{' '}
+					{thisEpoch.reservedTokens
+						? `${thisEpoch.tokenBudget} - ${thisEpoch.reservedTokens} (reserved) = `
+						: ''}
+					<Integer value={thisEpoch.tokenBudget} /> tokens among {thisEpoch.elements.length}{' '}
+					elements
+				</div>
+			)}
 			{!collapsed && <Children nodes={node.children} scoreBy={scoreBy} epoch={epoch} />}
 		</LMNode>
 	);
 };
 
-export const Root: FunctionComponent<{ scoreBy: 'priority' | 'tokens'; node: ITraceMaterializedContainer; epoch: number }> = ({ scoreBy, node, epoch }) => {
+export const Root: FunctionComponent<{
+	scoreBy: 'priority' | 'tokens';
+	node: ITraceMaterializedContainer;
+	epoch: number;
+}> = ({ scoreBy, node, epoch }) => {
 	let score: ScoreField;
 	if (scoreBy === 'tokens') {
 		score = { field: 'tokens', max: node.tokens, min: 0 };
@@ -127,5 +170,5 @@ export const Root: FunctionComponent<{ scoreBy: 'priority' | 'tokens'; node: ITr
 		score = { field: 'priority', max: node.priority, min: node.priority };
 	}
 
-	return <WrapperNode scoreBy={score} node={node} epoch={epoch} />
-}
+	return <WrapperNode scoreBy={score} node={node} epoch={epoch} />;
+};
