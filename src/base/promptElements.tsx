@@ -7,7 +7,7 @@ import { contentType } from '.';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
-import { LanguageModelToolResult } from './vscodeTypes';
+import type { LanguageModelToolResult } from './vscodeTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
 
@@ -282,10 +282,12 @@ export interface IToolResultProps extends BasePromptElementProps {
 export class ToolResult extends PromptElement<IToolResultProps> {
 	render(): Promise<PromptPiece | undefined> | PromptPiece | undefined {
 		// note: future updates to content types should be handled here for backwards compatibility
-		if (this.props.data.hasOwnProperty(contentType)) {
-			return <elementJSON data={this.props.data[contentType]} />;
+		const promptTsxResult = this.props.data.items.find(i => i.mime === contentType);
+		if (promptTsxResult) {
+			return <elementJSON data={promptTsxResult.data} />;
 		} else {
-			return <UserMessage priority={this.priority}>{this.props.data.toString()}</UserMessage>;
+			const textResult = this.props.data.items.find(i => i.mime === 'text/plain');
+			return <UserMessage priority={this.priority}>{textResult}</UserMessage>;
 		}
 	}
 }
