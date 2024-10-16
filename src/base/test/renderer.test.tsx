@@ -914,9 +914,8 @@ suite('PromptRenderer', () => {
 						'```',
 					].join('\n'),
 				},
-				{ role: 'user', content: 'What is your name?' },
 			]);
-			assert.equal(res2.tokenCount, 120 - BaseTokensPerCompletion);
+			assert.equal(res2.tokenCount, 108);
 		});
 	});
 

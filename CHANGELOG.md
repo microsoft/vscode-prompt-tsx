@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.0-alpha.6
+
+- **fix:** containers without priority set should have max priority
+
 ## 0.3.0-alpha.5
 
 - **feat:** add `Expandable` elements to the renderer. See the [readme](./README.md#expandable-text) for details.

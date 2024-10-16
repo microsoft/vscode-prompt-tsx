@@ -911,7 +911,7 @@ class PromptTreeElement {
 				this._obj.props.name,
 				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
-				this._obj.props.priority ?? 0,
+				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
 				this._children.map(child => child.materialize())
 			);
@@ -924,7 +924,7 @@ class PromptTreeElement {
 			return new MaterializedContainer(
 				this.id,
 				this._obj?.constructor.name,
-				this._obj?.props.priority || 0,
+				this._obj?.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._children.map(child => child.materialize()),
 				this._metadata,
 				flags
