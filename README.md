@@ -196,6 +196,30 @@ Continuous text strings and elements can both be pruned from the tree. If you ha
 </Chunk>
 ```
 
+#### Passing Priority
+
+In some cases, you may have logical wrapper elements which container other elements which should share the parent's priority scope. You can use the `passPriority` attribute for this:
+
+```tsx
+class MyContainer extends PromptElement {
+	render() {
+		return <>{this.props.children}</>;
+	}
+}
+
+const myPrompt = (
+	<UserMessage>
+		<MyContainer passPriority>
+			<ChildA priority={1} />
+			<ChildB priority={3} />
+		</MyContainer>
+		<ChildC priority={2} />
+	</UserMessage>
+);
+```
+
+In this case where we have a wrapper element which includes the children in its own output, the prune order would be `ChildA`, `ChildC`, then `ChildB`.
+
 ### Flex Behavior
 
 Wholesale pruning is not always ideal. Instead, we'd prefer to include as much of the query as possible. To do this, we can use the `flexGrow` property, which allows an element to use the remainder of its parent's token budget when it's rendered.

@@ -31,6 +31,8 @@ export const enum ContainerFlags {
 	IsLegacyPrioritization = 1 << 0,
 	/** It's a {@link Chunk} instance */
 	IsChunk = 1 << 1,
+	/** Priority is passed to children. */
+	PassPriority = 1 << 2,
 }
 
 export class MaterializedContainer implements IMaterializedNode {
@@ -111,7 +113,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		if (this.has(ContainerFlags.IsLegacyPrioritization)) {
 			removeLowestPriorityLegacy(this);
 		} else {
-			removeLowestPriorityChild(this.children);
+			removeLowestPriorityChild(this);
 		}
 	}
 }
@@ -189,8 +191,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 	/** Remove the lowest priority chunk among this message's children. */
 	removeLowestPriorityChild() {
-		removeLowestPriorityChild(this.children);
-		this.onChunksChange();
+		removeLowestPriorityChild(this);
 	}
 
 	onChunksChange() {
@@ -355,39 +356,56 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	}
 }
 
-function removeLowestPriorityChild(children: MaterializedNode[]) {
-	if (!children.length) {
-		return;
-	}
+function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage) {
+	let lowest:
+		| undefined
+		| { chain: (MaterializedContainer | MaterializedChatMessage)[]; index: number; value: MaterializedNode; lowestNested?: number };
 
-	let lowestIndex = 0;
-	let lowestNestedChildPriority: number | undefined;
-	for (let i = 1; i < children.length; i++) {
-		if (children[i].priority < children[lowestIndex].priority) {
-			lowestIndex = i;
-			lowestNestedChildPriority = undefined;
-		} else if (children[i].priority === children[lowestIndex].priority) {
+	// In *most* cases the chain is always [node], but it can be longer if
+	// the `passPriority` is used. We need to keep track of the chain to
+	// call `onChunksChange` as necessary.
+	const queue = node.children.map((_, i) => ({ chain: [node], index: i }));
+	for (let i = 0; i < queue.length; i++) {
+		const { chain, index } = queue[i];
+		const child = chain[chain.length - 1].children[index];
+
+		if (child instanceof MaterializedContainer && child.has(ContainerFlags.PassPriority)) {
+			const newChain = [...chain, child];
+			queue.splice(i + 1, 0, ...child.children.map((_, i) => ({ chain: newChain, index: i })));
+		} else if (!lowest || child.priority < lowest.value.priority) {
+			lowest = { chain, index, value: child };
+		} else if (child.priority === lowest.value.priority) {
 			// Use the lowest priority of any of their nested remaining children as a tiebreaker,
 			// useful e.g. when dealing with root sibling user vs. system messages
-			lowestNestedChildPriority ??= getLowestPriorityAmongChildren(children[lowestIndex]);
-			const lowestNestedPriority = getLowestPriorityAmongChildren(children[i]);
-			if (lowestNestedPriority < lowestNestedChildPriority) {
-				lowestIndex = i;
-				lowestNestedChildPriority = lowestNestedPriority;
+			lowest.lowestNested ??= getLowestPriorityAmongChildren(lowest.value);
+			const lowestNestedPriority = getLowestPriorityAmongChildren(child);
+			if (lowestNestedPriority < lowest.lowestNested) {
+				lowest = { chain, index, value: child, lowestNested: lowestNestedPriority };
 			}
 		}
 	}
 
-	const lowest = children[lowestIndex];
+	if (!lowest) {
+		throw new Error('No lowest priority node found');
+	}
+
+	const containingList = lowest.chain[lowest.chain.length - 1].children;
 	if (
-		lowest instanceof MaterializedChatMessageTextChunk ||
-		(lowest instanceof MaterializedContainer && lowest.has(ContainerFlags.IsChunk))
+		lowest.value instanceof MaterializedChatMessageTextChunk ||
+		(lowest.value instanceof MaterializedContainer && lowest.value.has(ContainerFlags.IsChunk)) ||
+		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
-		children.splice(lowestIndex, 1);
+		containingList.splice(lowest.index, 1);
 	} else {
-		lowest.removeLowestPriorityChild();
-		if (lowest.children.length === 0) {
-			children.splice(lowestIndex, 1);
+		lowest.value.removeLowestPriorityChild();
+		if (lowest.value.children.length === 0) {
+			containingList.splice(lowest.index, 1);
+		}
+	}
+
+	for (const node of lowest.chain) {
+		if (node instanceof MaterializedChatMessage) {
+			node.onChunksChange();
 		}
 	}
 }
