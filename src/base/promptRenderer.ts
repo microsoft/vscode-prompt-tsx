@@ -580,7 +580,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	}
 
 	private _handleIntrinsicElementJSON(node: PromptTreeElement, data: JSONT.PromptElementJSON) {
-		node.appendPieceJSON(data.node);
+		const appended = node.appendPieceJSON(data.node);
+		if (this.tracer?.includeInEpoch) {
+			for (const child of appended.elements()) {
+				// tokenBudget is just 0 because we don't know the renderer state on the tool side.
+				this.tracer.includeInEpoch({ id: child.id, tokenBudget: 0 });
+			}
+		}
 	}
 
 	private _handleIntrinsicUsedContext(
@@ -934,6 +940,15 @@ class PromptTreeElement {
 
 	public addMetadata(metadata: PromptMetadata): void {
 		this._metadata.push(metadata);
+	}
+
+	public *elements(): Iterable<PromptTreeElement> {
+		yield this;
+		for (const child of this._children) {
+			if (child instanceof PromptTreeElement) {
+				yield* child.elements();
+			}
+		}
 	}
 }
 

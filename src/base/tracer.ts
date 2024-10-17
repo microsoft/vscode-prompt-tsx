@@ -25,12 +25,17 @@ export interface ITraceData {
 	renderTree(tokenBudget: number): Promise<ITraceRenderData>;
 }
 
+export interface IElementEpochData {
+	id: number;
+	tokenBudget: number;
+}
+
 export interface ITraceEpoch {
 	inNode: number | undefined;
 	flexValue: number;
 	tokenBudget: number;
 	reservedTokens: number;
-	elements: { id: number; tokenBudget: number }[];
+	elements: IElementEpochData[];
 }
 
 /**
@@ -41,6 +46,11 @@ export interface ITracer {
 	 * Called when a group of elements is rendered.
 	 */
 	addRenderEpoch?(epoch: ITraceEpoch): void;
+
+	/**
+	 * Adds an element into the current epoch.
+	 */
+	includeInEpoch?(data: IElementEpochData): void;
 
 	/**
 	 * Called when the elements have been processed into their final tree form.
