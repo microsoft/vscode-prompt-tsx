@@ -1,6 +1,6 @@
 # Changelog
 
-## TBA
+## 0.3.0-alpha.7
 
 - **feat:** add a `passPriority` attribute for logical wrapper elements
 - **fix:** tool calls not being visible in tracer
