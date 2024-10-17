@@ -45,6 +45,22 @@ export interface BasePromptElementProps {
 	 */
 	priority?: number;
 	/**
+	 * If set, the children of the prompt element will be considered children of the parent during pruning. This allows you to create logical wrapper elements, for example:
+	 *
+	 * ```
+	 * <UserMessage>
+	 *   <MyContainer passPriority>
+	 *     <ChildA priority={1} />
+	 *     <ChildB priority={3} />
+	 *   </MyContainer>
+	 *   <ChildC priority={2} />
+	 * </UserMessage>
+	 * ```
+	 *
+	 * In this case where we have a wrapper element, the prune order would be `ChildA`, `ChildC`, then `ChildB`.
+	 */
+	passPriority?: boolean;
+	/**
 	 * The proportion of the container's {@link PromptSizing.tokenBudget token budget} that is assigned to this prompt element, based on the total weight requested by the prompt element and all its siblings.
 	 *
 	 * This is used to compute the {@link PromptSizing.tokenBudget token budget} hint that the prompt element receives.

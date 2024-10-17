@@ -486,6 +486,48 @@ suite('PromptRenderer', () => {
 				['a', 'c', 'e', 'b', 'd']
 			);
 		});
+
+		class SimpleWrapper extends PromptElement {
+			render() {
+				return <>{this.props.children}</>;
+			}
+		}
+
+		test('passes priority simple', async () => {
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<SimpleWrapper passPriority>
+							<TextChunk priority={2}>b</TextChunk>
+							<TextChunk priority={5}>e</TextChunk>
+						</SimpleWrapper>
+						<TextChunk priority={3}>c</TextChunk>
+						<TextChunk priority={4}>d</TextChunk>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c', 'd', 'e']
+			);
+		});
+
+		test('passes priority nested', async () => {
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<SimpleWrapper passPriority>
+							<SimpleWrapper passPriority>
+								<TextChunk priority={2}>b</TextChunk>
+							</SimpleWrapper>
+							<TextChunk priority={5}>e</TextChunk>
+						</SimpleWrapper>
+						<TextChunk priority={3}>c</TextChunk>
+						<TextChunk priority={4}>d</TextChunk>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c', 'd', 'e']
+			);
+		});
 	});
 
 	suite('truncates tokens exceeding token budget', async () => {
