@@ -21,7 +21,7 @@ import {
 } from './materialized';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
-import { ITraceData, ITraceEpoch, ITracer, ITraceRenderData } from './tracer';
+import { IElementEpochData, ITraceData, ITraceEpoch, ITracer, ITraceRenderData } from './tracer';
 
 /**
  * Handler that can trace rendering internals into an HTML summary.
@@ -32,6 +32,10 @@ export class HTMLTracer implements ITracer {
 
 	addRenderEpoch(epoch: ITraceEpoch): void {
 		this.epochs.push(epoch);
+	}
+
+	includeInEpoch(data: IElementEpochData): void {
+		this.epochs[this.epochs.length - 1].elements.push(data);
 	}
 
 	didMaterializeTree(traceData: ITraceData): void {
