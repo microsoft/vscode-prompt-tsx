@@ -1,5 +1,9 @@
 # Changelog
 
+## TBA
+
+- **fix:** tool calls not being visible in tracer
+
 ## 0.3.0-alpha.6
 
 - **fix:** containers without priority set should have max priority
