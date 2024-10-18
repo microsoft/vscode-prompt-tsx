@@ -1404,7 +1404,9 @@ suite('PromptRenderer', () => {
 	});
 
 	if (!process.env.IS_OUTSIDE_VSCODE) {
-		suite('renderElementJSON', () => {
+		const vscode = require('vscode');
+		// Can't run this until a vscode build is published with the new constructors
+		suite.skip('renderElementJSON', () => {
 			test('scopes priorities', async () => {
 				const json = await renderElementJSON(
 					class extends PromptElement {
@@ -1430,7 +1432,7 @@ suite('PromptRenderer', () => {
 							return (
 								<UserMessage>
 									<TextChunk priority={40}>outer40</TextChunk>
-									<ToolResult priority={50} data={{ items: [{ mime: contentType, data: json }] }} />
+									<ToolResult priority={50} data={new vscode.LanguageModelToolResult([new vscode.LanguageModelPromptTsxPart(json, contentType)])} />
 									<TextChunk priority={60}>outer60</TextChunk>
 									<TextChunk priority={70}>outer70</TextChunk>
 									<TextChunk priority={80}>outer80</TextChunk>
@@ -1494,7 +1496,7 @@ suite('PromptRenderer', () => {
 						render() {
 							return (
 								<UserMessage>
-									<ToolResult data={{ items: [{ mime: contentType, data: r }] }} />
+									<ToolResult priority={50} data={new vscode.LanguageModelToolResult([new vscode.LanguageModelPromptTsxPart(r, contentType)])} />
 								</UserMessage>
 							);
 						}

@@ -172,9 +172,9 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 	props: P,
 	budgetInformation:
 		| {
-				tokenBudget: number;
-				countTokens(text: string, token?: CancellationToken): Thenable<number>;
-		  }
+			tokenBudget: number;
+			countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		}
 		| undefined,
 	token?: CancellationToken
 ): Promise<PromptElementJSON> {
@@ -225,12 +225,12 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				return vscode.LanguageModelChatMessage.User(m.content, m.name);
 			case ChatRole.Function: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content2 = [new vscode.LanguageModelToolResultPart(m.name, m.content)];
+				message.content2 = [new vscode.LanguageModelToolResultPart(m.name, [new vscode.LanguageModelTextPart(m.content)])];
 				return message;
 			}
 			case ChatRole.Tool: {
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User(m.content);
-				message.content2 = [new vscode.LanguageModelToolResultPart(m.tool_call_id, m.content)];
+				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
+				message.content2 = [new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(m.content)])];
 				return message;
 			}
 			default:
