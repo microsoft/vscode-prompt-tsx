@@ -55,7 +55,13 @@ export type UriOrLocationJSON = UriComponents | { uri: UriComponents; range: Ran
 export interface PromptReferenceJSON {
 	anchor: UriOrLocationJSON | { variableName: string; value?: UriOrLocationJSON };
 	iconPath?: UriComponents | { id: string } | { light: UriComponents; dark: UriComponents };
-	options?: { status?: { description: string; kind: ChatResponseReferencePartStatusKind } };
+	options?: {
+		status?: { description: string; kind: ChatResponseReferencePartStatusKind };
+		/**
+		 * If true, the reference can be seen by tooling but should not be shown to the user.
+		 */
+		internal?: boolean;
+	};
 }
 
 export interface PromptElementJSON {
