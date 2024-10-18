@@ -926,11 +926,12 @@ class PromptTreeElement {
 			let flags = 0;
 			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
 			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
+			if (this._obj?.props.passPriority) flags |= ContainerFlags.PassPriority;
 
 			return new MaterializedContainer(
 				this.id,
 				this._obj?.constructor.name,
-				this._obj?.props.priority ?? Number.MAX_SAFE_INTEGER,
+				this._obj?.props.priority ?? (this._obj?.props.passPriority ? 0 : Number.MAX_SAFE_INTEGER),
 				this._children.map(child => child.materialize()),
 				this._metadata,
 				flags
