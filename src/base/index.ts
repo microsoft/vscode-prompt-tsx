@@ -41,6 +41,7 @@ export {
 	ToolCall,
 	ToolMessage,
 	UserMessage,
+	ToolResult
 } from './promptElements';
 
 export { PromptElement } from './promptElement';
