@@ -121,15 +121,15 @@ export class ChatResponseReferencePart {
 		| Uri
 		| ThemeIcon
 		| {
-				/**
-				 * The icon path for the light theme.
-				 */
-				light: Uri;
-				/**
-				 * The icon path for the dark theme.
-				 */
-				dark: Uri;
-		  };
+			/**
+			 * The icon path for the light theme.
+			 */
+			light: Uri;
+			/**
+			 * The icon path for the dark theme.
+			 */
+			dark: Uri;
+		};
 
 	/**
 	 * Create a new ChatResponseReferencePart.
@@ -142,15 +142,15 @@ export class ChatResponseReferencePart {
 			| Uri
 			| ThemeIcon
 			| {
-					/**
-					 * The icon path for the light theme.
-					 */
-					light: Uri;
-					/**
-					 * The icon path for the dark theme.
-					 */
-					dark: Uri;
-			  }
+				/**
+				 * The icon path for the light theme.
+				 */
+				light: Uri;
+				/**
+				 * The icon path for the dark theme.
+				 */
+				dark: Uri;
+			}
 	);
 }
 
@@ -373,79 +373,160 @@ export interface LanguageModelChat {
 	countTokens(text: string | LanguageModelChatMessage, token?: CancellationToken): Thenable<number>;
 }
 
+
+/**
+ * A tool that is available to the language model via {@link LanguageModelChatRequestOptions}. A language model uses all the
+ * properties of this interface to decide which tool to call, and how to call it.
+ */
 export interface LanguageModelChatTool {
-	// TODO@API should use "id" here to match vscode tools, or keep name to match OpenAI? Align everything.
+	/**
+	 * The name of the tool.
+	 */
 	name: string;
+
+	/**
+	 * The description of the tool.
+	 */
 	description: string;
-	parametersSchema?: JSONSchema;
+
+	/**
+	 * A JSON schema for the parameters this tool accepts.
+	 */
+	parametersSchema?: object;
 }
 
-// API -> LM: add tools as request option
+export enum LanguageModelChatToolMode {
+	/**
+	 * The language model can choose to call a tool or generate a message. The default.
+	 */
+	Auto = 1,
+
+	/**
+	 * The language model must call one of the provided tools. An extension can force a particular tool to be used by using the
+	 * Required mode and only providing that one tool.
+	 * TODO@API 'required' is not supported by CAPI
+	 * The LM provider can throw if more than one tool is provided. But this mode is supported by different models and it makes sense
+	 * to represent it in the API. We can note the limitation here.
+	 */
+	Required = 2
+}
+
 export interface LanguageModelChatRequestOptions {
-	// TODO@API this will be a heterogeneous array of different types of tools
+
+	/**
+	 * An optional list of tools that are available to the language model. These could be registered tools available via
+	 * {@link lm.tools}, or private tools that are just implemented within the calling extension.
+	 *
+	 * If the LLM requests to call one of these tools, it will return a {@link LanguageModelToolCallPart} in
+	 * {@link LanguageModelChatResponse.stream}. It's the caller's responsibility to invoke the tool. If it's a tool
+	 * registered in {@link lm.tools}, that means calling {@link lm.invokeTool}.
+	 *
+	 * Then, the tool result can be provided to the LLM by creating an Assistant-type {@link LanguageModelChatMessage} with a
+	 * {@link LanguageModelToolCallPart}, followed by a User-type message with a {@link LanguageModelToolResultPart}.
+	 */
 	tools?: LanguageModelChatTool[];
 
 	/**
-	 * Force a specific tool to be used.
+	 * 	The tool calling mode to use. {@link LanguageModelChatToolMode.Auto} by default.
 	 */
-	toolChoice?: string;
+	toolMode?: LanguageModelChatToolMode;
 }
 
-// LM -> USER: function that should be used
+/**
+ * A language model response part indicating a tool call, returned from a {@link LanguageModelChatResponse}, and also can be
+ * included as a content part on a {@link LanguageModelChatMessage}, to represent a previous tool call in a chat request.
+ */
 export class LanguageModelToolCallPart {
+	/**
+	 * The name of the tool to call.
+	 */
 	name: string;
-	toolCallId: string;
-	parameters: any;
 
-	constructor(name: string, toolCallId: string, parameters: any);
+	/**
+	 * The ID of the tool call. This is a unique identifier for the tool call within the chat request.
+	 */
+	callId: string;
+
+	/**
+	 * The parameters with which to call the tool.
+	 */
+	parameters: object;
+
+	/**
+	 * Create a new LanguageModelToolCallPart.
+	 */
+	constructor(name: string, callId: string, parameters: object);
 }
 
-// LM -> USER: text chunk
+/**
+ * A language model response part containing a piece of text, returned from a {@link LanguageModelChatResponse}.
+ */
 export class LanguageModelTextPart {
+	/**
+	 * The text content of the part.
+	 */
 	value: string;
 
 	constructor(value: string);
 }
 
-export interface LanguageModelChatResponse {
-	stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart>;
+/**
+ * A language model response part containing a PromptElementJSON from `@vscode/prompt-tsx`.
+ */
+export class LanguageModelPromptTsxPart {
+	/**
+	 * The content of the part.
+	 */
+	value: unknown;
+
+	/**
+	 * The mimeType of this part, exported from the `@vscode/prompt-tsx` library.
+	 */
+	mime: string;
+
+	// TODO@API needs the version number/mimeType from prompt-tsx?
+	constructor(value: unknown, mime: string);
 }
 
-// USER -> LM: the result of a function call
-export class LanguageModelToolResultPart {
-	toolCallId: string;
-	content: string;
+export interface LanguageModelChatResponse {
+	/**
+	 * A stream of parts that make up the response. Could be extended with more types in the future.
+	 */
+	stream: AsyncIterable<LanguageModelTextPart | LanguageModelToolCallPart | unknown>;
+}
 
-	constructor(toolCallId: string, content: string);
+/**
+ * The result of a tool call. Can only be included in the content of a User message.
+ */
+export class LanguageModelToolResultPart {
+	/**
+	 * The ID of the tool call.
+	 */
+	callId: string;
+
+	/**
+	 * The value of the tool result.
+	 */
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+
+	constructor(callId: string, content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 }
 
 export interface LanguageModelChatMessage {
 	/**
-	 * A heterogeneous array of other things that a message can contain as content.
-	 * Some parts would be message-type specific for some models and wouldn't go together,
-	 * but it's up to the chat provider to decide what to do about that.
-	 * Can drop parts that are not valid for the message type.
-	 * LanguageModelToolResultPart: only on User messages
-	 * LanguageModelToolCallPart: only on Assistant messages
+	 * A heterogeneous array of other things that a message can contain as content. Some parts may be message-type specific
+	 * for some models.
 	 */
 	content2: (string | LanguageModelToolResultPart | LanguageModelToolCallPart)[];
 }
 
-// Tool registration/invoking between extensions
-
 /**
  * A result returned from a tool invocation.
  */
-// TODO@API should we align this with NotebookCellOutput and NotebookCellOutputItem
-export interface LanguageModelToolResult {
-	/**
-	 * The result can contain arbitrary representations of the content. A tool user can set
-	 * {@link LanguageModelToolInvocationOptions.requested} to request particular types, and a tool implementation should only
-	 * compute the types that were requested. `text/plain` is recommended to be supported by all tools, which would indicate
-	 * any text-based content. Another example might be a `PromptElementJSON` from `@vscode/prompt-tsx`, using the
-	 * `contentType` exported by that library.
-	 */
-	[contentType: string]: any;
+export class LanguageModelToolResult {
+	content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[];
+
+	constructor(content: (LanguageModelTextPart | LanguageModelPromptTsxPart | unknown)[]);
 }
 
 export namespace lm {
@@ -454,21 +535,18 @@ export namespace lm {
 	 * point. A registered tool is available in the {@link lm.tools} list for any extension to see. But in order for it to
 	 * be seen by a language model, it must be passed in the list of available tools in {@link LanguageModelChatRequestOptions.tools}.
 	 */
-	export function registerTool<T>(id: string, tool: LanguageModelTool<T>): Disposable;
+	export function registerTool<T>(name: string, tool: LanguageModelTool<T>): Disposable;
 
 	/**
 	 * A list of all available tools.
 	 */
-	export const tools: ReadonlyArray<LanguageModelToolDescription>;
+	export const tools: readonly LanguageModelToolInformation[];
 
 	/**
 	 * Invoke a tool with the given parameters.
+	 * TODO describe content types and token options here
 	 */
-	export function invokeTool<T>(
-		id: string,
-		options: LanguageModelToolInvocationOptions<T>,
-		token: CancellationToken
-	): Thenable<LanguageModelToolResult>;
+	export function invokeTool(name: string, options: LanguageModelToolInvocationOptions<object>, token: CancellationToken): Thenable<LanguageModelToolResult>;
 }
 
 /**
@@ -485,60 +563,55 @@ export interface LanguageModelToolInvocationOptions<T> {
 	 * {@link ChatRequest.toolInvocationToken}. In that case, a progress bar will be automatically shown for the tool
 	 * invocation in the chat response view, and if the tool requires user confirmation, it will show up inline in the chat
 	 * view. If the tool is being invoked outside of a chat request, `undefined` should be passed instead.
+	 *
+	 * If a tool invokes another tool during its invocation, it can pass along the `toolInvocationToken` that it received.
 	 */
 	toolInvocationToken: ChatParticipantToolToken | undefined;
 
 	/**
 	 * The parameters with which to invoke the tool. The parameters must match the schema defined in
-	 * {@link LanguageModelToolDescription.parametersSchema}
+	 * {@link LanguageModelToolInformation.parametersSchema}
 	 */
 	parameters: T;
 
 	/**
-	 * A tool user can request that particular content types be returned from the tool, depending on what the tool user
-	 * supports. All tools are recommended to support `text/plain`. See {@link LanguageModelToolResult}.
+	 * A tool can return multiple types of content. A tool user must specifically request one or more types of content to be
+	 * returned, based on what the tool user supports. The typical type is `text/plain` to return string-type content, and all
+	 * tools are recommended to support `text/plain`. See {@link LanguageModelToolResult} for more.
+	 * TODO@API delete
 	 */
-	requestedContentTypes: string[];
+	requestedMimeTypes: string[];
 
 	/**
-	 * Options to hint at how many tokens the tool should return in its response.
+	 * Options to hint at how many tokens the tool should return in its response, and enable the tool to count tokens
+	 * accurately.
 	 */
-	tokenOptions?: {
-		/**
-		 * If known, the maximum number of tokens the tool should emit in its result.
-		 */
-		tokenBudget: number;
+	tokenizationOptions?: LanguageModelToolTokenizationOptions;
+}
 
-		/**
-		 * Count the number of tokens in a message using the model specific tokenizer-logic.
-		 * @param text A string.
-		 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
-		 * @returns A thenable that resolves to the number of tokens.
-		 */
-		countTokens(text: string, token?: CancellationToken): Thenable<number>;
-	};
+export interface LanguageModelToolTokenizationOptions {
+	/**
+	 * If known, the maximum number of tokens the tool should emit in its result.
+	 */
+	tokenBudget: number;
+
+	/**
+	 * Count the number of tokens in a message using the model specific tokenizer-logic.
+	 * @param text A string.
+	 * @param token Optional cancellation token.  See {@link CancellationTokenSource} for how to create one.
+	 * @returns A thenable that resolves to the number of tokens.
+	 */
+	countTokens(text: string, token?: CancellationToken): Thenable<number>;
 }
 
 /**
- * Represents a JSON Schema.
- * TODO@API - is this worth it?
+ * Information about a registered tool available in {@link lm.tools}.
  */
-export type JSONSchema = Object;
-
-/**
- * A description of an available tool.
- */
-export interface LanguageModelToolDescription {
+export interface LanguageModelToolInformation {
 	/**
-	 * A unique identifier for the tool.
+	 * A unique name for the tool.
 	 */
-	readonly id: string;
-
-	/**
-	 * A human-readable name for this tool that may be used to describe it in the UI.
-	 * TODO@API keep?
-	 */
-	readonly displayName: string | undefined;
+	readonly name: string;
 
 	/**
 	 * A description of this tool that may be passed to a language model.
@@ -548,23 +621,24 @@ export interface LanguageModelToolDescription {
 	/**
 	 * A JSON schema for the parameters this tool accepts.
 	 */
-	readonly parametersSchema?: JSONSchema;
+	readonly parametersSchema: object | undefined;
 
 	/**
-	 * The list of content types that the tool has declared support for. See {@link LanguageModelToolResult}.
+	 * The list of mime types that the tool is able to return as a result. See {@link LanguageModelToolResult}.
+	 * TODO@API delete
 	 */
-	readonly supportedContentTypes: string[];
+	readonly supportedResultMimeTypes: readonly string[];
 
 	/**
 	 * A set of tags, declared by the tool, that roughly describe the tool's capabilities. A tool user may use these to filter
 	 * the set of tools to just ones that are relevant for the task at hand.
 	 */
-	readonly tags: string[];
+	readonly tags: readonly string[];
 }
 
 /**
- * Messages shown in the chat view when a tool needs confirmation from the user to run. These messages will be shown with
- * buttons that say Continue and Cancel.
+ * When this is returned in {@link PreparedToolInvocation}, the user will be asked to confirm before running the tool. These
+ * messages will be shown with buttons that say "Continue" and "Cancel".
  */
 export interface LanguageModelToolConfirmationMessages {
 	/**
@@ -573,24 +647,15 @@ export interface LanguageModelToolConfirmationMessages {
 	title: string;
 
 	/**
-	 * The body of the confirmation message. This should be phrased as an action of the participant that is invoking the tool
-	 * from {@link LanguageModelToolInvocationPrepareOptions.participantName}. An example of a good message would be
-	 * `${participantName} will run the command ${echo 'hello world'} in the terminal.`
-	 * TODO@API keep this?
+	 * The body of the confirmation message.
 	 */
 	message: string | MarkdownString;
 }
 
 /**
- * Options for {@link LanguageModelTool.prepareToolInvocation}.
+ * Options for {@link LanguageModelTool.prepareInvocation}.
  */
 export interface LanguageModelToolInvocationPrepareOptions<T> {
-	/**
-	 * The name of the participant invoking the tool.
-	 * TODO@API keep this?
-	 */
-	participantName: string;
-
 	/**
 	 * The parameters that the tool is being invoked with.
 	 */
@@ -603,24 +668,22 @@ export interface LanguageModelToolInvocationPrepareOptions<T> {
 export interface LanguageModelTool<T> {
 	/**
 	 * Invoke the tool with the given parameters and return a result.
+	 *
+	 * The provided {@link LanguageModelToolInvocationOptions.parameters} have been validated against the schema declared for
+	 * this tool.
 	 */
-	invoke(
-		options: LanguageModelToolInvocationOptions<T>,
-		token: CancellationToken
-	): ProviderResult<LanguageModelToolResult>;
+	invoke(options: LanguageModelToolInvocationOptions<T>, token: CancellationToken): ProviderResult<LanguageModelToolResult>;
 
 	/**
-	 * Called once before a tool is invoked. May be implemented to customize the progress message that appears while the tool
-	 * is running, and the messages that appear when the tool needs confirmation.
+	 * Called once before a tool is invoked. May be implemented to signal that a tool needs user confirmation before running,
+	 * and to customize the progress message that appears while the tool is running. Must be free of side-effects. A call to
+	 * `prepareInvocation` is not necessarily followed by a call to `invoke`.
 	 */
-	prepareToolInvocation?(
-		options: LanguageModelToolInvocationPrepareOptions<T>,
-		token: CancellationToken
-	): ProviderResult<PreparedToolInvocation>;
+	prepareInvocation?(options: LanguageModelToolInvocationPrepareOptions<T>, token: CancellationToken): ProviderResult<PreparedToolInvocation>;
 }
 
 /**
- * The result of a call to {@link LanguageModelTool.prepareToolInvocation}.
+ * The result of a call to {@link LanguageModelTool.prepareInvocation}.
  */
 export interface PreparedToolInvocation {
 	/**
@@ -629,7 +692,7 @@ export interface PreparedToolInvocation {
 	invocationMessage?: string;
 
 	/**
-	 * Customized messages to show when asking for user confirmation to run the tool.
+	 * The presence of this property indicates that the user should be asked to confirm before running the tool.
 	 */
 	confirmationMessages?: LanguageModelToolConfirmationMessages;
 }
@@ -639,9 +702,9 @@ export interface PreparedToolInvocation {
  */
 export interface ChatLanguageModelToolReference {
 	/**
-	 * The tool's ID. Refers to a tool listed in {@link lm.tools}.
+	 * The tool name. Refers to a tool listed in {@link lm.tools}.
 	 */
-	readonly id: string;
+	readonly name: string;
 
 	/**
 	 * The start and end index of the reference in the {@link ChatRequest.prompt prompt}. When undefined, the reference was

@@ -7,7 +7,8 @@ import { contentType } from '.';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
-import { LanguageModelToolResult } from './vscodeTypes';
+import type { LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult } from './vscodeTypes';
+import { PromptElementJSON } from './jsonTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
 
@@ -247,9 +248,9 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 
 					const priority = this.props.descending
 						? // First element in array of children has highest priority
-						  this.props.priority - i
+						this.props.priority - i
 						: // Last element in array of children has highest priority
-						  this.props.priority - children.length + i;
+						this.props.priority - children.length + i;
 
 					if (typeof child !== 'object') {
 						return <TextChunk priority={priority}>{child}</TextChunk>;
@@ -282,11 +283,17 @@ export interface IToolResultProps extends BasePromptElementProps {
 export class ToolResult extends PromptElement<IToolResultProps> {
 	render(): Promise<PromptPiece | undefined> | PromptPiece | undefined {
 		// note: future updates to content types should be handled here for backwards compatibility
-		if (this.props.data.hasOwnProperty(contentType)) {
-			return <elementJSON data={this.props.data[contentType]} />;
-		} else {
-			return <UserMessage priority={this.priority}>{this.props.data.toString()}</UserMessage>;
-		}
+		const vscode = require('vscode');
+		// TODO proper way to handle types here?
+		return <>
+			{this.props.data.content.map(part => {
+				if (part instanceof vscode.LanguageModelTextPart) {
+					return (part as LanguageModelTextPart).value;
+				} else if (part instanceof vscode.LanguageModelPromptTsxPart) {
+					return <elementJSON data={(part as LanguageModelPromptTsxPart).value as PromptElementJSON} />;
+				}
+			})}
+		</>;
 	}
 }
 
