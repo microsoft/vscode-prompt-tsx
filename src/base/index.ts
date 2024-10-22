@@ -213,13 +213,13 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 					m.name
 				);
 				if (m.tool_calls) {
-					message.content2 = [m.content];
-					message.content2.push(
+					message.content2 = [
+						m.content,
 						...m.tool_calls.map(
 							tc =>
 								new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)
 						)
-					);
+					];
 				}
 				return message;
 			case ChatRole.User:
