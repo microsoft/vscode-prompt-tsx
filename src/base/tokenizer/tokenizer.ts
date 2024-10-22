@@ -33,10 +33,10 @@ export class AnyTokenizer implements ITokenizer {
 	}
 
 	async countMessageTokens(message: ChatMessage): Promise<number> {
-		const vscode = require('vscode');
+		const vscode = await import('vscode');
 		return this.countTokens({
 			role: this.toChatRole(message.role),
-			content: new vscode.LanguageModelTextPart(message.content),
+			content: [new vscode.LanguageModelTextPart(message.content)],
 			name: 'name' in message ? message.name : undefined,
 		});
 	}
