@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from 'vscode';
+import type { CancellationToken, LanguageModelChatMessage } from 'vscode';
 import { ChatMessage, ChatRole } from '../openai';
-import type { LanguageModelChatMessage } from '../vscodeTypes';
 
 /**
  * Represents a tokenizer that can be used to tokenize text in chat messages.
@@ -34,10 +33,10 @@ export class AnyTokenizer implements ITokenizer {
 	}
 
 	async countMessageTokens(message: ChatMessage): Promise<number> {
+		const vscode = require('vscode');
 		return this.countTokens({
 			role: this.toChatRole(message.role),
-			content: message.content,
-			content2: [message.content],
+			content: vscode.LanguageModelTextPart(message.content),
 			name: 'name' in message ? message.name : undefined,
 		});
 	}

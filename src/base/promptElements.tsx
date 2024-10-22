@@ -2,12 +2,11 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken } from 'vscode';
+import type { CancellationToken, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
 import { contentType } from '.';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
-import type { LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult } from './vscodeTypes';
 import { PromptElementJSON } from './jsonTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;

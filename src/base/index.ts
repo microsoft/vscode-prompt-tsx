@@ -2,14 +2,14 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, ChatResponsePart, LanguageModelChat, Progress } from 'vscode';
+import type { CancellationToken, ChatResponsePart, LanguageModelChat, Progress, LanguageModelChatMessage } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
 import { ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
 import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
-import { ChatDocumentContext, LanguageModelChatMessage } from './vscodeTypes.d';
+import { ChatDocumentContext } from './vscodeTypes.d';
 
 export * from './htmlTracer';
 export * as JSONTree from './jsonTypes';
@@ -213,8 +213,8 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 					m.name
 				);
 				if (m.tool_calls) {
-					message.content2 = [
-						m.content,
+					message.content = [
+						new vscode.LanguageModelTextPart(m.content),
 						...m.tool_calls.map(
 							tc =>
 								new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)
@@ -226,12 +226,12 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 				return vscode.LanguageModelChatMessage.User(m.content, m.name);
 			case ChatRole.Function: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content2 = [new vscode.LanguageModelToolResultPart(m.name, [new vscode.LanguageModelTextPart(m.content)])];
+				message.content = [new vscode.LanguageModelToolResultPart(m.name, [new vscode.LanguageModelTextPart(m.content)])];
 				return message;
 			}
 			case ChatRole.Tool: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content2 = [new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(m.content)])];
+				message.content = [new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(m.content)])];
 				return message;
 			}
 			default:
