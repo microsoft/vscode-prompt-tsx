@@ -36,7 +36,7 @@ export class AnyTokenizer implements ITokenizer {
 		const vscode = require('vscode');
 		return this.countTokens({
 			role: this.toChatRole(message.role),
-			content: vscode.LanguageModelTextPart(message.content),
+			content: new vscode.LanguageModelTextPart(message.content),
 			name: 'name' in message ? message.name : undefined,
 		});
 	}
