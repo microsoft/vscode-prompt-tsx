@@ -217,7 +217,7 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 						new vscode.LanguageModelTextPart(m.content),
 						...m.tool_calls.map(
 							tc =>
-								new vscode.LanguageModelToolCallPart(tc.function.name, tc.id, tc.function.arguments)
+								new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, tc.function.arguments)
 						)
 					];
 				}
