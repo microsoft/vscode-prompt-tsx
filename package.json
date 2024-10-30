@@ -20,8 +20,13 @@
 	"author": "Microsoft Corporation",
 	"license": "MIT",
 	"bugs": {
-		"url": "https://github.com/Microsoft/vscode/issues"
+		"url": "https://github.com/microsoft/vscode-prompt-tsx/issues"
 	},
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/microsoft/vscode-prompt-tsx.git"
+	},
+	"homepage": "https://github.com/microsoft/vscode-prompt-tsx#readme",
 	"devDependencies": {
 		"@microsoft/tiktokenizer": "^1.0.6",
 		"@types/node": "^20.11.30",
