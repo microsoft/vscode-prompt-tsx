@@ -707,29 +707,37 @@ async function computeTokensConsumedByLiterals(
 
 // Flatten nested fragments and normalize children
 function flattenAndReduce(
-	c: string | number | PromptPiece<any> | undefined
+	c: string | number | PromptPiece<any> | undefined,
+	into: ProcessedPromptPiece[] = []
 ): ProcessedPromptPiece[] {
 	if (typeof c === 'undefined' || typeof c === 'boolean') {
 		// booleans are ignored to allow for the pattern: { cond && <Element ... /> }
 		return [];
 	} else if (typeof c === 'string' || typeof c === 'number') {
-		return [new LiteralPromptPiece(String(c))];
+		into.push(new LiteralPromptPiece(String(c)));
 	} else if (isFragmentCtor(c)) {
-		return [...flattenAndReduceArr(c.children)];
+		flattenAndReduceArr(c.children, into);
+	} else if (isIterable(c)) {
+		flattenAndReduceArr(c, into);
 	} else if (typeof c.ctor === 'string') {
 		// intrinsic element
-		return [new IntrinsicPromptPiece(c.ctor, c.props, c.children)];
+		into.push(new IntrinsicPromptPiece(c.ctor, c.props, c.children));
 	} else {
 		// extrinsic element
-		return [new ExtrinsicPromptPiece(c.ctor, c.props, c.children)];
+		into.push(new ExtrinsicPromptPiece(c.ctor, c.props, c.children));
 	}
+
+	return into;
 }
 
-function flattenAndReduceArr(arr: PromptPieceChild[]): ProcessedPromptPiece[] {
-	return (arr ?? []).reduce((r, c) => {
-		r.push(...flattenAndReduce(c));
-		return r;
-	}, [] as ProcessedPromptPiece[]);
+function flattenAndReduceArr(
+	arr: Iterable<PromptPieceChild>,
+	into: ProcessedPromptPiece[] = []
+): ProcessedPromptPiece[] {
+	for (const entry of arr) {
+		flattenAndReduce(entry, into);
+	}
+	return into;
 }
 
 class IntrinsicPromptPiece<K extends keyof JSX.IntrinsicElements> {
@@ -1030,4 +1038,16 @@ class ReferenceMetadata extends InternalMetadata {
 	constructor(public readonly reference: PromptReference) {
 		super();
 	}
+}
+
+function iterableToArray<T>(t: Iterable<T>): ReadonlyArray<T> {
+	if (isIterable(t)) {
+		return Array.from(t);
+	}
+
+	return t;
+}
+
+function isIterable(t: unknown): t is Iterable<any> {
+	return !!t && typeof (t as any)[Symbol.iterator] === 'function';
 }

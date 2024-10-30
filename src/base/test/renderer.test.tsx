@@ -255,7 +255,7 @@ suite('PromptRenderer', () => {
 
 			let tokens = initialRender.tokenCount;
 			let last = '';
-			for (let i = 0; i < order.length;) {
+			for (let i = 0; i < order.length; ) {
 				const res = await new PromptRenderer(
 					{ modelMaxPromptTokens: tokens } as any,
 					class extends PromptElement {
@@ -1474,7 +1474,14 @@ suite('PromptRenderer', () => {
 							return (
 								<UserMessage>
 									<TextChunk priority={40}>outer40</TextChunk>
-									<ToolResult priority={50} data={new vscode.LanguageModelToolResult([new vscode.LanguageModelPromptTsxPart(json, contentType)])} />
+									<ToolResult
+										priority={50}
+										data={
+											new vscode.LanguageModelToolResult([
+												new vscode.LanguageModelPromptTsxPart(json, contentType),
+											])
+										}
+									/>
 									<TextChunk priority={60}>outer60</TextChunk>
 									<TextChunk priority={70}>outer70</TextChunk>
 									<TextChunk priority={80}>outer80</TextChunk>
@@ -1538,7 +1545,14 @@ suite('PromptRenderer', () => {
 						render() {
 							return (
 								<UserMessage>
-									<ToolResult priority={50} data={new vscode.LanguageModelToolResult([new vscode.LanguageModelPromptTsxPart(r, contentType)])} />
+									<ToolResult
+										priority={50}
+										data={
+											new vscode.LanguageModelToolResult([
+												new vscode.LanguageModelPromptTsxPart(r, contentType),
+											])
+										}
+									/>
 								</UserMessage>
 							);
 						}
@@ -1885,5 +1899,27 @@ suite('PromptRenderer', () => {
 				},
 			]);
 		});
+	});
+
+	test('supports iterable children', async () => {
+		class Wrapper extends PromptElement {
+			render() {
+				return (
+					<UserMessage>
+						hello
+						{(function* () {
+							yield ' everyone';
+							yield ' in';
+							yield ' the ';
+						})()}
+						world!
+					</UserMessage>
+				);
+			}
+		}
+
+		const inst = new PromptRenderer(fakeEndpoint, Wrapper, {}, tokenizer);
+		const res = await inst.render(undefined, undefined);
+		assert.deepStrictEqual(res.messages.map(m => m.content).join(''), 'hello everyone in the world!');
 	});
 });
