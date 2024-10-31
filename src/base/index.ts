@@ -71,7 +71,9 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 ): Promise<{
 	messages: LanguageModelChatMessage[];
 	tokenCount: number;
+	/** @deprecated use {@link metadata} */
 	metadatas: MetadataMap;
+	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
 }>;
@@ -99,7 +101,9 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 ): Promise<{
 	messages: ChatMessage[];
 	tokenCount: number;
+	/** @deprecated use {@link metadata} */
 	metadatas: MetadataMap;
+	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
 }>;
@@ -114,7 +118,9 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 ): Promise<{
 	messages: (ChatMessage | LanguageModelChatMessage)[];
 	tokenCount: number;
+	/** @deprecated use {@link metadata} */
 	metadatas: MetadataMap;
+	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
 }> {
@@ -130,7 +136,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 		messages = toVsCodeChatMessages(messages);
 	}
 
-	return { messages, tokenCount, metadatas: metadata, usedContext, references };
+	return { messages, tokenCount, metadatas: metadata, metadata, usedContext, references };
 }
 
 /**
