@@ -14,6 +14,7 @@ import {
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
+	TokenLimit,
 	ToolMessage,
 	ToolResult,
 	UserMessage,
@@ -1920,6 +1921,206 @@ suite('PromptRenderer', () => {
 
 		const inst = new PromptRenderer(fakeEndpoint, Wrapper, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
-		assert.deepStrictEqual(res.messages.map(m => m.content).join(''), 'hello everyone in the world!');
+		assert.deepStrictEqual(
+			res.messages.map(m => m.content).join(''),
+			'hello everyone in the world!'
+		);
+	});
+
+	suite('TokenLimit', () => {
+		test('limits tokens within budget', async () => {
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TextChunk priority={1}>outside</TextChunk>
+							<TokenLimit max={7} priority={10}>
+								<PrioritizedList descending={true}>
+									<TextChunk>12345</TextChunk>
+									<TextChunk>67890</TextChunk>
+									<TextChunk>extra</TextChunk>
+								</PrioritizedList>
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'outside\n12345\n67890',
+				},
+			]);
+		});
+
+		test('child elements get lower token limit', async () => {
+			class Wrapper extends PromptElement<{ expected: number } & BasePromptElementProps> {
+				render(_: void, sizing: PromptSizing) {
+					assert.strictEqual(sizing.tokenBudget, this.props.expected);
+					return <>asdf</>;
+				}
+			}
+
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Wrapper expected={8175} />
+							<TokenLimit max={10} priority={10}>
+								<Wrapper expected={10} />
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'asdf\nasdf',
+				},
+			]);
+		});
+
+		test('does not redistribute with higher than proportionate limit', async () => {
+			class Wrapper extends PromptElement<{ expected: number } & BasePromptElementProps> {
+				render(_: void, sizing: PromptSizing) {
+					assert.strictEqual(sizing.tokenBudget, this.props.expected);
+					return <>asdf</>;
+				}
+			}
+
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Wrapper expected={4092} />
+							<TokenLimit max={10000} priority={10}>
+								<Wrapper expected={4092} />
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'asdf\nasdf',
+				},
+			]);
+		});
+
+		test('works with multiple', async () => {
+			class Wrapper extends PromptElement<{ expected: number } & BasePromptElementProps> {
+				render(_: void, sizing: PromptSizing) {
+					assert.strictEqual(sizing.tokenBudget, this.props.expected);
+					return <>asdf</>;
+				}
+			}
+
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Wrapper expected={2695} />
+							<Wrapper expected={2695} />
+							{/* Included in distribution */}
+							<TokenLimit max={100} priority={10}>
+								<Wrapper expected={100} />
+							</TokenLimit>
+							{/* excluded from distribution because of large size */}
+							<TokenLimit max={10000} priority={10}>
+								<Wrapper expected={2695} />
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'asdf\nasdf\nasdf\nasdf',
+				},
+			]);
+		});
+
+		test('limits if nested outer < inner', async () => {
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TokenLimit max={15} priority={10}>
+								<PrioritizedList descending={true} priority={10}>
+									<TextChunk>12345</TextChunk>
+									<TextChunk>67890</TextChunk>
+									<TextChunk>extra</TextChunk>
+								</PrioritizedList>
+								<TokenLimit max={100} priority={15}>
+									<PrioritizedList descending={true}>
+										<TextChunk>12345</TextChunk>
+										<TextChunk>67890</TextChunk>
+										<TextChunk>extra</TextChunk>
+									</PrioritizedList>
+								</TokenLimit>
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: '12345\n67890\n12345\n67890\nextra',
+				},
+			]);
+		});
+
+		test('limits if nested outer > inner', async () => {
+			class PromptWithLimit extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TokenLimit max={15} priority={10}>
+								<PrioritizedList descending={true} priority={10}>
+									<TextChunk>12345</TextChunk>
+									<TextChunk>67890</TextChunk>
+									<TextChunk>extra</TextChunk>
+								</PrioritizedList>
+								<TokenLimit max={7} priority={5}>
+									<PrioritizedList descending={true}>
+										<TextChunk>12345</TextChunk>
+										<TextChunk>67890</TextChunk>
+										<TextChunk>extra</TextChunk>
+									</PrioritizedList>
+								</TokenLimit>
+							</TokenLimit>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: '12345\n67890\nextra\n12345\n67890',
+				},
+			]);
+		});
 	});
 });

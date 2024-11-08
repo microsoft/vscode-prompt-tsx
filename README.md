@@ -273,6 +273,24 @@ There are a few similar properties which control budget allocation you mind find
 
 It's important to note that all of the `flex*` properties allow for cooperative use of the token budget for a prompt, but have no effect on the prioritization and pruning logic undertaken once all elements are rendered.
 
+### Local Priority Limits
+
+`prompt-tsx` provides a `TokenLimit` element that can be used to set a hard cap on the number of tokens that can be consumed by a prompt or part of a prompt. Using it is fairly straightforward:
+
+```tsx
+class PromptWithLimit extends PromptElement {
+	render() {
+		return (
+			<UserMessage>
+				<TokenLimit max={1000}>{/* Your elements here! */}</TokenLimit>
+			</UserMessage>
+		);
+	}
+}
+```
+
+`TokenLimit` subtrees are pruned before the prompt gets pruned. As you would expect, the `PromptSizing` of child elements inside of a limit reflect the reduced budget. If the `TokenLimit` would get `tokenBudget` smaller than its maximum via the usual distribution rules, then that's given it child elements instead (but pruning to the `max` value still happens.)
+
 ### Expandable Text
 
 The tools provided by `flex*` attributes are good, but sometimes you may still end up with unused space in your token budget that you'd like to utilize. We provide a special `<Expandable />` element that can be used in this case. It takes a callback that can return a text string.

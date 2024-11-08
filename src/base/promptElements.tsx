@@ -2,11 +2,16 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, LanguageModelPromptTsxPart, LanguageModelTextPart, LanguageModelToolResult } from 'vscode';
+import type {
+	CancellationToken,
+	LanguageModelPromptTsxPart,
+	LanguageModelTextPart,
+	LanguageModelToolResult,
+} from 'vscode';
 import { contentType } from '.';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { BasePromptElementProps, PromptPiece, PromptSizing } from './types';
+import { BasePromptElementProps, PromptElementProps, PromptPiece, PromptSizing } from './types';
 import { PromptElementJSON } from './jsonTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
@@ -221,7 +226,7 @@ export interface PrioritizedListProps extends BasePromptElementProps {
 	 * Priority of the list element.
 	 * All rendered elements in this list receive a priority that is offset from this value.
 	 */
-	priority: number;
+	priority?: number;
 	/**
 	 * If `true`, assign higher priority to elements declared earlier in this list.
 	 */
@@ -233,7 +238,7 @@ export interface PrioritizedListProps extends BasePromptElementProps {
  */
 export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 	override render() {
-		const children = this.props.children;
+		const { children, priority = 0, descending } = this.props;
 		if (!children) {
 			return;
 		}
@@ -245,18 +250,18 @@ export class PrioritizedList extends PromptElement<PrioritizedListProps> {
 						return;
 					}
 
-					const priority = this.props.descending
+					const thisPriority = descending
 						? // First element in array of children has highest priority
-						this.props.priority - i
+						  priority - i
 						: // Last element in array of children has highest priority
-						this.props.priority - children.length + i;
+						  priority - children.length + i;
 
 					if (typeof child !== 'object') {
-						return <TextChunk priority={priority}>{child}</TextChunk>;
+						return <TextChunk priority={thisPriority}>{child}</TextChunk>;
 					}
 
 					child.props ??= {};
-					child.props.priority = priority;
+					child.props.priority = thisPriority;
 					return child;
 				})}
 			</>
@@ -284,15 +289,19 @@ export class ToolResult extends PromptElement<IToolResultProps> {
 		// note: future updates to content types should be handled here for backwards compatibility
 		const vscode = require('vscode');
 		// TODO proper way to handle types here?
-		return <>
-			{this.props.data.content.map(part => {
-				if (part instanceof vscode.LanguageModelTextPart) {
-					return (part as LanguageModelTextPart).value;
-				} else if (part instanceof vscode.LanguageModelPromptTsxPart) {
-					return <elementJSON data={(part as LanguageModelPromptTsxPart).value as PromptElementJSON} />;
-				}
-			})}
-		</>;
+		return (
+			<>
+				{this.props.data.content.map(part => {
+					if (part instanceof vscode.LanguageModelTextPart) {
+						return (part as LanguageModelTextPart).value;
+					} else if (part instanceof vscode.LanguageModelPromptTsxPart) {
+						return (
+							<elementJSON data={(part as LanguageModelPromptTsxPart).value as PromptElementJSON} />
+						);
+					}
+				})}
+			</>
+		);
 	}
 }
 
@@ -333,5 +342,20 @@ export interface ExpandableProps extends BasePromptElementProps {
 export class Expandable extends PromptElement<ExpandableProps> {
 	async render(_state: void, sizing: PromptSizing): Promise<PromptPiece> {
 		return <>{await this.props.value(sizing)}</>;
+	}
+}
+
+export interface TokenLimitProps extends BasePromptElementProps {
+	max: number;
+}
+
+/**
+ * An element that ensures its children don't exceed a certain number of
+ * `maxTokens`. Its contents are pruned to fit within the budget before
+ * the overall prompt pruning is run.
+ */
+export class TokenLimit extends PromptElement<TokenLimitProps> {
+	render(): PromptPiece {
+		return <>{this.props.children}</>;
 	}
 }
