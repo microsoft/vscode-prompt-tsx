@@ -71,9 +71,6 @@ export interface BasePromptElementProps {
 	 */
 	flexBasis?: number;
 
-	/** @deprecated renamed to {@link flexBasis} */
-	flex?: number;
-
 	/**
 	 * If set, sibling elements will be rendered first, followed by this element. The remaining {@link PromptSizing.tokenBudget token budget} from the container will be distributed among the elements with `flexGrow` set.
 	 *

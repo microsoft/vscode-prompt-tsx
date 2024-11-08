@@ -54,12 +54,9 @@ export class MaterializedContainer implements IMaterializedNode {
 		let total = 0;
 		await Promise.all(
 			this.children.map(async child => {
-				// note: this method is not called when the container is inside a chat
-				// message, because in that case the chat message generates the text
-				// and counts that.
-				assertContainerOrChatMessage(child);
-
-				const amt = await child.tokenCount(tokenizer);
+				const amt = isContainerType(child)
+					? await child.tokenCount(tokenizer)
+					: await child.upperBoundTokenCount(tokenizer);
 				total += amt;
 			})
 		);
@@ -90,6 +87,13 @@ export class MaterializedContainer implements IMaterializedNode {
 	 */
 	allMetadata(): Generator<PromptMetadata> {
 		return allMetadata(this);
+	}
+
+	/**
+	 * Finds a node in the tree by ID.
+	 */
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+		return findNodeById(nodeId, this);
 	}
 
 	/**
@@ -198,6 +202,13 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		this._tokenCount.clear();
 		this._upperBound.clear();
 		this._text.clear();
+	}
+
+	/**
+	 * Finds a node in the tree by ID.
+	 */
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+		return findNodeById(nodeId, this);
 	}
 
 	private readonly _tokenCount = once(async (tokenizer: ITokenizer) => {
@@ -359,7 +370,12 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage) {
 	let lowest:
 		| undefined
-		| { chain: (MaterializedContainer | MaterializedChatMessage)[]; index: number; value: MaterializedNode; lowestNested?: number };
+		| {
+				chain: (MaterializedContainer | MaterializedChatMessage)[];
+				index: number;
+				value: MaterializedNode;
+				lowestNested?: number;
+		  };
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -451,6 +467,24 @@ function replaceNode(
 			}
 
 			const inner = child.replaceNode(nodeId, withNode);
+			if (inner) {
+				return inner;
+			}
+		}
+	}
+}
+
+function findNodeById(
+	nodeId: number,
+	container: MaterializedContainer | MaterializedChatMessage
+): MaterializedContainer | MaterializedChatMessage | undefined {
+	if (container.id === nodeId) {
+		return container;
+	}
+
+	for (const child of container.children) {
+		if (isContainerType(child)) {
+			const inner = findNodeById(nodeId, child);
 			if (inner) {
 				return inner;
 			}
