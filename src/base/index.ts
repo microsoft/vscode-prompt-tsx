@@ -222,8 +222,17 @@ export function toVsCodeChatMessages(messages: ChatMessage[]) {
 					message.content = [
 						new vscode.LanguageModelTextPart(m.content),
 						...m.tool_calls.map(
-							tc =>
-								new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, tc.function.arguments)
+							tc => {
+								// prompt-tsx got args passed as a string, here we assume they are JSON because the vscode-type wants an object
+								let parsedArgs: object;
+								try {
+									parsedArgs = JSON.parse(tc.function.arguments);
+								} catch (err) {
+									throw new Error('Invalid JSON in tool call arguments for tool call: ' + tc.id);
+								}
+
+								return new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, parsedArgs)
+							}
 						)
 					];
 				}
