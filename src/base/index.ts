@@ -129,7 +129,9 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
 			: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
-	let { messages, tokenCount, references, metadata } = await renderer.render(progress, token);
+	const renderResult = await renderer.render(progress, token);
+	const { tokenCount, references, metadata } = renderResult;
+	let messages: ChatMessage[] | LanguageModelChatMessage[] = renderResult.messages;
 	const usedContext = renderer.getUsedContext();
 
 	if (mode === 'vscode') {
@@ -209,7 +211,7 @@ export function renderElementJSON<P extends BasePromptElementProps>(
  * @param messages - The array of {@link ChatMessage} objects to convert.
  * @returns An array of {@link LanguageModelChatMessage VS Code chat messages}.
  */
-export function toVsCodeChatMessages(messages: ChatMessage[]) {
+export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChatMessage[] {
 	const vscode = require('vscode');
 	return messages.map(m => {
 		switch (m.role) {
