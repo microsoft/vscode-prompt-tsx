@@ -44,7 +44,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
-	) {}
+	) { }
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -136,7 +136,7 @@ export class MaterializedChatMessageTextChunk {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore
-	) {}
+	) { }
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
@@ -160,7 +160,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
 		public readonly children: MaterializedNode[]
-	) {}
+	) { }
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -181,10 +181,10 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	public get isEmpty() {
 		const content = this.text
 			.filter(element => typeof element === 'string')
-			.join('');
+			.join('').trimEnd();
 		const images = this.text.filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
 
-		return !/\S/.test(content.trim()) && !this.toolCalls?.length && !this.toolCallId && images.length === 0;
+		return !/\S/.test(content) && !this.toolCalls?.length && !this.toolCallId && images.length === 0;
 	}
 
 	/**
@@ -272,7 +272,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	public toChatMessage(): ChatMessage {
 		const content = this.text
 			.filter(element => typeof element === 'string')
-			.join('');
+			.join('').trim();
 
 		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
 
@@ -280,10 +280,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			return {
 				role: ChatRole.User,
 				content: [
-					{
-						type: 'text',
-						text: content.trim(),
-					},
 					{
 						type: 'image_url',
 						image_url: { url: images[0].imageUrl, detail: 'high' },
@@ -294,32 +290,32 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		if (this.role === ChatRole.System) {
 			return {
 				role: this.role,
-				content: content.trim(),
+				content,
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Assistant) {
 			return {
 				role: this.role,
-				content: content.trim(),
+				content,
 				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.User) {
 			return {
 				role: this.role,
-				content: content.trim(),
+				content,
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Tool) {
 			return {
 				role: this.role,
-				content: content.trim(),
+				content,
 				tool_call_id: this.toolCallId,
 			};
 		} else {
 			return {
 				role: this.role,
-				content: content.trim(),
+				content,
 				name: this.name!,
 			};
 		}

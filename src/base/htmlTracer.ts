@@ -270,12 +270,12 @@ async function serializeMaterialized(
 		} else if (materialized instanceof MaterializedChatMessage) {
 			const content = materialized.text
 				.filter(element => typeof element === 'string')
-				.join('');
+				.join('').trim();
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.ChatMessage,
 				role: materialized.role,
-				text: content.trim(),
+				text: content,
 			};
 		}
 	}
