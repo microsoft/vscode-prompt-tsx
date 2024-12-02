@@ -333,9 +333,7 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore,
 		public readonly children: MaterializedNode[]
-	) {
-		// super(id, role, name, toolCalls, toolCallId, priority, metadata, children);
-	}
+	) {}
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
 		return this._upperBound(tokenizer);
 	}
