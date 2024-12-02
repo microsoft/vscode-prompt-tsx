@@ -244,7 +244,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				// check children, throw for now
 				for (const child of text.children) {
 					if (child instanceof MaterializedChatMessageTextChunk) {
-						throw new Error('Image children cannot be text chunks');
+						throw new Error(`Cannot have a text node inside a BaseImageMessage. Text: "${child.text}"`);
 					}
 				}
 				break;
@@ -337,15 +337,30 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		// super(id, role, name, toolCalls, toolCallId, priority, metadata, children);
 	}
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
-		return new Promise((resolve, reject) => {
-			resolve(1000);
-		});
+		return this._upperBound(tokenizer);
 	}
 	tokenCount(tokenizer: ITokenizer): Promise<number> {
-		return new Promise((resolve, reject) => {
-			resolve(this.calculateImageTokenCost(this.width, this.height, 'high'));
-		});
+		return this._tokenCount(tokenizer);
 	}
+
+	private readonly _tokenCount = once(async (tokenizer: ITokenizer) => {
+		return tokenizer.countMessageTokens(this.toChatMessage());
+	});
+
+	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
+		let total = await this._baseMessageTokenCount(tokenizer);
+		await Promise.all(
+			this.children.map(async chunk => {
+				const amt = await chunk.upperBoundTokenCount(tokenizer);
+				total += amt;
+			})
+		);
+		return total;
+	});
+
+	private readonly _baseMessageTokenCount = once((tokenizer: ITokenizer) => {
+		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
+	});
 
 	// https://platform.openai.com/docs/guides/vision#calculating-costs
 	private calculateImageTokenCost(width: number, height: number, detail: 'low' | 'high'): number {
@@ -369,11 +384,12 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		return tiles * 170 + 85;
 
 
-		// tokens = (width px * height px)/750
+		// tokens = (width px * height px)/750 for Anthropic
 	}
 
 
 	removeLowestPriorityChild(): void {
+		// Not implemented yet
 	}
 
 	public get text(): (string | MaterializedChatMesageImage)[] {
@@ -472,20 +488,18 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	let lowest:
 		| undefined
 		| {
-			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			chain: (MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage)[];
 			node: MaterializedChatMessageTextChunk;
 		};
 
 	function findLowestInTree(
 		node: MaterializedNode,
-		chain: (MaterializedContainer | MaterializedChatMessage)[]
+		chain: (MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage)[]
 	) {
 		if (node instanceof MaterializedChatMessageTextChunk) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
 			}
-		} else if (node instanceof MaterializedChatMesageImage) {
-			// do nothing yet
 		} else {
 			chain.push(node);
 			for (const child of node.children) {
@@ -569,8 +583,6 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
 		containingList.splice(lowest.index, 1);
-	} else if (lowest.value instanceof MaterializedChatMesageImage) {
-		// do nothing yet
 	} else {
 		lowest.value.removeLowestPriorityChild();
 		if (lowest.value.children.length === 0) {
