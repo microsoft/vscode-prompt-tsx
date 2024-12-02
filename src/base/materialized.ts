@@ -44,7 +44,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
-	) { }
+	) {}
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -136,7 +136,7 @@ export class MaterializedChatMessageTextChunk {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore
-	) { }
+	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
@@ -160,7 +160,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
 		public readonly children: MaterializedNode[]
-	) { }
+	) {}
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
