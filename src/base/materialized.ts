@@ -244,7 +244,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				// check children, throw for now
 				for (const child of text.children) {
 					if (child instanceof MaterializedChatMessageTextChunk) {
-						throw new Error(`Cannot have a text node inside a BaseImageMessage. Text: "${child.text}"`);
+						result.push(child.text);
 					}
 				}
 				break;
@@ -280,6 +280,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			return {
 				role: ChatRole.User,
 				content: [
+					{ type: 'text', text: content },
 					{
 						type: 'image_url',
 						image_url: { url: images[0].imageUrl, detail: 'high' },
@@ -335,7 +336,7 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		public readonly children: MaterializedNode[]
 	) {}
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
-		return this._upperBound(tokenizer);
+		return this._tokenCount(tokenizer);
 	}
 	tokenCount(tokenizer: ITokenizer): Promise<number> {
 		return this._tokenCount(tokenizer);
@@ -359,32 +360,6 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	private readonly _baseMessageTokenCount = once((tokenizer: ITokenizer) => {
 		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
 	});
-
-	// https://platform.openai.com/docs/guides/vision#calculating-costs
-	private calculateImageTokenCost(width: number, height: number, detail: 'low' | 'high'): number {
-		if (detail === 'low') {
-			return 85;
-		}
-
-		// Scale image to fit within a 2048 x 2048 square if necessary.
-		if (width > 2048 || height > 2048) {
-			const scaleFactor = 2048 / Math.max(width, height);
-			width = Math.round(width * scaleFactor);
-			height = Math.round(height * scaleFactor);
-		}
-
-		const scaleFactor = 768 / Math.min(width, height);
-		width = Math.round(width * scaleFactor);
-		height = Math.round(height * scaleFactor);
-
-		const tiles = Math.ceil(width / 512) * Math.ceil(height / 512);
-
-		return tiles * 170 + 85;
-
-
-		// tokens = (width px * height px)/750 for Anthropic
-	}
-
 
 	removeLowestPriorityChild(): void {
 		// Not implemented yet
@@ -423,7 +398,12 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	}
 
 	private readonly _text = once((): (string | MaterializedChatMesageImage)[] => {
+		if (this instanceof MaterializedChatMesageImage) {
+			return [this]
+		}
+
 		let result: (string | MaterializedChatMesageImage)[] = [''];
+
 		for (const { text, isTextSibling } of textChunks(this)) {
 			if (text instanceof MaterializedChatMesageImage) {
 				result.push(text);
