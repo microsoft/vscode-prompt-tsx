@@ -34,12 +34,50 @@ export interface UserChatMessage {
 	/**
 	 * The content of the chat message.
 	 */
-	content: string;
+	content: string | Array<ChatCompletionContentPart>;
 
 	/**
 	 * An optional name for the participant. Provides the model information to differentiate between participants of the same role.
 	 */
 	name?: string;
+}
+
+export type ChatCompletionContentPart = ChatCompletionContentPartImage | ChatCompletionContentPartText;
+
+export interface ChatCompletionContentPartImage {
+	image_url: ChatCompletionContentPartImage.ImageURL;
+
+	/**
+	 * The type of the content part.
+	 */
+	type: 'image_url';
+}
+
+export namespace ChatCompletionContentPartImage {
+	export interface ImageURL {
+		/**
+		 * Either a URL of the image or the base64 encoded image data.
+		 */
+		url: string;
+
+		/**
+		 * Specifies the detail level of the image. Learn more in the
+		 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+		 */
+		detail?: 'auto' | 'low' | 'high';
+	}
+}
+
+export interface ChatCompletionContentPartText {
+	/**
+	 * The text content.
+	 */
+	text: string;
+
+	/**
+	 * The type of the content part.
+	 */
+	type: 'text';
 }
 
 export interface ChatMessageToolCall {

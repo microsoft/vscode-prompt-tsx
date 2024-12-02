@@ -14,6 +14,7 @@ import {
 	TraceMaterializedNodeType,
 } from './htmlTracerTypes';
 import {
+	MaterializedChatMesageImage,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
 	MaterializedContainer,
@@ -224,6 +225,24 @@ async function serializeMaterialized(
 			value: materialized.text,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
 		};
+	} else if (materialized instanceof MaterializedChatMesageImage) {
+		return {
+			...common,
+			name: materialized.id.toString(),
+			id: materialized.id,
+			type: TraceMaterializedNodeType.Image,
+			value: materialized.imageUrl,
+			tokens: await materialized.upperBoundTokenCount(tokenizer),
+			children: await Promise.all(
+				materialized.children.map(c =>
+					serializeMaterialized(
+						tokenizer,
+						c,
+						inChatMessage || materialized instanceof MaterializedChatMesageImage
+					)
+				)
+			),
+		}
 	} else {
 		const containerCommon = {
 			...common,
@@ -249,11 +268,14 @@ async function serializeMaterialized(
 				type: TraceMaterializedNodeType.Container,
 			};
 		} else if (materialized instanceof MaterializedChatMessage) {
+			const content = materialized.text
+				.filter(element => typeof element === 'string')
+				.join('');
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.ChatMessage,
 				role: materialized.role,
-				text: materialized.text,
+				text: content.trim(),
 			};
 		}
 	}

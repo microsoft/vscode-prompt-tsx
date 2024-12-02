@@ -8,11 +8,12 @@ import { PromptNodeType } from './jsonTypes';
 import {
 	ContainerFlags,
 	LineBreakBefore,
+	MaterializedChatMesageImage,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
 	MaterializedContainer,
 } from './materialized';
-import { ChatMessage } from './openai';
+import { ChatMessage, ChatRole } from './openai';
 import { PromptElement } from './promptElement';
 import {
 	AssistantMessage,
@@ -26,6 +27,8 @@ import {
 	TokenLimit,
 	TokenLimitProps,
 	ToolMessage,
+	ImageProps,
+	BaseImageMessage,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -180,7 +183,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					const reserve =
 						typeof element.props.flexReserve === 'string'
 							? // Typings ensure the string is `/${number}`
-							  Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
+							Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
 							: element.props.flexReserve;
 					reservedTokens += reserve;
 				}
@@ -472,7 +475,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	/** Grows all Expandable elements, returns if any changes were made. */
 	private async _grow(
-		tree: MaterializedContainer | MaterializedChatMessage,
+		tree: MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage,
 		tokensUsed: number,
 		tokenBudget: number,
 		token: CancellationToken | undefined
@@ -535,7 +538,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		progress: Progress<ChatResponsePart> | undefined,
 		token: CancellationToken | undefined
 	) {
-		if (element.ctor === TextChunk) {
+		if (element.ctor === TextChunk || element.ctor === BaseImageMessage) {
 			this._handleExtrinsicTextChunkChildren(element.node, element.node, element.props, pieces);
 			return;
 		}
@@ -872,6 +875,9 @@ class PromptTreeElement {
 				break;
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
+			case JSONT.PieceCtorKind.ImageChatMessage:
+				element._obj = new BaseImageMessage(json.props!);
+				break;
 			default:
 				softAssertNever(json.ctor);
 		}
@@ -957,17 +963,45 @@ class PromptTreeElement {
 				toolCalls: this._obj.props.toolCalls,
 				toolCallId: this._obj.props.toolCallId,
 			};
+		} else if (this._obj instanceof BaseImageMessage) {
+			json.ctor = JSONT.PieceCtorKind.ImageChatMessage;
+			json.props = {
+				image_url: this._obj.props.image_url,
+				width: this._obj.props.width,
+				height: this._obj.props.height,
+				priority: this._obj.props.priority,
+			};
 		}
 
 		return json;
 	}
 
-	public materialize(): MaterializedChatMessage | MaterializedContainer {
+	public materialize(): MaterializedChatMessage | MaterializedContainer | MaterializedChatMesageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 		if (this._obj instanceof BaseChatMessage) {
 			if (!this._obj.props.role) {
 				throw new Error(`Invalid ChatMessage!`);
 			}
+
+			if (this._obj instanceof BaseImageMessage) {
+				// #region materialize baseimage
+				if (!this._obj.props.image_url || !this._obj.props.width || !this._obj.props.height) {
+					throw new Error(`Invalid ImageMessage!`);
+				}
+				const parent = new MaterializedChatMesageImage(
+					1,
+					ChatRole.User,
+					this._obj.props.image_url,
+					this._obj.props.width,
+					this._obj.props.height,
+					this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
+					this._metadata,
+					LineBreakBefore.None,
+					this._children.map(child => child.materialize())
+				)
+				return parent;
+			}
+
 			const parent = new MaterializedChatMessage(
 				this.id,
 				this._obj.props.role,

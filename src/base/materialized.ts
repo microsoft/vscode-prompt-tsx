@@ -24,7 +24,8 @@ export interface IMaterializedNode {
 export type MaterializedNode =
 	| MaterializedContainer
 	| MaterializedChatMessage
-	| MaterializedChatMessageTextChunk;
+	| MaterializedChatMessageTextChunk
+	| MaterializedChatMesageImage;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -92,7 +93,7 @@ export class MaterializedContainer implements IMaterializedNode {
 	/**
 	 * Finds a node in the tree by ID.
 	 */
-	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage | undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -172,13 +173,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	/** Gets the text this message contains */
-	public get text(): string {
+	public get text(): (string | MaterializedChatMesageImage)[] {
 		return this._text();
 	}
 
 	/** Gets whether the message is empty */
 	public get isEmpty() {
-		return !/\S/.test(this.text) && !this.toolCalls?.length && !this.toolCallId;
+		const content = this.text
+			.filter(element => typeof element === 'string')
+			.join('');
+		const images = this.text.filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
+
+		return !/\S/.test(content.trim()) && !this.toolCalls?.length && !this.toolCallId && images.length === 0;
 	}
 
 	/**
@@ -207,7 +213,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	/**
 	 * Finds a node in the tree by ID.
 	 */
-	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage | undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -230,58 +236,208 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
 	});
 
-	private readonly _text = once(() => {
-		let result = '';
+	private readonly _text = once((): (string | MaterializedChatMesageImage)[] => {
+		let result: (string | MaterializedChatMesageImage)[] = [''];
 		for (const { text, isTextSibling } of textChunks(this)) {
+			if (text instanceof MaterializedChatMesageImage) {
+				result.push(text);
+				// check children, throw for now
+				for (const child of text.children) {
+					if (child instanceof MaterializedChatMessageTextChunk) {
+						throw new Error('Image children cannot be text chunks');
+					}
+				}
+				break;
+			}
 			if (
 				text.lineBreakBefore === LineBreakBefore.Always ||
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
-				if (result.length && !result.endsWith('\n')) {
-					result += '\n';
+				let res = result[result.length - 1]
+				if (!(res instanceof MaterializedChatMesageImage) && result.length && !res.endsWith('\n')) {
+					result.push('\n');
 				}
 			}
 
-			result += text.text;
+			if (typeof result[result.length - 1] === 'string') {
+				result[result.length - 1] += text.text;
+			} else {
+				result.push(text.text);
+			}
 		}
 
-		return result.trim();
+		return result;
 	});
 
 	public toChatMessage(): ChatMessage {
+		const content = this.text
+			.filter(element => typeof element === 'string')
+			.join('');
+
+		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
+
+		if (images.length > 0) {
+			return {
+				role: ChatRole.User,
+				content: [
+					{
+						type: 'text',
+						text: content.trim(),
+					},
+					{
+						type: 'image_url',
+						image_url: { url: images[0].imageUrl, detail: 'high' },
+					}],
+			};
+		}
+
 		if (this.role === ChatRole.System) {
 			return {
 				role: this.role,
-				content: this.text,
+				content: content.trim(),
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Assistant) {
 			return {
 				role: this.role,
-				content: this.text,
+				content: content.trim(),
 				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.User) {
 			return {
 				role: this.role,
-				content: this.text,
+				content: content.trim(),
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Tool) {
 			return {
 				role: this.role,
-				content: this.text,
+				content: content.trim(),
 				tool_call_id: this.toolCallId,
 			};
 		} else {
 			return {
 				role: this.role,
-				content: this.text,
+				content: content.trim(),
 				name: this.name!,
 			};
 		}
 	}
+}
+
+export class MaterializedChatMesageImage implements IMaterializedNode {
+	constructor(
+		public readonly id: number,
+		public readonly role: ChatRole,
+		public readonly imageUrl: string,
+		public readonly width: number,
+		public readonly height: number,
+		public readonly priority: number,
+		public readonly metadata: PromptMetadata[] = [],
+		public readonly lineBreakBefore: LineBreakBefore,
+		public readonly children: MaterializedNode[]
+	) {
+		// super(id, role, name, toolCalls, toolCallId, priority, metadata, children);
+	}
+	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
+		return new Promise((resolve, reject) => {
+			resolve(1000);
+		});
+	}
+	tokenCount(tokenizer: ITokenizer): Promise<number> {
+		return new Promise((resolve, reject) => {
+			resolve(this.calculateImageTokenCost(this.width, this.height, 'high'));
+		});
+	}
+
+	// https://platform.openai.com/docs/guides/vision#calculating-costs
+	private calculateImageTokenCost(width: number, height: number, detail: 'low' | 'high'): number {
+		if (detail === 'low') {
+			return 85;
+		}
+
+		// Scale image to fit within a 2048 x 2048 square if necessary.
+		if (width > 2048 || height > 2048) {
+			const scaleFactor = 2048 / Math.max(width, height);
+			width = Math.round(width * scaleFactor);
+			height = Math.round(height * scaleFactor);
+		}
+
+		const scaleFactor = 768 / Math.min(width, height);
+		width = Math.round(width * scaleFactor);
+		height = Math.round(height * scaleFactor);
+
+		const tiles = Math.ceil(width / 512) * Math.ceil(height / 512);
+
+		return tiles * 170 + 85;
+
+
+		// tokens = (width px * height px)/750
+	}
+
+
+	removeLowestPriorityChild(): void {
+	}
+
+	public get text(): (string | MaterializedChatMesageImage)[] {
+		return this._text();
+	}
+
+	/**
+	 * Replaces a node in the tree with the given one, by its ID.
+	 */
+	replaceNode(nodeId: number, withNode: MaterializedNode): MaterializedNode | undefined {
+		return replaceNode(nodeId, this.children, withNode);
+	}
+
+	/**
+	 * Finds a node in the tree by ID.
+	 */
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage | undefined {
+		return findNodeById(nodeId, this);
+	}
+
+	isEmpty: boolean = false;
+
+	public toChatMessage(): ChatMessage {
+		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
+
+		return {
+			role: ChatRole.User,
+			content: [{
+				type: 'image_url',
+				image_url: { url: images[0].imageUrl, detail: 'high' },
+			}],
+		};
+	}
+
+	private readonly _text = once((): (string | MaterializedChatMesageImage)[] => {
+		let result: (string | MaterializedChatMesageImage)[] = [''];
+		for (const { text, isTextSibling } of textChunks(this)) {
+			if (text instanceof MaterializedChatMesageImage) {
+				result.push(text);
+				break;
+			}
+			if (
+				text.lineBreakBefore === LineBreakBefore.Always ||
+				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
+			) {
+				let res = result[result.length - 1]
+				if (!(res instanceof MaterializedChatMesageImage) && result.length && !res.endsWith('\n')) {
+					res += '\n';
+				}
+			}
+
+			if (typeof result[result.length - 1] === 'string') {
+				result[result.length - 1] += text.text;
+			} else {
+				result.push(text.text);
+			}
+		}
+
+		return result;
+	});
 }
 
 function isContainerType(
@@ -292,22 +448,25 @@ function isContainerType(
 
 function assertContainerOrChatMessage(
 	v: MaterializedNode
-): asserts v is MaterializedContainer | MaterializedChatMessage {
-	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage)) {
+): asserts v is MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage {
+	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage) && !(v instanceof MaterializedChatMesageImage)) {
 		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
 	}
 }
 
 function* textChunks(
-	node: MaterializedContainer | MaterializedChatMessage,
+	node: MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage,
 	isTextSibling = false
-): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
+): Generator<{ text: MaterializedChatMessageTextChunk | MaterializedChatMesageImage; isTextSibling: boolean }> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
 			yield { text: child, isTextSibling };
 			isTextSibling = true;
+		} else if (child instanceof MaterializedChatMesageImage) {
+			yield { text: child, isTextSibling: false };
 		} else {
-			yield* textChunks(child, isTextSibling);
+			if (child)
+				yield* textChunks(child, isTextSibling);
 			isTextSibling = false;
 		}
 	}
@@ -317,9 +476,9 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
-				node: MaterializedChatMessageTextChunk;
-		  };
+			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			node: MaterializedChatMessageTextChunk;
+		};
 
 	function findLowestInTree(
 		node: MaterializedNode,
@@ -329,6 +488,8 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
 			}
+		} else if (node instanceof MaterializedChatMesageImage) {
+			// do nothing yet
 		} else {
 			chain.push(node);
 			for (const child of node.children) {
@@ -371,11 +532,11 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
-				index: number;
-				value: MaterializedNode;
-				lowestNested?: number;
-		  };
+			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			index: number;
+			value: MaterializedNode;
+			lowestNested?: number;
+		};
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -412,6 +573,8 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
 		containingList.splice(lowest.index, 1);
+	} else if (lowest.value instanceof MaterializedChatMesageImage) {
+		// do nothing yet
 	} else {
 		lowest.value.removeLowestPriorityChild();
 		if (lowest.value.children.length === 0) {
@@ -476,8 +639,8 @@ function replaceNode(
 
 function findNodeById(
 	nodeId: number,
-	container: MaterializedContainer | MaterializedChatMessage
-): MaterializedContainer | MaterializedChatMessage | undefined {
+	container: MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage
+): MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage | undefined {
 	if (container.id === nodeId) {
 		return container;
 	}
