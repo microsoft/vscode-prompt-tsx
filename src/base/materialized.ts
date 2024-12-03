@@ -283,7 +283,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					{ type: 'text', text: content },
 					{
 						type: 'image_url',
-						image_url: { url: images[0].imageUrl, detail: 'high' },
+						image_url: { url: images[0].imageUrl, detail: images[0].detail },
 					}],
 			};
 		}
@@ -328,15 +328,14 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly imageUrl: string,
-		public readonly width: number,
-		public readonly height: number,
+		public readonly detail: 'low' | 'high',
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore,
 		public readonly children: MaterializedNode[]
 	) {}
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
-		return this._tokenCount(tokenizer);
+		return this.upperBoundTokenCount(tokenizer);
 	}
 	tokenCount(tokenizer: ITokenizer): Promise<number> {
 		return this._tokenCount(tokenizer);
@@ -392,7 +391,7 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 			role: ChatRole.User,
 			content: [{
 				type: 'image_url',
-				image_url: { url: images[0].imageUrl, detail: 'high' },
+				image_url: { url: images[0].imageUrl, detail: images[0].detail },
 			}],
 		};
 	}
