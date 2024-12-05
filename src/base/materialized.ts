@@ -241,7 +241,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		for (const { text, isTextSibling } of textChunks(this)) {
 			if (text instanceof MaterializedChatMesageImage) {
 				result.push(text);
-				// check children, throw for now
 				for (const child of text.children) {
 					if (child instanceof MaterializedChatMessageTextChunk) {
 						result.push(child.text);
@@ -361,7 +360,7 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	});
 
 	removeLowestPriorityChild(): void {
-		// Not implemented yet
+		removeLowestPriorityChild(this);
 	}
 
 	public get text(): (string | MaterializedChatMesageImage)[] {
@@ -386,13 +385,18 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 
 	public toChatMessage(): ChatMessage {
 		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
+		const content = this.text
+			.filter(element => typeof element === 'string')
+			.join('').trim();
 
 		return {
 			role: ChatRole.User,
-			content: [{
-				type: 'image_url',
-				image_url: { url: images[0].imageUrl, detail: images[0].detail },
-			}],
+			content: [
+				{ type: 'text', text: content },
+				{
+					type: 'image_url',
+					image_url: { url: getEncodedBase64(images[0].imageUrl), detail: images[0].detail },
+				}],
 		};
 	}
 
@@ -515,11 +519,11 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	}
 }
 
-function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage) {
+function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage) {
 	let lowest:
 		| undefined
 		| {
-			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			chain: (MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage)[];
 			index: number;
 			value: MaterializedNode;
 			lowestNested?: number;
