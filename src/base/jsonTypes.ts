@@ -36,6 +36,7 @@ export interface TextJSON {
 export const enum PieceCtorKind {
 	BaseChatMessage = 1,
 	Other = 2,
+	ImageChatMessage = 3
 }
 
 export interface PieceJSON {

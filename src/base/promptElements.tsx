@@ -133,6 +133,12 @@ export interface TextChunkProps extends BasePromptElementProps {
 	breakOnWhitespace?: boolean;
 }
 
+export interface ImageProps extends BasePromptElementProps {
+	image_url?: string;
+	detail?: 'low' | 'high';
+	role?: ChatRole.User;
+}
+
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
@@ -219,6 +225,13 @@ async function getTextContentBelowBudget(
 	}
 
 	return outputText;
+}
+
+export class BaseImageMessage extends BaseChatMessage<ImageProps> {
+	constructor(props: ImageProps) {
+		props.role = ChatRole.User;
+		super(props);
+	}
 }
 
 export interface PrioritizedListProps extends BasePromptElementProps {

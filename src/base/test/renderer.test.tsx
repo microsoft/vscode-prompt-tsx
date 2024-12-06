@@ -191,7 +191,7 @@ suite('PromptRenderer', () => {
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(res.messages.length, 1);
-		assert.deepStrictEqual(res.messages[0].content.replace(/\n/g, ''), 'abcdefghi');
+		assert.deepStrictEqual((res.messages[0].content as string).replace(/\n/g, ''), 'abcdefghi');
 	});
 
 	test('renders tool calls', async () => {
@@ -275,14 +275,14 @@ suite('PromptRenderer', () => {
 				}
 
 				for (let k = 0; k < i; k++) {
-					if (res.messages.some(m => m.content.includes(order[k]))) {
+					if (res.messages.some(m => (m.content as string).includes(order[k]))) {
 						throw new Error(
 							`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
 						);
 					}
 				}
 				for (let k = i; k < order.length; k++) {
-					if (!res.messages.some(m => m.content.includes(order[k]))) {
+					if (!res.messages.some(m => (m.content as string).includes(order[k]))) {
 						throw new Error(
 							`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
 						);
@@ -817,7 +817,7 @@ suite('PromptRenderer', () => {
 			assert.ok(res.messages[2].content.length > res.messages[0].content.length);
 
 			// Ensure that children received budget based on the parent budget
-			const firstMessageContent = res.messages[0].content;
+			const firstMessageContent = res.messages[0].content as string;
 			const barPartStart = firstMessageContent.indexOf('Bar');
 			const fooPart = firstMessageContent.slice(0, barPartStart);
 			const barPart = firstMessageContent.slice(barPartStart);
@@ -1080,7 +1080,7 @@ suite('PromptRenderer', () => {
 			}
 
 			countMessageTokens(message: ChatMessage): number {
-				return this.tokenLength(message.content);
+				return this.tokenLength(message.content as string);
 			}
 		}
 
