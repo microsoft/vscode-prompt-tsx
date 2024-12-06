@@ -644,8 +644,6 @@ function findNodeById(
 	}
 }
 
-
-
 function getEncodedBase64(base64String: string): string {
 	const mimeTypes: { [key: string]: string } = {
 		'/9j/': 'image/jpeg',
@@ -654,7 +652,12 @@ function getEncodedBase64(base64String: string): string {
 		'UklGR': 'image/webp',
 	};
 
-	const prefix = base64String.slice(0, 5);
-	const mimeType = mimeTypes[prefix];
-	return mimeType ? `data:${mimeType};base64,${base64String}` : base64String;
+	for (const prefix of Object.keys(mimeTypes)) {
+		if (base64String.startsWith(prefix)) {
+			return `data:${mimeTypes[prefix]};base64,${base64String}`;
+		}
+	}
+
+	return base64String;
+
 }
