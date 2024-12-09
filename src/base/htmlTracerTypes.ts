@@ -15,12 +15,14 @@ export interface IHTMLTraceRenderData {
 export type ITraceMaterializedNode =
 	| ITraceMaterializedContainer
 	| ITraceMaterializedChatMessage
-	| ITraceMaterializedChatMessageTextChunk;
+	| ITraceMaterializedChatMessageTextChunk
+	| ITraceMaterializedChatMessageImage;
 
 export const enum TraceMaterializedNodeType {
 	Container,
 	ChatMessage,
 	TextChunk,
+	Image,
 }
 
 export interface IMaterializedMetadata {
@@ -58,3 +60,14 @@ export interface ITraceMaterializedChatMessageTextChunk extends ITraceMaterializ
 	priority: number;
 	tokens: number;
 }
+
+export interface ITraceMaterializedChatMessageImage extends ITraceMaterializedCommon {
+	id: number;
+	type: TraceMaterializedNodeType.Image;
+	name: string
+	value: string;
+	priority: number;
+	tokens: number;
+	children: ITraceMaterializedNode[];
+}
+

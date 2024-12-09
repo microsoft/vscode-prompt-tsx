@@ -7,6 +7,7 @@ import { useState } from 'preact/hooks';
 import {
 	HTMLTraceEpoch,
 	ITraceMaterializedChatMessage,
+	ITraceMaterializedChatMessageImage,
 	ITraceMaterializedChatMessageTextChunk,
 	ITraceMaterializedContainer,
 	ITraceMaterializedNode,
@@ -106,7 +107,7 @@ const TextNode: FunctionComponent<{
 
 const WrapperNode: FunctionComponent<{
 	scoreBy: ScoreField;
-	node: ITraceMaterializedContainer | ITraceMaterializedChatMessage;
+	node: ITraceMaterializedContainer | ITraceMaterializedChatMessage | ITraceMaterializedChatMessageImage;
 	epoch: number;
 }> = ({ scoreBy, node, epoch }) => {
 	const [collapsed, setCollapsed] = useState(false);
