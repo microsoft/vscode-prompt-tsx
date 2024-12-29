@@ -967,7 +967,6 @@ class PromptTreeElement {
 			json.ctor = JSONT.PieceCtorKind.ImageChatMessage;
 			json.props = {
 				image_url: this._obj.props.image_url,
-				mime_type: this._obj.props.mime_type,
 				detail: this._obj.props.detail,
 				priority: this._obj.props.priority,
 			};
@@ -985,14 +984,13 @@ class PromptTreeElement {
 
 			if (this._obj instanceof BaseImageMessage) {
 				// #region materialize baseimage
-				if (!this._obj.props.image_url || !this._obj.props.detail || !this._obj.props.mime_type) {
-					throw new Error(`Invalid ImageMessage! image_url, detail, mime_type props required!`);
+				if (!this._obj.props.image_url || !this._obj.props.detail) {
+					throw new Error(`Invalid ImageMessage! image_url and detail props required!`);
 				}
 				const parent = new MaterializedChatMesageImage(
 					1,
 					ChatRole.User,
 					this._obj.props.image_url,
-					this._obj.props.mime_type,
 					this._obj.props.detail,
 					this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 					this._metadata,

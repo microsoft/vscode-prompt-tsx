@@ -45,32 +45,20 @@ export interface UserChatMessage {
 export type ChatCompletionContentPart = ChatCompletionContentPartImage | ChatCompletionContentPartText;
 
 export interface ChatCompletionContentPartImage {
-	source: ChatCompletionContentPartImage.ImageURL;
-	
+	image_url: ChatCompletionContentPartImage.ImageURL;
+
 	/**
 	 * The type of the content part.
 	 */
-	type: 'image';
+	type: 'image_url';
 }
 
 export namespace ChatCompletionContentPartImage {
 	export interface ImageURL {
-
-		/*
-		* The type of the image. Currently, only `url` is supported.
-		*/
-		type: 'url';
-
 		/**
 		 * Either a URL of the image or the base64 encoded image data.
 		 */
 		url: string;
-
-
-		/**
-		* The mime type of the image
-		*/
-		media_type: string;
 
 		/**
 		 * Specifies the detail level of the image. Learn more in the

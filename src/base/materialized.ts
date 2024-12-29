@@ -281,8 +281,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				content: [
 					{ type: 'text', text: content },
 					{
-						type: 'image',
-						source: { type: 'url', media_type: images[0].mimeType, url: getEncodedBase64(images[0]), detail: images[0].detail },
+						type: 'image_url',
+						image_url: { url: getEncodedBase64(images[0].imageUrl), detail: images[0].detail },
 					}],
 			};
 		}
@@ -327,7 +327,6 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly imageUrl: string,
-		public readonly mimeType: string,
 		public readonly detail: 'low' | 'high',
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
@@ -395,8 +394,8 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 			content: [
 				{ type: 'text', text: content },
 				{
-					type: 'image',
-					source: { type:'url', media_type: images[0].mimeType, url: getEncodedBase64(images[0]), detail: images[0].detail },
+					type: 'image_url',
+					image_url: { url: getEncodedBase64(images[0].imageUrl), detail: images[0].detail },
 				}],
 		};
 	}
@@ -645,6 +644,20 @@ function findNodeById(
 	}
 }
 
-function getEncodedBase64(chatMessage: MaterializedChatMesageImage): string {
-	return `data:${chatMessage.mimeType};base64,${chatMessage.imageUrl}`;
+function getEncodedBase64(base64String: string): string {
+	const mimeTypes: { [key: string]: string } = {
+		'/9j/': 'image/jpeg',
+		'iVBOR': 'image/png',
+		'R0lGOD': 'image/gif',
+		'UklGR': 'image/webp',
+	};
+
+	for (const prefix of Object.keys(mimeTypes)) {
+		if (base64String.startsWith(prefix)) {
+			return `data:${mimeTypes[prefix]};base64,${base64String}`;
+		}
+	}
+
+	return base64String;
+
 }
