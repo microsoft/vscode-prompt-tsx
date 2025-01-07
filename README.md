@@ -263,7 +263,7 @@ class SimpleTextChunk extends PromptElement<{ text: string }, string> {
 }
 ```
 
-There are a few similar properties which control budget allocation you mind find useful for more advanced cases:
+There are a few similar properties which control budget allocation you might find useful for more advanced cases:
 
 - `flexReserve`: controls the number of tokens reserved from the container's budget _before_ this element gets rendered. For example, if you have a 100 token budget and the elements `<><Foo /><Bar flexGrow={1} flexReserve={30} /></>`, then `Foo` would receive a `PromptSizing.tokenBudget` of 70, and `Bar` would receive however many tokens of the 100 that `Foo` didn't use. This is only useful in conjunction with `flexGrow`.
 
