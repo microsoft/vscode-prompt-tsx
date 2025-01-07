@@ -198,7 +198,7 @@ Continuous text strings and elements can both be pruned from the tree. If you ha
 
 #### Passing Priority
 
-In some cases, you may have logical wrapper elements which container other elements which should share the parent's priority scope. You can use the `passPriority` attribute for this:
+In some cases, you may have logical wrapper elements which contain other elements which should share the parent's priority scope. You can use the `passPriority` attribute for this:
 
 ```tsx
 class MyContainer extends PromptElement {
