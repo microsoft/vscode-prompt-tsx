@@ -876,7 +876,7 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage({ imageUrl: json.props!.imageUrl as string, detail: json.props!.detail as "low" | "high", role: json.props!.role as ChatRole.User });
+				element._obj = new BaseImageMessage({ imageUrl: json.props!.imageUrl as string, detail: json.props!.detail as "low" | "high"});
 				break;
 			default:
 				softAssertNever(json.ctor);
