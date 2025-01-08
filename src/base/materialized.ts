@@ -105,7 +105,7 @@ export class MaterializedContainer implements IMaterializedNode {
 			assertContainerOrChatMessage(child);
 			if (child instanceof MaterializedContainer) {
 				yield* child.toChatMessages();
-			} else if (!child.isEmpty) {
+			} else if (!child.isEmpty && child instanceof MaterializedChatMessage) {
 				// note: empty messages are already removed during pruning, but the
 				// consumer might themselves have given us empty messages that we should omit.
 				yield child.toChatMessage();
@@ -357,10 +357,6 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	}
 
 	isEmpty: boolean = false;
-
-	public toChatMessage(): ChatMessage {
-		throw new Error('Method not implemented.');
-	}
 }
 
 function isContainerType(
