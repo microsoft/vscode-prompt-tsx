@@ -876,10 +876,10 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage({ imageUrl: json.props!.imageUrl as string, detail: json.props!.detail as "low" | "high"});
+				element._obj = new BaseImageMessage(json.props as ImageProps);
 				break;
 			default:
-				softAssertNever(json.ctor);
+				softAssertNever();
 		}
 
 		return element;
@@ -1100,7 +1100,7 @@ function isFragmentCtor(template: PromptPiece): boolean {
 	return (typeof template.ctor === 'function' && template.ctor.isFragment) ?? false;
 }
 
-function softAssertNever(x: never): void {
+function softAssertNever(x?: never): void {
 	// note: does not actually throw, because we want to handle any unknown cases
 	// gracefully for forwards-compatibility
 }

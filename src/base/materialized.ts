@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from './once';
-import { ChatMessage, ChatMessageToolCall, ChatRole } from './openai';
+import { ChatCompletionContentPart, ChatMessage, ChatMessageToolCall, ChatRole } from './openai';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 
@@ -44,7 +44,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
-	) {}
+	) { }
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -136,7 +136,7 @@ export class MaterializedChatMessageTextChunk {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore
-	) {}
+	) { }
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
@@ -160,7 +160,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
 		public readonly children: MaterializedNode[]
-	) {}
+	) { }
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -269,15 +269,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
 
+		const prompts: ChatCompletionContentPart[] = [{ type: 'text', text: content }];
 		if (images.length > 0) {
+			for (const image of images) {
+				prompts.push({
+					type: 'image_url',
+					image_url: { url: getEncodedBase64(image.imageUrl), detail: image.detail },
+				});
+			}
+
 			return {
 				role: ChatRole.User,
-				content: [
-					{ type: 'text', text: content },
-					{
-						type: 'image_url',
-						image_url: { url: getEncodedBase64(images[0].imageUrl), detail: images[0].detail },
-					}],
+				content: prompts,
 			};
 		}
 
