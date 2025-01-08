@@ -182,9 +182,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		const content = this.text
 			.filter(element => typeof element === 'string')
 			.join('').trimEnd();
-		const images = this.text.filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
 
-		return !/\S/.test(content) && !this.toolCalls?.length && !this.toolCallId && images.length === 0;
+		return !this.toolCalls?.length && !this.text.some(element => element instanceof MaterializedChatMesageImage || /\S/.test(content));
 	}
 
 	/**
@@ -237,23 +236,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	});
 
 	private readonly _text = once((): (string | MaterializedChatMesageImage)[] => {
-		let result: (string | MaterializedChatMesageImage)[] = [''];
+		let result: (string | MaterializedChatMesageImage)[] = [];
 		for (const { text, isTextSibling } of textChunks(this)) {
 			if (text instanceof MaterializedChatMesageImage) {
 				result.push(text);
-				for (const child of text.children) {
-					if (child instanceof MaterializedChatMessageTextChunk) {
-						result.push(child.text);
-					}
-				}
 				break;
 			}
 			if (
 				text.lineBreakBefore === LineBreakBefore.Always ||
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
-				let res = result[result.length - 1]
-				if (!(res instanceof MaterializedChatMesageImage) && result.length && !res.endsWith('\n')) {
+				let prev = result[result.length - 1]
+				if (typeof prev === 'string' && result.length && !prev.endsWith('\n')) {
 					result.push('\n');
 				}
 			}
@@ -327,12 +321,12 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly imageUrl: string,
-		public readonly detail: 'low' | 'high',
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore,
-		public readonly children: MaterializedNode[]
-	) {}
+		public readonly children: MaterializedNode[],
+		public readonly detail?: 'low' | 'high',
+	) { }
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
 		return this.upperBoundTokenCount(tokenizer);
 	}
@@ -341,30 +335,11 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	}
 
 	private readonly _tokenCount = once(async (tokenizer: ITokenizer) => {
-		return tokenizer.countMessageTokens(this.toChatMessage());
-	});
-
-	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		let total = await this._baseMessageTokenCount(tokenizer);
-		await Promise.all(
-			this.children.map(async chunk => {
-				const amt = await chunk.upperBoundTokenCount(tokenizer);
-				total += amt;
-			})
-		);
-		return total;
-	});
-
-	private readonly _baseMessageTokenCount = once((tokenizer: ITokenizer) => {
-		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
+		return 0;
 	});
 
 	removeLowestPriorityChild(): void {
 		removeLowestPriorityChild(this);
-	}
-
-	public get text(): (string | MaterializedChatMesageImage)[] {
-		return this._text();
 	}
 
 	/**
@@ -384,53 +359,8 @@ export class MaterializedChatMesageImage implements IMaterializedNode {
 	isEmpty: boolean = false;
 
 	public toChatMessage(): ChatMessage {
-		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
-		const content = this.text
-			.filter(element => typeof element === 'string')
-			.join('').trim();
-
-		return {
-			role: ChatRole.User,
-			content: [
-				{ type: 'text', text: content },
-				{
-					type: 'image_url',
-					image_url: { url: getEncodedBase64(images[0].imageUrl), detail: images[0].detail },
-				}],
-		};
+		throw new Error('Method not implemented.');
 	}
-
-	private readonly _text = once((): (string | MaterializedChatMesageImage)[] => {
-		if (this instanceof MaterializedChatMesageImage) {
-			return [this]
-		}
-
-		let result: (string | MaterializedChatMesageImage)[] = [''];
-
-		for (const { text, isTextSibling } of textChunks(this)) {
-			if (text instanceof MaterializedChatMesageImage) {
-				result.push(text);
-				break;
-			}
-			if (
-				text.lineBreakBefore === LineBreakBefore.Always ||
-				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
-			) {
-				let res = result[result.length - 1]
-				if (!(res instanceof MaterializedChatMesageImage) && result.length && !res.endsWith('\n')) {
-					res += '\n';
-				}
-			}
-
-			if (typeof result[result.length - 1] === 'string') {
-				result[result.length - 1] += text.text;
-			} else {
-				result.push(text.text);
-			}
-		}
-
-		return result;
-	});
 }
 
 function isContainerType(

@@ -134,7 +134,7 @@ export interface TextChunkProps extends BasePromptElementProps {
 }
 
 export interface ImageProps extends BasePromptElementProps {
-	image_url?: string;
+	imageUrl: string;
 	detail?: 'low' | 'high';
 	role?: ChatRole.User;
 }

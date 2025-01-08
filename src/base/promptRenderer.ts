@@ -876,7 +876,7 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage(json.props!);
+				element._obj = new BaseImageMessage({ imageUrl: json.props!.imageUrl as string, detail: json.props!.detail as "low" | "high" });
 				break;
 			default:
 				softAssertNever(json.ctor);
@@ -966,7 +966,7 @@ class PromptTreeElement {
 		} else if (this._obj instanceof BaseImageMessage) {
 			json.ctor = JSONT.PieceCtorKind.ImageChatMessage;
 			json.props = {
-				image_url: this._obj.props.image_url,
+				imageUrl: this._obj.props.imageUrl,
 				detail: this._obj.props.detail,
 				priority: this._obj.props.priority,
 			};
@@ -984,18 +984,15 @@ class PromptTreeElement {
 
 			if (this._obj instanceof BaseImageMessage) {
 				// #region materialize baseimage
-				if (!this._obj.props.image_url || !this._obj.props.detail) {
-					throw new Error(`Invalid ImageMessage! image_url and detail props required!`);
-				}
 				const parent = new MaterializedChatMesageImage(
 					1,
 					ChatRole.User,
-					this._obj.props.image_url,
-					this._obj.props.detail,
+					this._obj.props.imageUrl,
 					this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 					this._metadata,
 					LineBreakBefore.None,
-					this._children.map(child => child.materialize())
+					this._children.map(child => child.materialize(),
+					this._obj.props.detail ?? undefined)
 				)
 				return parent;
 			}
