@@ -809,7 +809,7 @@ class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
 		public readonly ctor: PromptElementCtor<P, S>,
 		public readonly props: P,
 		public readonly children: PromptPieceChild[]
-	) {}
+	) { }
 }
 
 class LiteralPromptPiece {
@@ -876,10 +876,10 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.Other:
 				break; // no-op
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage(json.props as ImageProps);
+				element._obj = new BaseImageMessage(json.props!);
 				break;
 			default:
-				softAssertNever();
+				softAssertNever(json);
 		}
 
 		return element;
@@ -964,12 +964,14 @@ class PromptTreeElement {
 				toolCallId: this._obj.props.toolCallId,
 			};
 		} else if (this._obj instanceof BaseImageMessage) {
-			json.ctor = JSONT.PieceCtorKind.ImageChatMessage;
-			json.props = {
-				imageUrl: this._obj.props.imageUrl,
-				detail: this._obj.props.detail,
-				priority: this._obj.props.priority,
-			};
+			return {
+				...json,
+				ctor: JSONT.PieceCtorKind.ImageChatMessage,
+				props: {
+					imageUrl: this._obj.props.imageUrl,
+					detail: this._obj.props.detail,
+				},
+			}
 		}
 
 		return json;
@@ -1100,7 +1102,7 @@ function isFragmentCtor(template: PromptPiece): boolean {
 	return (typeof template.ctor === 'function' && template.ctor.isFragment) ?? false;
 }
 
-function softAssertNever(x?: never): void {
+function softAssertNever(x: never): void {
 	// note: does not actually throw, because we want to handle any unknown cases
 	// gracefully for forwards-compatibility
 }

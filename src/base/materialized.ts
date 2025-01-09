@@ -239,6 +239,9 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		let result: (string | MaterializedChatMesageImage)[] = [];
 		for (const { text, isTextSibling } of textChunks(this)) {
 			if (text instanceof MaterializedChatMesageImage) {
+				if (text.children.length > 0) {
+					throw new Error('Images cannot have children');
+				}
 				result.push(text);
 				break;
 			}
@@ -267,16 +270,23 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			.filter(element => typeof element === 'string')
 			.join('').trim();
 
-		const images = this._text().filter(element => element instanceof MaterializedChatMesageImage) as MaterializedChatMesageImage[];
-
-		const prompts: ChatCompletionContentPart[] = [{ type: 'text', text: content }];
-		if (images.length > 0) {
-			for (const image of images) {
-				prompts.push({
-					type: 'image_url',
-					image_url: { url: getEncodedBase64(image.imageUrl), detail: image.detail },
-				});
+		if (this.text.some(element => element instanceof MaterializedChatMesageImage)) {
+			if (this.role !== ChatRole.User) {
+				throw new Error('Only User messages can have images');
 			}
+
+			let prompts: ChatCompletionContentPart[] = this.text.map(element => {
+				if (typeof element === 'string') {
+					return { type: 'text', text: element };
+				} else if (element instanceof MaterializedChatMesageImage) {
+					return {
+						type: 'image_url',
+						image_url: { url: getEncodedBase64(element.imageUrl), detail: element.detail },
+					};
+				} else {
+					throw new Error('Unexpected element type');
+				}
+			});
 
 			return {
 				role: ChatRole.User,

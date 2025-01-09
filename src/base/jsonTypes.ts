@@ -41,7 +41,7 @@ export const enum PieceCtorKind {
 
 export interface BasePieceJSON {
 	type: PromptNodeType.Piece;
-	ctor: PieceCtorKind;
+	ctor: PieceCtorKind.BaseChatMessage | PieceCtorKind.Other;
 	priority: number | undefined;
 	children: PromptNodeJSON[];
 	references: PromptReferenceJSON[] | undefined;
@@ -56,7 +56,7 @@ export interface ImageChatMessagePieceJSON {
 	references: PromptReferenceJSON[] | undefined;
 	props: {
 		imageUrl: string;
-		detail?: string;
+		detail?: "low" | "high";
 	};
 }
 
