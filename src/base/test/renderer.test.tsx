@@ -2258,7 +2258,36 @@ suite('PromptRenderer', () => {
 			]);
 		});
 
-		test('text and image together', async () => {
+		test('text and image together (text before image)', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TextChunk>some text in a text chunk</TextChunk>
+							<BaseImageMessage imageUrl={'iVBORasdfasdfasdf'} detail={'high'} />
+							{/* <TextChunk>some text in a text chunk</TextChunk> */}
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{ text: 'some text in a text chunk', type: 'text' },
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('text and image together (text after image)', async () => {
 			class PromptWithImage extends PromptElement {
 				render() {
 					return (
