@@ -22,7 +22,7 @@ suite('PromptElements', () => {
 			}
 
 			countMessageTokens(message: ChatMessage): number {
-				return this.tokenLength(message.content);
+				return this.tokenLength(message.content as string);
 			}
 		})();
 
