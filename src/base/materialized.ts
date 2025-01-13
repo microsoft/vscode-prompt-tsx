@@ -243,8 +243,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
 				let prev = result[result.length - 1]
-				if (typeof prev === 'string' && result.length && !prev.endsWith('\n')) {
-					result.push('\n');
+				if (typeof prev === 'string' && !prev.endsWith('\n')) {
+					result[result.length - 1] = prev + '\n';
 				}
 			}
 
