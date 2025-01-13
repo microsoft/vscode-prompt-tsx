@@ -325,7 +325,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 export class MaterializedChatMessageImage implements IMaterializedNode {
 	constructor(
 		public readonly id: number,
-		// public readonly role: ChatRole,
 		public readonly src: string,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
