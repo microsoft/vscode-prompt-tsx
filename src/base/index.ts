@@ -126,12 +126,8 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 }> {
 	let tokenizer =
 		'countTokens' in tokenizerMetadata
-			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
+			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token), mode)
 			: tokenizerMetadata;
-
-	if (tokenizer instanceof AnyTokenizer && mode !== 'vscode') {
-		throw new Error('`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer');
-	}
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
 	const { tokenCount, references, metadata } = renderResult;

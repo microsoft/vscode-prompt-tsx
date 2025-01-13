@@ -322,7 +322,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 }
 
-export class MaterializedChatMessageImage implements IMaterializedNode {
+export class MaterializedChatMessageImage {
 	constructor(
 		public readonly id: number,
 		public readonly src: string,
@@ -331,15 +331,20 @@ export class MaterializedChatMessageImage implements IMaterializedNode {
 		public readonly lineBreakBefore: LineBreakBefore,
 		public readonly detail?: 'low' | 'high',
 	) { }
-	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number> {
-		return this.upperBoundTokenCount(tokenizer);
-	}
-	tokenCount(tokenizer: ITokenizer): Promise<number> {
-		return this._tokenCount(tokenizer);
+
+	public upperBoundTokenCount(tokenizer: ITokenizer) {
+		return this._upperBound(tokenizer);
 	}
 
-	private readonly _tokenCount = once(async (tokenizer: ITokenizer) => {
-		return 0;
+	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
+		return (
+			await tokenizer.countMessageTokens({
+				role: ChatRole.User, content: [{
+					type: 'image_url',
+					image_url: { url: getEncodedBase64(this.src), detail: this.detail }
+				}]
+			})
+		);
 	});
 
 	isEmpty: boolean = false;

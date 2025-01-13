@@ -25,8 +25,13 @@ export class AnyTokenizer implements ITokenizer {
 		private countTokens: (
 			text: string | LanguageModelChatMessage,
 			token?: CancellationToken
-		) => Thenable<number>
-	) { }
+		) => Thenable<number>,
+		mode: 'vscode' | 'none',
+	) {
+		if (mode !== 'vscode') {
+			throw new Error('`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer');
+		}
+	}
 
 	async tokenLength(text: string, token?: CancellationToken): Promise<number> {
 		return this.countTokens(text, token);

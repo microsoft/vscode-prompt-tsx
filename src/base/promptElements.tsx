@@ -133,6 +133,11 @@ export interface TextChunkProps extends BasePromptElementProps {
 	breakOnWhitespace?: boolean;
 }
 
+
+/**
+ * @property {string} src - The source of the image. This should be a raw base64 string.
+ * @property {'low' | 'high'} [detail] - Optional. The detail level of the image. Can be either 'low' or 'high'. If not specified, `high` is used.
+ */
 export interface ImageProps extends BasePromptElementProps {
 	src: string;
 	detail?: 'low' | 'high';
