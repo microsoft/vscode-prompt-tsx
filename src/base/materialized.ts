@@ -243,7 +243,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					throw new Error('Images cannot have children');
 				}
 				result.push(text);
-				break;
+				continue;
 			}
 			if (
 				text.lineBreakBefore === LineBreakBefore.Always ||

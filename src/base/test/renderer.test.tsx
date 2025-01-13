@@ -2309,23 +2309,10 @@ suite('PromptRenderer', () => {
 							type: 'image_url',
 							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
 						},
+						{ text: 'some text in a text chunk', type: 'text' },
 					],
 				},
 			]);
-
-			// This one should be allowed and be okay
-			// assert.deepStrictEqual(res.messages, [
-			// 	{
-			// 		role: 'user',
-			// 		content: [
-			// 			{
-			// 				type: 'image_url',
-			// 				image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
-			// 			},
-			// 			'some text in a text chunk',
-			// 		],
-			// 	},
-			// ]);
 		});
 	});
 });
