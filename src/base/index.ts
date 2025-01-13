@@ -128,6 +128,10 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 		'countTokens' in tokenizerMetadata
 			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
 			: tokenizerMetadata;
+
+	if (tokenizer instanceof AnyTokenizer && mode !== 'vscode') {
+		throw new Error('Tokenizer must be an instance of AnyTokenizer when not in vscode mode.');
+	}
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
 	const { tokenCount, references, metadata } = renderResult;

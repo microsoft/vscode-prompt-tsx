@@ -2131,7 +2131,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'/9j/asdfasdfasdf'} detail={'high'} />
+							<BaseImageMessage src={'/9j/asdfasdfasdf'} detail={'high'} />
 						</UserMessage>
 					);
 				}
@@ -2157,7 +2157,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'iVBORasdfasdfasdf'} detail={'high'} />
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
 						</UserMessage>
 					);
 				}
@@ -2183,7 +2183,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'R0lGODasdfasdfasdf'} detail={'low'} />
+							<BaseImageMessage src={'R0lGODasdfasdfasdf'} detail={'low'} />
 						</UserMessage>
 					);
 				}
@@ -2209,7 +2209,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'UklGRasdfasdfasdf'} detail={'low'} />
+							<BaseImageMessage src={'UklGRasdfasdfasdf'} detail={'low'} />
 						</UserMessage>
 					);
 				}
@@ -2235,7 +2235,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'iVBORasdfasdfasdf'} detail={'high'}>
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'}>
 								Child in Base Image Message
 							</BaseImageMessage>
 						</UserMessage>
@@ -2264,7 +2264,7 @@ suite('PromptRenderer', () => {
 					return (
 						<UserMessage>
 							<TextChunk>some text in a text chunk</TextChunk>
-							<BaseImageMessage imageUrl={'iVBORasdfasdfasdf'} detail={'high'} />
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
 							{/* <TextChunk>some text in a text chunk</TextChunk> */}
 						</UserMessage>
 					);
@@ -2292,7 +2292,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage imageUrl={'iVBORasdfasdfasdf'} detail={'high'} />
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
 							<TextChunk>some text in a text chunk</TextChunk>
 						</UserMessage>
 					);

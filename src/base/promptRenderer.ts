@@ -8,7 +8,7 @@ import { PromptNodeType } from './jsonTypes';
 import {
 	ContainerFlags,
 	LineBreakBefore,
-	MaterializedChatMesageImage,
+	MaterializedChatMessageImage,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
 	MaterializedContainer,
@@ -103,7 +103,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
 		private readonly _tokenizer: ITokenizer
-	) {}
+	) { }
 
 	public getIgnoredFiles(): URI[] {
 		return Array.from(new Set(this._ignoredFiles));
@@ -475,7 +475,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	/** Grows all Expandable elements, returns if any changes were made. */
 	private async _grow(
-		tree: MaterializedContainer | MaterializedChatMessage | MaterializedChatMesageImage,
+		tree: MaterializedContainer | MaterializedChatMessage,
 		tokensUsed: number,
 		tokenBudget: number,
 		token: CancellationToken | undefined
@@ -538,7 +538,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		progress: Progress<ChatResponsePart> | undefined,
 		token: CancellationToken | undefined
 	) {
-		if (element.ctor === TextChunk || element.ctor === BaseImageMessage) {
+		if (element.ctor === TextChunk) {
 			this._handleExtrinsicTextChunkChildren(element.node, element.node, element.props, pieces);
 			return;
 		}
@@ -799,7 +799,7 @@ class IntrinsicPromptPiece<K extends keyof JSX.IntrinsicElements> {
 		public readonly name: string,
 		public readonly props: JSX.IntrinsicElements[K],
 		public readonly children: PromptPieceChild[]
-	) {}
+	) { }
 }
 
 class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
@@ -815,7 +815,7 @@ class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
 class LiteralPromptPiece {
 	public readonly kind = 'literal';
 
-	constructor(public readonly value: string, public readonly priority?: number) {}
+	constructor(public readonly value: string, public readonly priority?: number) { }
 }
 
 type ProcessedPromptPiece =
@@ -833,7 +833,7 @@ type LeafPromptNode = PromptText;
 class PromptSizingContext {
 	private _consumed = 0;
 
-	constructor(public readonly tokenBudget: number, public readonly endpoint: IChatEndpointInfo) {}
+	constructor(public readonly tokenBudget: number, public readonly endpoint: IChatEndpointInfo) { }
 
 	public get consumed() {
 		return this._consumed > this.tokenBudget ? this.tokenBudget : this._consumed;
@@ -896,7 +896,7 @@ class PromptTreeElement {
 		public readonly parent: PromptTreeElement | null = null,
 		public readonly childIndex: number,
 		public readonly id = PromptTreeElement._nextId++
-	) {}
+	) { }
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
@@ -968,7 +968,7 @@ class PromptTreeElement {
 				...json,
 				ctor: JSONT.PieceCtorKind.ImageChatMessage,
 				props: {
-					imageUrl: this._obj.props.imageUrl,
+					src: this._obj.props.src,
 					detail: this._obj.props.detail,
 				},
 			}
@@ -977,25 +977,24 @@ class PromptTreeElement {
 		return json;
 	}
 
-	public materialize(): MaterializedChatMessage | MaterializedContainer | MaterializedChatMesageImage {
+	public materialize(): MaterializedChatMessage | MaterializedContainer | MaterializedChatMessageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
+
+		if (this._obj instanceof BaseImageMessage) {
+			// #region materialize baseimage
+			const parent = new MaterializedChatMessageImage(
+				1,
+				this._obj.props.src,
+				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
+				this._metadata,
+				LineBreakBefore.None,
+				this._obj.props.detail ?? undefined)
+			return parent;
+		}
+
 		if (this._obj instanceof BaseChatMessage) {
 			if (!this._obj.props.role) {
 				throw new Error(`Invalid ChatMessage!`);
-			}
-
-			if (this._obj instanceof BaseImageMessage) {
-				// #region materialize baseimage
-				const parent = new MaterializedChatMesageImage(
-					1,
-					ChatRole.User,
-					this._obj.props.imageUrl,
-					this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
-					this._metadata,
-					LineBreakBefore.None,
-					[],
-					this._obj.props.detail ?? undefined)
-				return parent;
 			}
 
 			const parent = new MaterializedChatMessage(
@@ -1065,7 +1064,7 @@ class PromptText {
 		public readonly priority?: number,
 		public readonly metadata?: PromptMetadata[],
 		public readonly lineBreakBefore = false
-	) {}
+	) { }
 
 	public collectLeafs(result: LeafPromptNode[]) {
 		result.push(this);
@@ -1075,8 +1074,8 @@ class PromptText {
 		const lineBreak = this.lineBreakBefore
 			? LineBreakBefore.Always
 			: this.childIndex === 0
-			? LineBreakBefore.IfNotTextSibling
-			: LineBreakBefore.None;
+				? LineBreakBefore.IfNotTextSibling
+				: LineBreakBefore.None;
 		return new MaterializedChatMessageTextChunk(
 			this.text,
 			this.priority ?? Number.MAX_SAFE_INTEGER,
@@ -1111,7 +1110,7 @@ function isDefined<T>(x: T | undefined): x is T {
 	return x !== undefined;
 }
 
-class InternalMetadata extends PromptMetadata {}
+class InternalMetadata extends PromptMetadata { }
 
 class ReferenceMetadata extends InternalMetadata {
 	constructor(public readonly reference: PromptReference) {

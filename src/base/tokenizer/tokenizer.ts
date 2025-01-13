@@ -26,7 +26,7 @@ export class AnyTokenizer implements ITokenizer {
 			text: string | LanguageModelChatMessage,
 			token?: CancellationToken
 		) => Thenable<number>
-	) {}
+	) { }
 
 	async tokenLength(text: string, token?: CancellationToken): Promise<number> {
 		return this.countTokens(text, token);
@@ -36,9 +36,16 @@ export class AnyTokenizer implements ITokenizer {
 		const vscode = await import('vscode');
 		return this.countTokens({
 			role: this.toChatRole(message.role),
-			content: [new vscode.LanguageModelTextPart(message.content as string)],
+			content: [new vscode.LanguageModelTextPart(this.extractText(message))],
 			name: 'name' in message ? message.name : undefined,
 		});
+	}
+
+	extractText(message: ChatMessage): string {
+		if (message.content instanceof Array) {
+			return message.content.map(c => 'text' in c ? c.text : '').join('');
+		}
+		return message.content;
 	}
 
 	private toChatRole(role: ChatRole) {

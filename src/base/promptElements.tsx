@@ -134,9 +134,8 @@ export interface TextChunkProps extends BasePromptElementProps {
 }
 
 export interface ImageProps extends BasePromptElementProps {
-	imageUrl: string;
+	src: string;
 	detail?: 'low' | 'high';
-	role?: ChatRole.User;
 }
 
 /**
@@ -229,7 +228,6 @@ async function getTextContentBelowBudget(
 
 export class BaseImageMessage extends BaseChatMessage<ImageProps> {
 	constructor(props: ImageProps) {
-		props.role = ChatRole.User;
 		super(props);
 	}
 }

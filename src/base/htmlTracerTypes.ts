@@ -67,7 +67,6 @@ export interface ITraceMaterializedChatMessageImage extends ITraceMaterializedCo
 	name: string
 	value: string;
 	priority: number;
-	tokens: number;
-	children: ITraceMaterializedNode[];
+	tokens: number,
 }
 
