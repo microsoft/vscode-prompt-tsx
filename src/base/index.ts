@@ -130,7 +130,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 			: tokenizerMetadata;
 
 	if (tokenizer instanceof AnyTokenizer && mode !== 'vscode') {
-		throw new Error('Tokenizer must be an instance of AnyTokenizer when not in vscode mode.');
+		throw new Error('`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer');
 	}
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
