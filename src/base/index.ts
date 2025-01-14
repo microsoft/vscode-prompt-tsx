@@ -126,7 +126,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 }> {
 	let tokenizer =
 		'countTokens' in tokenizerMetadata
-			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token))
+			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token), mode)
 			: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);

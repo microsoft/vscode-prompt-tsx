@@ -8,6 +8,7 @@ import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
+	BaseImageMessage,
 	Chunk,
 	Expandable,
 	LegacyPrioritization,
@@ -191,7 +192,7 @@ suite('PromptRenderer', () => {
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(res.messages.length, 1);
-		assert.deepStrictEqual(res.messages[0].content.replace(/\n/g, ''), 'abcdefghi');
+		assert.deepStrictEqual((res.messages[0].content as string).replace(/\n/g, ''), 'abcdefghi');
 	});
 
 	test('renders tool calls', async () => {
@@ -275,14 +276,14 @@ suite('PromptRenderer', () => {
 				}
 
 				for (let k = 0; k < i; k++) {
-					if (res.messages.some(m => m.content.includes(order[k]))) {
+					if (res.messages.some(m => (m.content as string).includes(order[k]))) {
 						throw new Error(
 							`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
 						);
 					}
 				}
 				for (let k = i; k < order.length; k++) {
-					if (!res.messages.some(m => m.content.includes(order[k]))) {
+					if (!res.messages.some(m => (m.content as string).includes(order[k]))) {
 						throw new Error(
 							`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
 						);
@@ -817,7 +818,7 @@ suite('PromptRenderer', () => {
 			assert.ok(res.messages[2].content.length > res.messages[0].content.length);
 
 			// Ensure that children received budget based on the parent budget
-			const firstMessageContent = res.messages[0].content;
+			const firstMessageContent = res.messages[0].content as string;
 			const barPartStart = firstMessageContent.indexOf('Bar');
 			const fooPart = firstMessageContent.slice(0, barPartStart);
 			const barPart = firstMessageContent.slice(barPartStart);
@@ -1080,7 +1081,7 @@ suite('PromptRenderer', () => {
 			}
 
 			countMessageTokens(message: ChatMessage): number {
-				return this.tokenLength(message.content);
+				return this.tokenLength(message.content as string);
 			}
 		}
 
@@ -2119,6 +2120,197 @@ suite('PromptRenderer', () => {
 				{
 					role: 'user',
 					content: '12345\n67890\nextra\n12345\n67890',
+				},
+			]);
+		});
+	});
+
+	suite('BaseImageMessage', () => {
+		test('renders image: jpeg', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'/9j/asdfasdfasdf'} detail={'high'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/jpeg;base64,/9j/asdfasdfasdf', detail: 'high' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('renders image: png', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('renders image: gif', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'R0lGODasdfasdfasdf'} detail={'low'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/gif;base64,R0lGODasdfasdfasdf', detail: 'low' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('renders image: webp', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'UklGRasdfasdfasdf'} detail={'low'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/webp;base64,UklGRasdfasdfasdf', detail: 'low' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('ensure children in image elements are dropped', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'}>
+								Child in Base Image Message
+							</BaseImageMessage>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('text and image together (text before image)', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TextChunk>some text in a text chunk</TextChunk>
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+							{/* <TextChunk>some text in a text chunk</TextChunk> */}
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{ text: 'some text in a text chunk', type: 'text' },
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('text and image together (text after image)', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+							<TextChunk>some text in a text chunk</TextChunk>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.render(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: [
+						{
+							type: 'image_url',
+							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+						},
+						{ text: 'some text in a text chunk', type: 'text' },
+					],
 				},
 			]);
 		});

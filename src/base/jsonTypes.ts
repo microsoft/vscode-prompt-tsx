@@ -36,17 +36,31 @@ export interface TextJSON {
 export const enum PieceCtorKind {
 	BaseChatMessage = 1,
 	Other = 2,
+	ImageChatMessage = 3
 }
 
-export interface PieceJSON {
+export interface BasePieceJSON {
 	type: PromptNodeType.Piece;
-	ctor: PieceCtorKind;
+	ctor: PieceCtorKind.BaseChatMessage | PieceCtorKind.Other;
 	priority: number | undefined;
 	children: PromptNodeJSON[];
 	references: PromptReferenceJSON[] | undefined;
-	/** Only filled in for known `PieceCtorKind`s where props are necessary. */
 	props?: Record<string, unknown>;
 }
+
+export interface ImageChatMessagePieceJSON {
+	type: PromptNodeType.Piece;
+	ctor: PieceCtorKind.ImageChatMessage;
+	priority: number | undefined;
+	children: PromptNodeJSON[];
+	references: PromptReferenceJSON[] | undefined;
+	props: {
+		src: string;
+		detail?: "low" | "high";
+	};
+}
+
+export type PieceJSON = BasePieceJSON | ImageChatMessagePieceJSON;
 
 export type PromptNodeJSON = PieceJSON | TextJSON;
 
