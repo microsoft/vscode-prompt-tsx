@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from './once';
-import { ChatMessage, ChatMessageToolCall, ChatRole } from './openai';
+import { ChatCompletionContentPart, ChatMessage, ChatMessageToolCall, ChatRole } from './openai';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 
@@ -24,7 +24,8 @@ export interface IMaterializedNode {
 export type MaterializedNode =
 	| MaterializedContainer
 	| MaterializedChatMessage
-	| MaterializedChatMessageTextChunk;
+	| MaterializedChatMessageTextChunk
+	| MaterializedChatMessageImage;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -43,7 +44,7 @@ export class MaterializedContainer implements IMaterializedNode {
 		public readonly children: MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
-	) {}
+	) { }
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -104,7 +105,7 @@ export class MaterializedContainer implements IMaterializedNode {
 			assertContainerOrChatMessage(child);
 			if (child instanceof MaterializedContainer) {
 				yield* child.toChatMessages();
-			} else if (!child.isEmpty) {
+			} else if (!child.isEmpty && child instanceof MaterializedChatMessage) {
 				// note: empty messages are already removed during pruning, but the
 				// consumer might themselves have given us empty messages that we should omit.
 				yield child.toChatMessage();
@@ -135,7 +136,7 @@ export class MaterializedChatMessageTextChunk {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore
-	) {}
+	) { }
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
@@ -159,7 +160,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
 		public readonly children: MaterializedNode[]
-	) {}
+	) { }
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -172,13 +173,13 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	/** Gets the text this message contains */
-	public get text(): string {
+	public get text(): (string | MaterializedChatMessageImage)[] {
 		return this._text();
 	}
 
 	/** Gets whether the message is empty */
 	public get isEmpty() {
-		return !/\S/.test(this.text) && !this.toolCalls?.length && !this.toolCallId;
+		return !this.toolCalls?.length && !this.text.some(element => element instanceof MaterializedChatMessageImage || /\S/.test(element));
 	}
 
 	/**
@@ -207,7 +208,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	/**
 	 * Finds a node in the tree by ID.
 	 */
-	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage | undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -230,70 +231,135 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
 	});
 
-	private readonly _text = once(() => {
-		let result = '';
+	private readonly _text = once((): (string | MaterializedChatMessageImage)[] => {
+		let result: (string | MaterializedChatMessageImage)[] = [];
 		for (const { text, isTextSibling } of textChunks(this)) {
+			if (text instanceof MaterializedChatMessageImage) {
+				result.push(text);
+				continue;
+			}
 			if (
 				text.lineBreakBefore === LineBreakBefore.Always ||
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
-				if (result.length && !result.endsWith('\n')) {
-					result += '\n';
+				let prev = result[result.length - 1]
+				if (typeof prev === 'string' && !prev.endsWith('\n')) {
+					result[result.length - 1] = prev + '\n';
 				}
 			}
 
-			result += text.text;
+			if (typeof result[result.length - 1] === 'string') {
+				result[result.length - 1] += text.text;
+			} else {
+				result.push(text.text);
+			}
 		}
 
-		return result.trim();
+		return result;
 	});
 
 	public toChatMessage(): ChatMessage {
+		const content = this.text
+			.filter(element => typeof element === 'string')
+			.join('').trim();
+
+		if (this.text.some(element => element instanceof MaterializedChatMessageImage)) {
+			if (this.role !== ChatRole.User) {
+				throw new Error('Only User messages can have images');
+			}
+
+			let prompts: ChatCompletionContentPart[] = this.text.map(element => {
+				if (typeof element === 'string') {
+					return { type: 'text', text: element };
+				} else if (element instanceof MaterializedChatMessageImage) {
+					return {
+						type: 'image_url',
+						image_url: { url: getEncodedBase64(element.src), detail: element.detail },
+					};
+				} else {
+					throw new Error('Unexpected element type');
+				}
+			});
+
+			return {
+				role: ChatRole.User,
+				content: prompts,
+			};
+		}
+
 		if (this.role === ChatRole.System) {
 			return {
 				role: this.role,
-				content: this.text,
+				content,
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Assistant) {
 			return {
 				role: this.role,
-				content: this.text,
+				content,
 				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.User) {
 			return {
 				role: this.role,
-				content: this.text,
+				content,
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Tool) {
 			return {
 				role: this.role,
-				content: this.text,
+				content,
 				tool_call_id: this.toolCallId,
 			};
 		} else {
 			return {
 				role: this.role,
-				content: this.text,
+				content,
 				name: this.name!,
 			};
 		}
 	}
 }
 
+export class MaterializedChatMessageImage {
+	constructor(
+		public readonly id: number,
+		public readonly src: string,
+		public readonly priority: number,
+		public readonly metadata: PromptMetadata[] = [],
+		public readonly lineBreakBefore: LineBreakBefore,
+		public readonly detail?: 'low' | 'high',
+	) { }
+
+	public upperBoundTokenCount(tokenizer: ITokenizer) {
+		return this._upperBound(tokenizer);
+	}
+
+	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
+		return (
+			await tokenizer.countMessageTokens({
+				role: ChatRole.User, content: [{
+					type: 'image_url',
+					image_url: { url: getEncodedBase64(this.src), detail: this.detail }
+				}]
+			})
+		);
+	});
+
+	isEmpty: boolean = false;
+}
+
 function isContainerType(
 	node: MaterializedNode
 ): node is MaterializedContainer | MaterializedChatMessage {
-	return !(node instanceof MaterializedChatMessageTextChunk);
+	return !(node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage);
 }
 
 function assertContainerOrChatMessage(
 	v: MaterializedNode
-): asserts v is MaterializedContainer | MaterializedChatMessage {
-	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage)) {
+): asserts v is MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage {
+	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage) && !(v instanceof MaterializedChatMessageImage)) {
 		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
 	}
 }
@@ -301,13 +367,16 @@ function assertContainerOrChatMessage(
 function* textChunks(
 	node: MaterializedContainer | MaterializedChatMessage,
 	isTextSibling = false
-): Generator<{ text: MaterializedChatMessageTextChunk; isTextSibling: boolean }> {
+): Generator<{ text: MaterializedChatMessageTextChunk | MaterializedChatMessageImage; isTextSibling: boolean }> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
 			yield { text: child, isTextSibling };
 			isTextSibling = true;
+		} else if (child instanceof MaterializedChatMessageImage) {
+			yield { text: child, isTextSibling: false };
 		} else {
-			yield* textChunks(child, isTextSibling);
+			if (child)
+				yield* textChunks(child, isTextSibling);
 			isTextSibling = false;
 		}
 	}
@@ -317,15 +386,15 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
-				node: MaterializedChatMessageTextChunk;
-		  };
+			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			node: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
+		};
 
 	function findLowestInTree(
 		node: MaterializedNode,
 		chain: (MaterializedContainer | MaterializedChatMessage)[]
 	) {
-		if (node instanceof MaterializedChatMessageTextChunk) {
+		if (node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
 			}
@@ -371,11 +440,11 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
-				index: number;
-				value: MaterializedNode;
-				lowestNested?: number;
-		  };
+			chain: (MaterializedContainer | MaterializedChatMessage)[];
+			index: number;
+			value: MaterializedNode;
+			lowestNested?: number;
+		};
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -407,7 +476,7 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 
 	const containingList = lowest.chain[lowest.chain.length - 1].children;
 	if (
-		lowest.value instanceof MaterializedChatMessageTextChunk ||
+		lowest.value instanceof MaterializedChatMessageTextChunk || lowest.value instanceof MaterializedChatMessageImage ||
 		(lowest.value instanceof MaterializedContainer && lowest.value.has(ContainerFlags.IsChunk)) ||
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
@@ -490,4 +559,22 @@ function findNodeById(
 			}
 		}
 	}
+}
+
+function getEncodedBase64(base64String: string): string {
+	const mimeTypes: { [key: string]: string } = {
+		'/9j/': 'image/jpeg',
+		'iVBOR': 'image/png',
+		'R0lGOD': 'image/gif',
+		'UklGR': 'image/webp',
+	};
+
+	for (const prefix of Object.keys(mimeTypes)) {
+		if (base64String.startsWith(prefix)) {
+			return `data:${mimeTypes[prefix]};base64,${base64String}`;
+		}
+	}
+
+	return base64String;
+
 }

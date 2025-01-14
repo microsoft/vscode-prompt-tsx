@@ -133,6 +133,16 @@ export interface TextChunkProps extends BasePromptElementProps {
 	breakOnWhitespace?: boolean;
 }
 
+
+/**
+ * @property {string} src - The source of the image. This should be a raw base64 string.
+ * @property {'low' | 'high'} [detail] - Optional. The detail level of the image. Can be either 'low' or 'high'. If not specified, `high` is used.
+ */
+export interface ImageProps extends BasePromptElementProps {
+	src: string;
+	detail?: 'low' | 'high';
+}
+
 /**
  * A chunk of single-line or multi-line text that is a direct child of a {@link ChatMessagePromptElement}.
  *
@@ -219,6 +229,12 @@ async function getTextContentBelowBudget(
 	}
 
 	return outputText;
+}
+
+export class BaseImageMessage extends BaseChatMessage<ImageProps> {
+	constructor(props: ImageProps) {
+		super(props);
+	}
 }
 
 export interface PrioritizedListProps extends BasePromptElementProps {
