@@ -16,9 +16,16 @@ export interface IMaterializedNode {
 	upperBoundTokenCount(tokenizer: ITokenizer): Promise<number>;
 
 	/**
-	 * Gets the precise number of tokens this message contains.
+	 * Gets whether this node has any content to represent to the model.
 	 */
-	tokenCount(tokenizer: ITokenizer): Promise<number>;
+	readonly isEmpty: boolean;
+}
+
+interface IMaterializedContainer extends IMaterializedNode {
+	/**
+	 * Called when children change, so caches can be invalidated.
+	 */
+	onChunksChange(): void;
 }
 
 export type MaterializedNode =
@@ -36,15 +43,24 @@ export const enum ContainerFlags {
 	PassPriority = 1 << 2,
 }
 
-export class MaterializedContainer implements IMaterializedNode {
+type ContainerType = MaterializedChatMessage | MaterializedContainer;
+
+export class MaterializedContainer implements IMaterializedContainer {
+	public readonly children: MaterializedNode[];
+
+	public keepWithId?: number;
+
 	constructor(
+		public readonly parent: ContainerType | undefined,
 		public readonly id: number,
 		public readonly name: string | undefined,
 		public readonly priority: number,
-		public readonly children: MaterializedNode[],
+		childrenRef: (parent: MaterializedContainer) => MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
-	) { }
+	) {
+		this.children = childrenRef(this);
+	}
 
 	public has(flag: ContainerFlags) {
 		return !!(this.flags & flag);
@@ -98,6 +114,20 @@ export class MaterializedContainer implements IMaterializedNode {
 	}
 
 	/**
+	 * Gets whether the container is empty.
+	 */
+	get isEmpty(): boolean {
+		return !this.children.some(c => !c.isEmpty);
+	}
+
+	/**
+	 * Called when children change, so caches can be invalidated.
+	 */
+	onChunksChange(): void {
+		this.parent?.onChunksChange();
+	}
+
+	/**
 	 * Gets the chat messages the container holds.
 	 */
 	*toChatMessages(): Generator<ChatMessage> {
@@ -130,13 +160,14 @@ export const enum LineBreakBefore {
 }
 
 /** A chunk of text in a {@link MaterializedChatMessage} */
-export class MaterializedChatMessageTextChunk {
+export class MaterializedChatMessageTextChunk implements IMaterializedNode {
 	constructor(
+		public readonly parent: ContainerType | undefined,
 		public readonly text: string,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore
-	) { }
+	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
@@ -148,10 +179,17 @@ export class MaterializedChatMessageTextChunk {
 			(this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0)
 		);
 	});
+
+	public get isEmpty() {
+		return !/\S/.test(this.text);
+	}
 }
 
 export class MaterializedChatMessage implements IMaterializedNode {
+	public readonly children: MaterializedNode[];
+
 	constructor(
+		public readonly parent: ContainerType | undefined,
 		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
@@ -159,8 +197,10 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly toolCallId: string | undefined,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
-		public readonly children: MaterializedNode[]
-	) { }
+		childrenRef: (parent: MaterializedChatMessage) => MaterializedNode[]
+	) {
+		this.children = childrenRef(this);
+	}
 
 	/** @inheritdoc */
 	public async tokenCount(tokenizer: ITokenizer): Promise<number> {
@@ -178,8 +218,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	/** Gets whether the message is empty */
-	public get isEmpty() {
-		return !this.toolCalls?.length && !this.text.some(element => element instanceof MaterializedChatMessageImage || /\S/.test(element));
+	public get isEmpty(): boolean {
+		return !this.toolCalls?.length && !this.children.some(element => !element.isEmpty);
 	}
 
 	/**
@@ -203,12 +243,15 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		this._tokenCount.clear();
 		this._upperBound.clear();
 		this._text.clear();
+		this.parent?.onChunksChange();
 	}
 
 	/**
 	 * Finds a node in the tree by ID.
 	 */
-	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage | undefined {
+	findById(
+		nodeId: number
+	): MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage | undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -242,7 +285,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				text.lineBreakBefore === LineBreakBefore.Always ||
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
-				let prev = result[result.length - 1]
+				let prev = result[result.length - 1];
 				if (typeof prev === 'string' && !prev.endsWith('\n')) {
 					result[result.length - 1] = prev + '\n';
 				}
@@ -261,7 +304,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	public toChatMessage(): ChatMessage {
 		const content = this.text
 			.filter(element => typeof element === 'string')
-			.join('').trim();
+			.join('')
+			.trim();
 
 		if (this.text.some(element => element instanceof MaterializedChatMessageImage)) {
 			if (this.role !== ChatRole.User) {
@@ -324,27 +368,29 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 export class MaterializedChatMessageImage {
 	constructor(
+		public readonly parent: ContainerType | undefined,
 		public readonly id: number,
 		public readonly src: string,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore,
-		public readonly detail?: 'low' | 'high',
-	) { }
+		public readonly detail?: 'low' | 'high'
+	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
 		return this._upperBound(tokenizer);
 	}
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		return (
-			await tokenizer.countMessageTokens({
-				role: ChatRole.User, content: [{
+		return await tokenizer.countMessageTokens({
+			role: ChatRole.User,
+			content: [
+				{
 					type: 'image_url',
-					image_url: { url: getEncodedBase64(this.src), detail: this.detail }
-				}]
-			})
-		);
+					image_url: { url: getEncodedBase64(this.src), detail: this.detail },
+				},
+			],
+		});
 	});
 
 	isEmpty: boolean = false;
@@ -353,13 +399,19 @@ export class MaterializedChatMessageImage {
 function isContainerType(
 	node: MaterializedNode
 ): node is MaterializedContainer | MaterializedChatMessage {
-	return !(node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage);
+	return !(
+		node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage
+	);
 }
 
 function assertContainerOrChatMessage(
 	v: MaterializedNode
 ): asserts v is MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage {
-	if (!(v instanceof MaterializedContainer) && !(v instanceof MaterializedChatMessage) && !(v instanceof MaterializedChatMessageImage)) {
+	if (
+		!(v instanceof MaterializedContainer) &&
+		!(v instanceof MaterializedChatMessage) &&
+		!(v instanceof MaterializedChatMessageImage)
+	) {
 		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
 	}
 }
@@ -367,7 +419,10 @@ function assertContainerOrChatMessage(
 function* textChunks(
 	node: MaterializedContainer | MaterializedChatMessage,
 	isTextSibling = false
-): Generator<{ text: MaterializedChatMessageTextChunk | MaterializedChatMessageImage; isTextSibling: boolean }> {
+): Generator<{
+	text: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
+	isTextSibling: boolean;
+}> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
 			yield { text: child, isTextSibling };
@@ -375,8 +430,7 @@ function* textChunks(
 		} else if (child instanceof MaterializedChatMessageImage) {
 			yield { text: child, isTextSibling: false };
 		} else {
-			if (child)
-				yield* textChunks(child, isTextSibling);
+			if (child) yield* textChunks(child, isTextSibling);
 			isTextSibling = false;
 		}
 	}
@@ -386,15 +440,18 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	let lowest:
 		| undefined
 		| {
-			chain: (MaterializedContainer | MaterializedChatMessage)[];
-			node: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
-		};
+				chain: (MaterializedContainer | MaterializedChatMessage)[];
+				node: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
+		  };
 
 	function findLowestInTree(
 		node: MaterializedNode,
 		chain: (MaterializedContainer | MaterializedChatMessage)[]
 	) {
-		if (node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage) {
+		if (
+			node instanceof MaterializedChatMessageTextChunk ||
+			node instanceof MaterializedChatMessageImage
+		) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
 			}
@@ -413,38 +470,18 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 		throw new Error('No lowest priority node found');
 	}
 
-	let needle: MaterializedNode = lowest.node;
-	let i = lowest.chain.length - 1;
-	for (; i >= 0; i--) {
-		const node = lowest.chain[i];
-		node.children.splice(node.children.indexOf(needle), 1);
-		if (node instanceof MaterializedChatMessage) {
-			node.onChunksChange();
-		}
-		if (node.children.length > 0) {
-			break;
-		}
-
-		needle = node;
-	}
-
-	for (; i >= 0; i--) {
-		const node = lowest.chain[i];
-		if (node instanceof MaterializedChatMessage) {
-			node.onChunksChange();
-		}
-	}
+	removeNode(lowest.node);
 }
 
 function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage) {
 	let lowest:
 		| undefined
 		| {
-			chain: (MaterializedContainer | MaterializedChatMessage)[];
-			index: number;
-			value: MaterializedNode;
-			lowestNested?: number;
-		};
+				chain: (MaterializedContainer | MaterializedChatMessage)[];
+				index: number;
+				value: MaterializedNode;
+				lowestNested?: number;
+		  };
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -476,22 +513,14 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 
 	const containingList = lowest.chain[lowest.chain.length - 1].children;
 	if (
-		lowest.value instanceof MaterializedChatMessageTextChunk || lowest.value instanceof MaterializedChatMessageImage ||
+		lowest.value instanceof MaterializedChatMessageTextChunk ||
+		lowest.value instanceof MaterializedChatMessageImage ||
 		(lowest.value instanceof MaterializedContainer && lowest.value.has(ContainerFlags.IsChunk)) ||
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
-		containingList.splice(lowest.index, 1);
+		removeNode(lowest.value);
 	} else {
 		lowest.value.removeLowestPriorityChild();
-		if (lowest.value.children.length === 0) {
-			containingList.splice(lowest.index, 1);
-		}
-	}
-
-	for (const node of lowest.chain) {
-		if (node instanceof MaterializedChatMessage) {
-			node.onChunksChange();
-		}
 	}
 }
 
@@ -531,6 +560,7 @@ function replaceNode(
 		if (isContainerType(child)) {
 			if (child.id === nodeId) {
 				const oldNode = children[i];
+				(withNode as any).parent = child.parent;
 				children[i] = withNode;
 				return oldNode;
 			}
@@ -543,10 +573,67 @@ function replaceNode(
 	}
 }
 
-function findNodeById(
-	nodeId: number,
-	container: MaterializedContainer | MaterializedChatMessage
-): MaterializedContainer | MaterializedChatMessage | undefined {
+function* forEachNode(node: MaterializedNode) {
+	const queue: MaterializedNode[] = [node];
+
+	while (queue.length > 0) {
+		const current = queue.pop()!;
+		yield current;
+		if (isContainerType(current)) {
+			queue.push(...current.children);
+		}
+	}
+}
+
+function getRoot(node: MaterializedNode): MaterializedContainer {
+	let current = node;
+	while (current.parent) {
+		current = current.parent;
+	}
+
+	return current as MaterializedContainer;
+}
+
+function isKeepWith(
+	node: MaterializedNode
+): node is MaterializedContainer & { keepWithId: number } {
+	return node instanceof MaterializedContainer && node.keepWithId !== undefined;
+}
+
+/** Global list of 'keepWiths' currently being removed to avoid recursing indefinitely */
+const currentlyBeingRemovedKeepWiths = new Set<number>();
+
+function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
+	const removeKeepWithIds = new Set<number>();
+	for (const node of forEachNode(nodeThatWasRemoved)) {
+		if (isKeepWith(node) && !currentlyBeingRemovedKeepWiths.has(node.keepWithId)) {
+			removeKeepWithIds.add(node.keepWithId);
+		}
+	}
+
+	if (removeKeepWithIds.size === 0) {
+		return false;
+	}
+
+	for (const id of removeKeepWithIds) {
+		currentlyBeingRemovedKeepWiths.add(id);
+	}
+
+	try {
+		const root = getRoot(nodeThatWasRemoved);
+		for (const node of forEachNode(root)) {
+			if (isKeepWith(node) && removeKeepWithIds.has(node.keepWithId)) {
+				removeNode(node);
+			}
+		}
+	} finally {
+		for (const id of removeKeepWithIds) {
+			currentlyBeingRemovedKeepWiths.delete(id);
+		}
+	}
+}
+
+function findNodeById(nodeId: number, container: ContainerType): ContainerType | undefined {
 	if (container.id === nodeId) {
 		return container;
 	}
@@ -561,12 +648,33 @@ function findNodeById(
 	}
 }
 
+function removeNode(node: MaterializedNode) {
+	const parent = node.parent;
+	if (!parent) {
+		return; // root
+	}
+
+	const index = parent.children.indexOf(node);
+	if (index === -1) {
+		return;
+	}
+
+	parent.children.splice(index, 1);
+	removeOtherKeepWiths(node);
+
+	if (parent.isEmpty) {
+		removeNode(parent);
+	} else {
+		parent.onChunksChange();
+	}
+}
+
 function getEncodedBase64(base64String: string): string {
 	const mimeTypes: { [key: string]: string } = {
 		'/9j/': 'image/jpeg',
-		'iVBOR': 'image/png',
-		'R0lGOD': 'image/gif',
-		'UklGR': 'image/webp',
+		iVBOR: 'image/png',
+		R0lGOD: 'image/gif',
+		UklGR: 'image/webp',
 	};
 
 	for (const prefix of Object.keys(mimeTypes)) {
@@ -576,5 +684,4 @@ function getEncodedBase64(base64String: string): string {
 	}
 
 	return base64String;
-
 }

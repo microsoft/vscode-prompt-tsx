@@ -18,6 +18,7 @@ import {
 	TokenLimit,
 	ToolMessage,
 	ToolResult,
+	useKeepWith,
 	UserMessage,
 } from '../promptElements';
 import { PromptRenderer, RenderPromptResult } from '../promptRenderer';
@@ -242,10 +243,23 @@ suite('PromptRenderer', () => {
 		]);
 	});
 
-	suite('prunes in priority order', () => {
-		async function assertPruningOrder(elements: PromptPiece, order: string[]) {
-			const initialRender = await new PromptRenderer(
-				{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+	async function* pruneDown(elements: PromptPiece) {
+		const initialRender = await new PromptRenderer(
+			{ modelMaxPromptTokens: Number.MAX_SAFE_INTEGER } as any,
+			class extends PromptElement {
+				render() {
+					return elements;
+				}
+			},
+			{},
+			tokenizer
+		).render();
+
+		let tokens = initialRender.tokenCount;
+		let last = '';
+		while (tokens >= 0) {
+			const res = await new PromptRenderer(
+				{ modelMaxPromptTokens: tokens } as any,
 				class extends PromptElement {
 					render() {
 						return elements;
@@ -255,44 +269,114 @@ suite('PromptRenderer', () => {
 				tokenizer
 			).render();
 
-			let tokens = initialRender.tokenCount;
-			let last = '';
-			for (let i = 0; i < order.length; ) {
-				const res = await new PromptRenderer(
-					{ modelMaxPromptTokens: tokens } as any,
-					class extends PromptElement {
-						render() {
-							return elements;
-						}
-					},
-					{},
-					tokenizer
-				).render();
+			const messages = res.messages.map(m => `${m.role}: ${m.content}`).join('\n');
+			if (messages === last) {
+				tokens--;
+				continue;
+			}
 
-				const messages = res.messages.map(m => `${m.role}: ${m.content}`).join('\n');
-				if (messages === last) {
-					tokens--;
-					continue;
-				}
+			yield res.messages;
+			if (!messages.length) {
+				break;
+			}
 
+			last = messages;
+			tokens--;
+		}
+	}
+
+	suite('KeepWith', () => {
+		test('works as expected', async () => {
+			const KeepWith = useKeepWith();
+			const it = pruneDown(
+				<>
+					<UserMessage>
+						<KeepWith priority={1}>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={2}>b</TextChunk>
+						</KeepWith>
+						<KeepWith priority={2}>
+							<TextChunk>c</TextChunk>
+						</KeepWith>
+						<KeepWith priority={3}>
+							<TextChunk>d</TextChunk>
+						</KeepWith>
+					</UserMessage>
+				</>
+			);
+
+			let messages: string[] = [];
+			for await (const m of it) {
+				messages.push(m.map(m => m.content).join(''));
+			}
+
+			assert.deepStrictEqual(messages, ['a\nb\nc\nd', 'b\nc\nd', '']);
+		});
+
+		test('cascades', async () => {
+			const KeepWith1 = useKeepWith();
+			const KeepWith2 = useKeepWith();
+			const KeepWith3 = useKeepWith();
+			const it = pruneDown(
+				<>
+					<UserMessage>
+						<KeepWith1 priority={1}>
+							<TextChunk priority={1}>a</TextChunk>
+							<TextChunk priority={2}>b</TextChunk>
+						</KeepWith1>
+						<KeepWith1 priority={2}>
+							<KeepWith2>
+								<TextChunk>c#</TextChunk>
+							</KeepWith2>
+							<TextChunk>c</TextChunk>
+						</KeepWith1>
+						<KeepWith1 priority={3}>
+							<TextChunk>d</TextChunk>
+						</KeepWith1>
+						<KeepWith2 priority={4}>
+							<TextChunk>e</TextChunk>
+						</KeepWith2>
+						<KeepWith3 priority={5}>f</KeepWith3>
+					</UserMessage>
+				</>
+			);
+
+			let messages: string[] = [];
+			for await (const m of it) {
+				messages.push(m.map(m => m.content).join(''));
+			}
+
+			assert.deepStrictEqual(messages, ['a\nb\nc#\nc\nd\ne\nf', 'b\nc#\nc\nd\ne\nf', 'f', '']);
+		});
+	});
+
+	suite('prunes in priority order', () => {
+		async function assertPruningOrder(elements: PromptPiece, order: string[]) {
+			let i = 0;
+			let last = 'NONE';
+			for await (const messages of pruneDown(elements)) {
 				for (let k = 0; k < i; k++) {
-					if (res.messages.some(m => (m.content as string).includes(order[k]))) {
+					if (messages.some(m => (m.content as string).includes(order[k]))) {
+						const text = messages.map(m => m.content).join('');
 						throw new Error(
-							`Expected messages TO NOT HAVE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
+							`Expected messages TO NOT HAVE "${order[k]}". Got:\n\n${text}\n\nLast was: ${last}`
 						);
 					}
 				}
 				for (let k = i; k < order.length; k++) {
-					if (!res.messages.some(m => (m.content as string).includes(order[k]))) {
+					if (!messages.some(m => (m.content as string).includes(order[k]))) {
+						const text = messages.map(m => m.content).join('');
 						throw new Error(
-							`Expected messages TO INCLUDE "${order[k]}" at budget of ${tokens}. Got:\n\n${messages}\n\nLast was: ${last}`
+							`Expected messages TO INCLUDE "${order[k]}". Got:\n\n${text}\n\nLast was: ${last}`
 						);
 					}
 				}
 
-				last = messages;
-				tokens--;
 				i++;
+				last = messages.map(m => m.content).join('');
+				if (i === order.length) {
+					break;
+				}
 			}
 		}
 

@@ -29,6 +29,7 @@ import {
 	ToolMessage,
 	ImageProps,
 	BaseImageMessage,
+	AbstractKeepWith,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -103,7 +104,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
 		private readonly _tokenizer: ITokenizer
-	) { }
+	) {}
 
 	public getIgnoredFiles(): URI[] {
 		return Array.from(new Set(this._ignoredFiles));
@@ -183,7 +184,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 					const reserve =
 						typeof element.props.flexReserve === 'string'
 							? // Typings ensure the string is `/${number}`
-							Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
+							  Math.floor(sizing.remainingTokenBudget / Number(element.props.flexReserve.slice(1)))
 							: element.props.flexReserve;
 					reservedTokens += reserve;
 				}
@@ -799,7 +800,7 @@ class IntrinsicPromptPiece<K extends keyof JSX.IntrinsicElements> {
 		public readonly name: string,
 		public readonly props: JSX.IntrinsicElements[K],
 		public readonly children: PromptPieceChild[]
-	) { }
+	) {}
 }
 
 class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
@@ -809,13 +810,13 @@ class ExtrinsicPromptPiece<P extends BasePromptElementProps = any, S = any> {
 		public readonly ctor: PromptElementCtor<P, S>,
 		public readonly props: P,
 		public readonly children: PromptPieceChild[]
-	) { }
+	) {}
 }
 
 class LiteralPromptPiece {
 	public readonly kind = 'literal';
 
-	constructor(public readonly value: string, public readonly priority?: number) { }
+	constructor(public readonly value: string, public readonly priority?: number) {}
 }
 
 type ProcessedPromptPiece =
@@ -833,7 +834,7 @@ type LeafPromptNode = PromptText;
 class PromptSizingContext {
 	private _consumed = 0;
 
-	constructor(public readonly tokenBudget: number, public readonly endpoint: IChatEndpointInfo) { }
+	constructor(public readonly tokenBudget: number, public readonly endpoint: IChatEndpointInfo) {}
 
 	public get consumed() {
 		return this._consumed > this.tokenBudget ? this.tokenBudget : this._consumed;
@@ -896,7 +897,7 @@ class PromptTreeElement {
 		public readonly parent: PromptTreeElement | null = null,
 		public readonly childIndex: number,
 		public readonly id = PromptTreeElement._nextId++
-	) { }
+	) {}
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
@@ -971,25 +972,28 @@ class PromptTreeElement {
 					src: this._obj.props.src,
 					detail: this._obj.props.detail,
 				},
-			}
+			};
 		}
 
 		return json;
 	}
 
-	public materialize(): MaterializedChatMessage | MaterializedContainer | MaterializedChatMessageImage {
+	public materialize(
+		parent?: MaterializedChatMessage | MaterializedContainer
+	): MaterializedChatMessage | MaterializedContainer | MaterializedChatMessageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 
 		if (this._obj instanceof BaseImageMessage) {
 			// #region materialize baseimage
-			const parent = new MaterializedChatMessageImage(
+			return new MaterializedChatMessageImage(
+				parent,
 				1,
 				this._obj.props.src,
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
 				LineBreakBefore.None,
-				this._obj.props.detail ?? undefined)
-			return parent;
+				this._obj.props.detail ?? undefined
+			);
 		}
 
 		if (this._obj instanceof BaseChatMessage) {
@@ -997,7 +1001,8 @@ class PromptTreeElement {
 				throw new Error(`Invalid ChatMessage!`);
 			}
 
-			const parent = new MaterializedChatMessage(
+			return new MaterializedChatMessage(
+				parent,
 				this.id,
 				this._obj.props.role,
 				this._obj.props.name,
@@ -1005,23 +1010,29 @@ class PromptTreeElement {
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
-				this._children.map(child => child.materialize())
+				parent => this._children.map(child => child.materialize(parent))
 			);
-			return parent;
 		} else {
 			let flags = 0;
 			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
 			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
 			if (this._obj?.props.passPriority) flags |= ContainerFlags.PassPriority;
 
-			return new MaterializedContainer(
+			const container = new MaterializedContainer(
+				parent,
 				this.id,
 				this._obj?.constructor.name,
 				this._obj?.props.priority ?? (this._obj?.props.passPriority ? 0 : Number.MAX_SAFE_INTEGER),
-				this._children.map(child => child.materialize()),
+				parent => this._children.map(child => child.materialize(parent)),
 				this._metadata,
 				flags
 			);
+
+			if (this._obj instanceof AbstractKeepWith) {
+				container.keepWithId = this._obj.id;
+			}
+
+			return container;
 		}
 	}
 
@@ -1064,19 +1075,20 @@ class PromptText {
 		public readonly priority?: number,
 		public readonly metadata?: PromptMetadata[],
 		public readonly lineBreakBefore = false
-	) { }
+	) {}
 
 	public collectLeafs(result: LeafPromptNode[]) {
 		result.push(this);
 	}
 
-	public materialize() {
+	public materialize(parent: MaterializedChatMessage | MaterializedContainer) {
 		const lineBreak = this.lineBreakBefore
 			? LineBreakBefore.Always
 			: this.childIndex === 0
-				? LineBreakBefore.IfNotTextSibling
-				: LineBreakBefore.None;
+			? LineBreakBefore.IfNotTextSibling
+			: LineBreakBefore.None;
 		return new MaterializedChatMessageTextChunk(
+			parent,
 			this.text,
 			this.priority ?? Number.MAX_SAFE_INTEGER,
 			this.metadata || [],
@@ -1110,7 +1122,7 @@ function isDefined<T>(x: T | undefined): x is T {
 	return x !== undefined;
 }
 
-class InternalMetadata extends PromptMetadata { }
+class InternalMetadata extends PromptMetadata {}
 
 class ReferenceMetadata extends InternalMetadata {
 	constructor(public readonly reference: PromptReference) {
