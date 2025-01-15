@@ -312,6 +312,32 @@ After the prompt is rendered, the renderer sums up the tokens used by all messag
 
 If there are multiple `<Expandable />` elements, then they're re-called in the order in which they were initially rendered. Because they're designed to fill up any remaining space, it usually makes sense to have at most one `<Expandable />` element per prompt.
 
+### "Keep With"
+
+In some cases, content might only be relevant when other content is also included in the request. For example in tool calls, your tool call request should only be rendered if the tool call response survived prioritization.
+
+You can use the `useKeepWith` function to help with this. It returns a component class which is only visible in the output as none of its usages become empty. For example:
+
+```tsx
+class MyPromptElement extends PromptElement {
+	render() {
+		const KeepWith = useKeepWith();
+		return (
+			<>
+				<KeepWith priority={2}>
+					<ToolCallRequest>...</ToolCallRequest>
+				</KeepWith>
+				<KeepWith priority={1}>
+					<ToolCallResponse>...</ToolCallResponse>
+				</KeepWith>
+			</>
+		);
+	}
+}
+```
+
+Unlike `<Chunk />`, which prevents pruning of any children and simply removes them as a block, `<KeepWith />` in this case will allow the `ToolCallResponse` to be pruned, and if it's fully pruned it will also remove the `ToolCallRequest`.
+
 #### Debugging Budgeting
 
 You can set a `tracer` property on the `PromptElement` to debug how your elements are rendered and how this library allocates your budget. We include a basic `HTMLTracer` you can use, which can be served on an address:

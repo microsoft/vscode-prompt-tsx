@@ -11,7 +11,13 @@ import type {
 import { contentType } from '.';
 import { ChatRole } from './openai';
 import { PromptElement } from './promptElement';
-import { BasePromptElementProps, PromptElementProps, PromptPiece, PromptSizing } from './types';
+import {
+	BasePromptElementProps,
+	PromptElementCtor,
+	PromptElementProps,
+	PromptPiece,
+	PromptSizing,
+} from './types';
 import { PromptElementJSON } from './jsonTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
@@ -132,7 +138,6 @@ export interface TextChunkProps extends BasePromptElementProps {
 	/** A shortcut for setting {@link breakOn} to `/\s+/g` */
 	breakOnWhitespace?: boolean;
 }
-
 
 /**
  * @property {string} src - The source of the image. This should be a raw base64 string.
@@ -374,4 +379,45 @@ export class TokenLimit extends PromptElement<TokenLimitProps> {
 	render(): PromptPiece {
 		return <>{this.props.children}</>;
 	}
+}
+
+export abstract class AbstractKeepWith extends PromptElement {
+	public abstract readonly id: number;
+}
+
+let keepWidthId = 0;
+
+/**
+ * Returns a PromptElement that ensures each wrapped element is retained only
+ * so long as each other wrapped is not empty.
+ *
+ * This is useful when dealing with tool calls, for example. In that case,
+ * your tool call request should only be rendered if the tool call response
+ * survived prioritization. In that case, you implement a `render` function
+ * like so:
+ *
+ * ```
+ * render() {
+ *   const KeepWith = useKeepWith();
+ *   return <>
+ *     <KeepWith priority={2}><ToolCallRequest>...</ToolCallRequest></KeepWith>
+ *     <KeepWith priority={1}><ToolCallResponse>...</ToolCallResponse></KeepWith>
+ *   </>;
+ * }
+ * ```
+ *
+ * Unlike `<Chunk />`, which blocks pruning of any child elements and simply
+ * removes them as a block, `<KeepWith />` in this case will allow the
+ * `ToolCallResponse` to be pruned, and if it's fully pruned it will also
+ * remove the `ToolCallRequest`.
+ */
+export function useKeepWith(): PromptElementCtor<BasePromptElementProps, void> {
+	const id = keepWidthId++;
+	return class KeepWith extends AbstractKeepWith {
+		public readonly id = id;
+
+		render(): PromptPiece {
+			return <>{this.props.children}</>;
+		}
+	};
 }

@@ -2,7 +2,13 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, ChatResponsePart, LanguageModelChat, Progress, LanguageModelChatMessage } from 'vscode';
+import type {
+	CancellationToken,
+	ChatResponsePart,
+	LanguageModelChat,
+	Progress,
+	LanguageModelChatMessage,
+} from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
 import { ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
@@ -41,7 +47,8 @@ export {
 	ToolCall,
 	ToolMessage,
 	UserMessage,
-	ToolResult
+	ToolResult,
+	useKeepWith,
 } from './promptElements';
 
 export { PromptElement } from './promptElement';
@@ -181,9 +188,9 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 	props: P,
 	budgetInformation:
 		| {
-			tokenBudget: number;
-			countTokens(text: string, token?: CancellationToken): Thenable<number>;
-		}
+				tokenBudget: number;
+				countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		  }
 		| undefined,
 	token?: CancellationToken
 ): Promise<PromptElementJSON> {
@@ -223,19 +230,17 @@ export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChat
 				if (m.tool_calls) {
 					message.content = [
 						new vscode.LanguageModelTextPart(m.content),
-						...m.tool_calls.map(
-							tc => {
-								// prompt-tsx got args passed as a string, here we assume they are JSON because the vscode-type wants an object
-								let parsedArgs: object;
-								try {
-									parsedArgs = JSON.parse(tc.function.arguments);
-								} catch (err) {
-									throw new Error('Invalid JSON in tool call arguments for tool call: ' + tc.id);
-								}
-
-								return new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, parsedArgs)
+						...m.tool_calls.map(tc => {
+							// prompt-tsx got args passed as a string, here we assume they are JSON because the vscode-type wants an object
+							let parsedArgs: object;
+							try {
+								parsedArgs = JSON.parse(tc.function.arguments);
+							} catch (err) {
+								throw new Error('Invalid JSON in tool call arguments for tool call: ' + tc.id);
 							}
-						)
+
+							return new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, parsedArgs);
+						}),
 					];
 				}
 				return message;
@@ -243,12 +248,20 @@ export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChat
 				return vscode.LanguageModelChatMessage.User(m.content, m.name);
 			case ChatRole.Function: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [new vscode.LanguageModelToolResultPart(m.name, [new vscode.LanguageModelTextPart(m.content)])];
+				message.content = [
+					new vscode.LanguageModelToolResultPart(m.name, [
+						new vscode.LanguageModelTextPart(m.content),
+					]),
+				];
 				return message;
 			}
 			case ChatRole.Tool: {
 				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [new vscode.LanguageModelToolResultPart(m.tool_call_id, [new vscode.LanguageModelTextPart(m.content)])];
+				message.content = [
+					new vscode.LanguageModelToolResultPart(m.tool_call_id, [
+						new vscode.LanguageModelTextPart(m.content),
+					]),
+				];
 				return message;
 			}
 			default:
