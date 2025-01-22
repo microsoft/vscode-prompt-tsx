@@ -353,6 +353,25 @@ tracer.serveHTML().then(server => {
 });
 ```
 
+### IfEmpty
+
+The `<IfEmpty />` helper allows you to provide an alternative element to use if the default children of an element are empty at the time of rendering. This is especially useful when you require fallback logic for opaque child data, such as tool calls.
+
+```tsx
+class MyPromptElement extends PromptElement {
+	render() {
+		const KeepWith = useKeepWith();
+		return (
+			<>
+				<IfEmpty alt="Tool returned no data">
+					<ToolCallResponse>...</ToolCallResponse>
+				</IfEmpty>
+			</>
+		);
+	}
+}
+```
+
 ### Usage in Tools
 
 Visual Studio Code's API supports language models tools, sometimes called 'functions'. The tools API allows tools to return multiple content types of data to its consumers, and this library supports both returning rich prompt elements to tool callers, as well as using rich content returned from tools.
