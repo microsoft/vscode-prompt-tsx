@@ -30,6 +30,7 @@ import {
 	ImageProps,
 	BaseImageMessage,
 	AbstractKeepWith,
+	IfEmpty,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -1016,6 +1017,7 @@ class PromptTreeElement {
 			let flags = 0;
 			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
 			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
+			if (this._obj instanceof IfEmpty) flags |= ContainerFlags.EmptyAlternate;
 			if (this._obj?.props.passPriority) flags |= ContainerFlags.PassPriority;
 
 			const container = new MaterializedContainer(

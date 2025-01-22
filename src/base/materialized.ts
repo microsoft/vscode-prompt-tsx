@@ -41,6 +41,8 @@ export const enum ContainerFlags {
 	IsChunk = 1 << 1,
 	/** Priority is passed to children. */
 	PassPriority = 1 << 2,
+	/** Is an alternate with children  */
+	EmptyAlternate = 1 << 3,
 }
 
 type ContainerType = MaterializedChatMessage | MaterializedContainer;
@@ -60,6 +62,19 @@ export class MaterializedContainer implements IMaterializedContainer {
 		public readonly flags: number
 	) {
 		this.children = childrenRef(this);
+
+		if (flags & ContainerFlags.EmptyAlternate) {
+			if (this.children.length !== 2) {
+				throw new Error('Invalid number of children for EmptyAlternate flag');
+			}
+
+			const [ifEmpty, defaultChild] = this.children;
+			if (defaultChild.isEmpty) {
+				this.children = [ifEmpty];
+			} else {
+				this.children = [defaultChild];
+			}
+		}
 	}
 
 	public has(flag: ContainerFlags) {

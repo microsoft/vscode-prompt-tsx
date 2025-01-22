@@ -11,6 +11,7 @@ import {
 	BaseImageMessage,
 	Chunk,
 	Expandable,
+	IfEmpty,
 	LegacyPrioritization,
 	PrioritizedList,
 	SystemMessage,
@@ -29,15 +30,53 @@ import {
 	BasePromptElementProps,
 	IChatEndpointInfo,
 	PromptElementCtor,
+	PromptElementProps,
 	PromptPiece,
+	PromptPieceChild,
 	PromptSizing,
 } from '../types';
+import { Progress, CancellationToken } from 'vscode';
+import { ChatResponsePart } from '../vscodeTypes';
 
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
 		modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
 	} satisfies Partial<IChatEndpointInfo>;
 	const tokenizer = new Cl100KBaseTokenizer();
+
+	async function renderWithMaxPromptTokens<
+		P extends BasePromptElementProps = BasePromptElementProps
+	>(
+		maxPromptTokens: number,
+		ctor: PromptElementCtor<P, any>,
+		props: P
+	): Promise<RenderPromptResult> {
+		const fakeEndpoint: any = {
+			modelMaxPromptTokens: maxPromptTokens,
+		} satisfies Partial<IChatEndpointInfo>;
+		const inst = new PromptRenderer(fakeEndpoint, ctor, props, tokenizer);
+		return await inst.render(undefined, undefined);
+	}
+
+	async function renderFragmentWithMaxPromptTokens(
+		maxPromptTokens: number,
+		piece: PromptPieceChild
+	): Promise<RenderPromptResult> {
+		const fakeEndpoint: any = {
+			modelMaxPromptTokens: maxPromptTokens,
+		} satisfies Partial<IChatEndpointInfo>;
+		const inst = new PromptRenderer(
+			fakeEndpoint,
+			class extends PromptElement {
+				render() {
+					return <>{piece}</>;
+				}
+			},
+			{},
+			tokenizer
+		);
+		return await inst.render(undefined, undefined);
+	}
 
 	test('token counting', async () => {
 		class Prompt1 extends PromptElement {
@@ -648,20 +687,6 @@ suite('PromptRenderer', () => {
 					</>
 				);
 			}
-		}
-
-		async function renderWithMaxPromptTokens<
-			P extends BasePromptElementProps = BasePromptElementProps
-		>(
-			maxPromptTokens: number,
-			ctor: PromptElementCtor<P, any>,
-			props: P
-		): Promise<RenderPromptResult> {
-			const fakeEndpoint: any = {
-				modelMaxPromptTokens: maxPromptTokens,
-			} satisfies Partial<IChatEndpointInfo>;
-			const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
-			return await inst.render(undefined, undefined);
 		}
 
 		test('no shaving', async () => {
@@ -2395,6 +2420,84 @@ suite('PromptRenderer', () => {
 						},
 						{ text: 'some text in a text chunk', type: 'text' },
 					],
+				},
+			]);
+		});
+	});
+
+	suite('IfEmpty', () => {
+		test('simple string (full)', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt="empty alt!">Not an empty string</IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'Not an empty string',
+				},
+			]);
+		});
+
+		test('simple string (empty)', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt="empty alt!"> </IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'empty alt!',
+				},
+			]);
+		});
+
+		class Wrapper extends PromptElement<BasePromptElementProps & { x: string }> {
+			render() {
+				return (
+					<>
+						<TextChunk></TextChunk>
+						<TextChunk>{this.props.x}</TextChunk>
+						<Chunk></Chunk>
+					</>
+				);
+			}
+		}
+
+		test('complex elements (full)', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt={<Wrapper x="alternate" />}>
+						<Wrapper x="hi!" />
+					</IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'hi!',
+				},
+			]);
+		});
+
+		test('complex elements (empty)', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt={<Wrapper x="alternate" />}>
+						<Wrapper x="" />
+					</IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: 'user',
+					content: 'alternate',
 				},
 			]);
 		});

@@ -16,6 +16,7 @@ import {
 	PromptElementCtor,
 	PromptElementProps,
 	PromptPiece,
+	PromptPieceChild,
 	PromptSizing,
 } from './types';
 import { PromptElementJSON } from './jsonTypes';
@@ -420,4 +421,19 @@ export function useKeepWith(): PromptElementCtor<BasePromptElementProps, void> {
 			return <>{this.props.children}</>;
 		}
 	};
+}
+
+export interface IfEmptyProps extends BasePromptElementProps {
+	alt: PromptPieceChild;
+}
+
+/**
+ * An element that returns its `alt` prop if its children are empty at the
+ * time when it's rendered. This is especially useful when you require
+ * fallback logic for opaque child data, such as tool calls.
+ */
+export class IfEmpty extends PromptElement<IfEmptyProps> {
+	render(): PromptPiece {
+		return <>{[this.props.alt, this.props.children]}</>;
+	}
 }
