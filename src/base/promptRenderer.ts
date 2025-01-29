@@ -747,6 +747,8 @@ async function computeTokensConsumedByLiterals(
 			role: element.props.role,
 			content: '',
 			...(element.props.name ? { name: element.props.name } : undefined),
+			...(element.props.toolCalls ? { tool_calls: element.props.toolCalls } : undefined),
+			...(element.props.toolCallId ? { tool_call_id: element.props.toolCallId } : undefined),
 		});
 	}
 
