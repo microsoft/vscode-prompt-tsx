@@ -72,6 +72,12 @@ export interface ToolCall {
 	id: string;
 	function: ToolFunction;
 	type: 'function';
+	/**
+	 * A `<KeepWith />` element, created from {@link useKeepWith}, that wraps
+	 * the tool result. This will ensure that if the tool result is pruned,
+	 * the tool call is also pruned to avoid errors.
+	 */
+	keepWith?: KeepWithCtor;
 }
 
 export interface ToolFunction {
@@ -388,6 +394,8 @@ export abstract class AbstractKeepWith extends PromptElement {
 
 let keepWidthId = 0;
 
+export type KeepWithCtor = typeof AbstractKeepWith & { id: number };
+
 /**
  * Returns a PromptElement that ensures each wrapped element is retained only
  * so long as each other wrapped is not empty.
@@ -412,9 +420,11 @@ let keepWidthId = 0;
  * `ToolCallResponse` to be pruned, and if it's fully pruned it will also
  * remove the `ToolCallRequest`.
  */
-export function useKeepWith(): PromptElementCtor<BasePromptElementProps, void> {
+export function useKeepWith(): KeepWithCtor {
 	const id = keepWidthId++;
 	return class KeepWith extends AbstractKeepWith {
+		public static readonly id = id;
+
 		public readonly id = id;
 
 		render(): PromptPiece {
