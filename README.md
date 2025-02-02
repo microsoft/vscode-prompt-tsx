@@ -338,6 +338,8 @@ class MyPromptElement extends PromptElement {
 
 Unlike `<Chunk />`, which prevents pruning of any children and simply removes them as a block, `<KeepWith />` in this case will allow the `ToolCallResponse` to be pruned, and if it's fully pruned it will also remove the `ToolCallRequest`.
 
+You can also pass the `KeepWith` instance to `toolCalls` in `AssistantMessage`s.
+
 #### Debugging Budgeting
 
 You can set a `tracer` property on the `PromptElement` to debug how your elements are rendered and how this library allocates your budget. We include a basic `HTMLTracer` you can use, which can be served on an address:

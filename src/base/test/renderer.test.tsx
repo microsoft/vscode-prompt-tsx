@@ -387,6 +387,71 @@ suite('PromptRenderer', () => {
 
 			assert.deepStrictEqual(messages, ['a\nb\nc#\nc\nd\ne\nf', 'b\nc#\nc\nd\ne\nf', 'f', '']);
 		});
+
+		test('trims tool calls', async () => {
+			const KeepWith1 = useKeepWith();
+			const KeepWith2 = useKeepWith();
+			const KeepWith3 = useKeepWith();
+			const it = pruneDown(
+				<>
+					<AssistantMessage
+						toolCalls={[
+							{
+								id: '1',
+								type: 'function',
+								function: { name: 'tool1', arguments: '"a"' },
+								keepWith: KeepWith1,
+							},
+							{
+								id: '2',
+								type: 'function',
+								function: { name: 'tool2', arguments: '"b"' },
+								keepWith: KeepWith2,
+							},
+						]}
+					/>
+					<AssistantMessage
+						toolCalls={[
+							{
+								id: '3',
+								type: 'function',
+								function: { name: 'tool3', arguments: '"c"' },
+								keepWith: KeepWith3,
+							},
+						]}
+					/>
+					<UserMessage>
+						<KeepWith1 priority={1}>
+							<TextChunk priority={1}>a</TextChunk>
+						</KeepWith1>
+						<KeepWith2 priority={2}>
+							<TextChunk priority={2}>b</TextChunk>
+						</KeepWith2>
+						<KeepWith3 priority={3}>
+							<TextChunk priority={3}>c</TextChunk>
+						</KeepWith3>
+					</UserMessage>
+				</>
+			);
+
+			let messages: { content: string[]; tcIds: string[] }[] = [];
+			for await (const m of it) {
+				messages.push({
+					content: m.map(m => `${m.role}: ${m.content}`),
+					tcIds: m
+						.filter(m => m.role === ChatRole.Assistant)
+						.flatMap(m => m.tool_calls ?? [])
+						.map(tc => tc.id),
+				});
+			}
+
+			assert.deepStrictEqual(messages, [
+				{ content: ['assistant: ', 'assistant: ', 'user: a\nb\nc'], tcIds: ['1', '2', '3'] },
+				{ content: ['assistant: ', 'assistant: ', 'user: b\nc'], tcIds: ['2', '3'] },
+				{ content: ['assistant: ', 'user: c'], tcIds: ['3'] },
+				{ content: [], tcIds: [] },
+			]);
+		});
 	});
 
 	suite('prunes in priority order', () => {
