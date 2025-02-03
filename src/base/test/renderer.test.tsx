@@ -35,8 +35,7 @@ import {
 	PromptPieceChild,
 	PromptSizing,
 } from '../types';
-import { Progress, CancellationToken } from 'vscode';
-import { ChatResponsePart } from '../vscodeTypes';
+import type * as vscode from 'vscode';
 
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
@@ -1621,128 +1620,125 @@ suite('PromptRenderer', () => {
 		});
 	});
 
-	if (!process.env.IS_OUTSIDE_VSCODE) {
-		const vscode = require('vscode');
-		// Can't run this until a vscode build is published with the new constructors
-		suite.skip('renderElementJSON', () => {
-			test('scopes priorities', async () => {
-				const json = await renderElementJSON(
-					class extends PromptElement {
-						render() {
-							return (
-								<>
-									<TextChunk priority={50}>hello50</TextChunk>
-									<TextChunk priority={60}>hello60</TextChunk>
-									<TextChunk priority={70}>hello70</TextChunk>
-									<TextChunk priority={80}>hello80</TextChunk>
-									<TextChunk priority={90}>hello90</TextChunk>
-								</>
-							);
-						}
-					},
-					{},
-					{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
-				);
+	suite('renderElementJSON', () => {
+		class LanguageModelTextPart implements vscode.LanguageModelTextPart {
+			constructor(public value: string) {}
+		}
 
-				const actual = await renderPrompt(
-					class extends PromptElement {
-						render() {
-							return (
-								<UserMessage>
-									<TextChunk priority={40}>outer40</TextChunk>
-									<ToolResult
-										priority={50}
-										data={
-											new vscode.LanguageModelToolResult([
-												new vscode.LanguageModelPromptTsxPart(json, contentType),
-											])
-										}
-									/>
-									<TextChunk priority={60}>outer60</TextChunk>
-									<TextChunk priority={70}>outer70</TextChunk>
-									<TextChunk priority={80}>outer80</TextChunk>
-									<TextChunk priority={90}>outer90</TextChunk>
-								</UserMessage>
-							);
-						}
-					},
-					{},
-					{ modelMaxPromptTokens: 20 },
-					tokenizer
-				);
+		class LanguageModelPromptTsxPart implements vscode.LanguageModelPromptTsxPart {
+			constructor(public value: unknown) {}
+		}
 
-				// if priorities were not scoped, we'd see hello80 here instead of outer70
-				assert.strictEqual(
-					actual.messages[0].content,
-					'hello90\nouter60\nouter70\nouter80\nouter90'
-				);
-			});
+		class LanguageModelToolResult implements vscode.LanguageModelToolResult {
+			constructor(public content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>) {}
+		}
 
-			test('round trips messages', async () => {
-				class MyElement extends PromptElement {
+		test('scopes priorities', async () => {
+			const json = await renderElementJSON(
+				class extends PromptElement {
 					render() {
 						return (
 							<>
-								Hello world!
-								<TextChunk priority={10}>
-									chunk1
-									<references
-										value={[new PromptReference({ variableName: 'foo', value: undefined })]}
-									/>
-								</TextChunk>
-								<TextChunk priority={20}>chunk2</TextChunk>
+								<TextChunk priority={50}>hello50</TextChunk>
+								<TextChunk priority={60}>hello60</TextChunk>
+								<TextChunk priority={70}>hello70</TextChunk>
+								<TextChunk priority={80}>hello80</TextChunk>
+								<TextChunk priority={90}>hello90</TextChunk>
 							</>
 						);
 					}
-				}
-				const r = await renderElementJSON(
-					MyElement,
-					{},
-					{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
-				);
+				},
+				{},
+				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
 
-				const expected = await renderPrompt(
-					class extends PromptElement {
-						render() {
-							return (
-								<UserMessage>
-									<MyElement />
-								</UserMessage>
-							);
-						}
-					},
-					{},
-					fakeEndpoint,
-					tokenizer
-				);
+			const actual = await new PromptRenderer(
+				{ modelMaxPromptTokens: 20 } as any,
+				class extends PromptElement {
+					render() {
+						return (
+							<UserMessage>
+								<TextChunk priority={40}>outer40</TextChunk>
+								<ToolResult
+									priority={50}
+									data={new LanguageModelToolResult([new LanguageModelPromptTsxPart(json)])}
+								/>
+								<TextChunk priority={60}>outer60</TextChunk>
+								<TextChunk priority={70}>outer70</TextChunk>
+								<TextChunk priority={80}>outer80</TextChunk>
+								<TextChunk priority={90}>outer90</TextChunk>
+							</UserMessage>
+						);
+					}
+				},
+				{},
+				tokenizer
+			).render();
 
-				const actual = await renderPrompt(
-					class extends PromptElement {
-						render() {
-							return (
-								<UserMessage>
-									<ToolResult
-										priority={50}
-										data={
-											new vscode.LanguageModelToolResult([
-												new vscode.LanguageModelPromptTsxPart(r, contentType),
-											])
-										}
-									/>
-								</UserMessage>
-							);
-						}
-					},
-					{},
-					fakeEndpoint,
-					tokenizer
-				);
-
-				assert.deepStrictEqual(actual.messages, expected.messages);
-				assert.deepStrictEqual(actual.references, expected.references);
-			});
+			// if priorities were not scoped, we'd see hello80 here instead of outer70
+			assert.strictEqual(actual.messages[0].content, 'hello90\nouter60\nouter70\nouter80\nouter90');
 		});
-	}
+
+		test('round trips messages', async () => {
+			class MyElement extends PromptElement {
+				render() {
+					return (
+						<>
+							Hello world!
+							<TextChunk priority={10}>
+								chunk1
+								<references
+									value={[new PromptReference({ variableName: 'foo', value: undefined })]}
+								/>
+							</TextChunk>
+							<TextChunk priority={20}>chunk2</TextChunk>
+						</>
+					);
+				}
+			}
+			const r = await renderElementJSON(
+				MyElement,
+				{},
+				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
+
+			const expected = await new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return (
+							<UserMessage>
+								<MyElement />
+							</UserMessage>
+						);
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			const actual = await new PromptRenderer(
+				fakeEndpoint,
+				class extends PromptElement {
+					render() {
+						return (
+							<UserMessage>
+								<ToolResult
+									priority={50}
+									data={new LanguageModelToolResult([new LanguageModelPromptTsxPart(r)])}
+								/>
+							</UserMessage>
+						);
+					}
+				},
+				{},
+				tokenizer
+			).render();
+
+			assert.deepStrictEqual(actual.messages, expected.messages);
+			assert.deepStrictEqual(actual.references, expected.references);
+		});
+	});
 
 	test('correct ordering of child text chunks (#90)', async () => {
 		class Wrapper extends PromptElement {

@@ -315,14 +315,16 @@ export interface IToolResultProps extends BasePromptElementProps {
 export class ToolResult extends PromptElement<IToolResultProps> {
 	render(): Promise<PromptPiece | undefined> | PromptPiece | undefined {
 		// note: future updates to content types should be handled here for backwards compatibility
-		const vscode = require('vscode');
-		// TODO proper way to handle types here?
 		return (
 			<>
 				{this.props.data.content.map(part => {
-					if (part instanceof vscode.LanguageModelTextPart) {
+					if (part && typeof (part as LanguageModelTextPart).value === 'string') {
 						return (part as LanguageModelTextPart).value;
-					} else if (part instanceof vscode.LanguageModelPromptTsxPart) {
+					} else if (
+						part &&
+						(part as LanguageModelPromptTsxPart).value &&
+						typeof (part as { value: PromptElementJSON }).value.node === 'object'
+					) {
 						return (
 							<elementJSON data={(part as LanguageModelPromptTsxPart).value as PromptElementJSON} />
 						);
