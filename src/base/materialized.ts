@@ -3,7 +3,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from './once';
-import { ChatCompletionContentPart, ChatMessage, ChatMessageToolCall, ChatRole } from './openai';
+import {
+	AssistantChatMessage,
+	ChatCompletionContentPart,
+	ChatMessage,
+	ChatMessageToolCall,
+	ChatRole,
+} from './openai';
+import { ToolCall } from './promptElements';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 
@@ -208,7 +215,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly id: number,
 		public readonly role: ChatRole,
 		public readonly name: string | undefined,
-		public readonly toolCalls: ChatMessageToolCall[] | undefined,
+		public toolCalls: readonly ToolCall[] | undefined,
 		public readonly toolCallId: string | undefined,
 		public readonly priority: number,
 		public readonly metadata: PromptMetadata[],
@@ -353,12 +360,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				...(this.name ? { name: this.name } : {}),
 			};
 		} else if (this.role === ChatRole.Assistant) {
-			return {
-				role: this.role,
-				content,
-				...(this.toolCalls ? { tool_calls: this.toolCalls } : {}),
-				...(this.name ? { name: this.name } : {}),
-			};
+			const msg: AssistantChatMessage = { role: this.role, content };
+			if (this.name) {
+				msg.name = this.name;
+			}
+			if (this.toolCalls?.length) {
+				msg.tool_calls = this.toolCalls.map(tc => ({
+					function: tc.function,
+					id: tc.id,
+					type: tc.type,
+				}));
+			}
+			return msg;
 		} else if (this.role === ChatRole.User) {
 			return {
 				role: this.role,
@@ -639,6 +652,15 @@ function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
 		for (const node of forEachNode(root)) {
 			if (isKeepWith(node) && removeKeepWithIds.has(node.keepWithId)) {
 				removeNode(node);
+			} else if (node instanceof MaterializedChatMessage && node.toolCalls) {
+				node.toolCalls = filterIfDifferent(
+					node.toolCalls,
+					c => !(c.keepWith && removeKeepWithIds.has(c.keepWith.id))
+				);
+
+				if (node.isEmpty) { // may have become empty if it only contained tool calls
+					removeNode(node);
+				}
 			}
 		}
 	} finally {
@@ -699,4 +721,23 @@ function getEncodedBase64(base64String: string): string {
 	}
 
 	return base64String;
+}
+
+/** Like Array.filter(), but only clones the array if a change is made */
+function filterIfDifferent<T>(arr: readonly T[], predicate: (item: T) => boolean): readonly T[] {
+	for (let i = 0; i < arr.length; i++) {
+		if (predicate(arr[i])) {
+			continue;
+		}
+
+		const newArr = arr.slice(0, i);
+		for (let k = i + 1; k < arr.length; k++) {
+			if (predicate(arr[k])) {
+				newArr.push(arr[k]);
+			}
+		}
+		return newArr;
+	}
+
+	return arr;
 }
