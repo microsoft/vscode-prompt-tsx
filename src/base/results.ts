@@ -53,6 +53,7 @@ export class PromptReference {
 		readonly iconPath?: Uri | ThemeIcon | { light: Uri; dark: Uri },
 		readonly options?: {
 			status?: { description: string; kind: ChatResponseReferencePartStatusKind };
+			isFromTool?: boolean;
 		}
 	) {}
 
