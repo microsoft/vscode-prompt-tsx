@@ -3,13 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { once } from './once';
-import {
-	AssistantChatMessage,
-	ChatCompletionContentPart,
-	ChatMessage,
-	ChatMessageToolCall,
-	ChatRole,
-} from './openai';
+import { Raw, toMode } from './output/mode';
 import { ToolCall } from './promptElements';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -152,7 +146,7 @@ export class MaterializedContainer implements IMaterializedContainer {
 	/**
 	 * Gets the chat messages the container holds.
 	 */
-	*toChatMessages(): Generator<ChatMessage> {
+	*toChatMessages(): Generator<Raw.ChatMessage> {
 		for (const child of this.children) {
 			assertContainerOrChatMessage(child);
 			if (child instanceof MaterializedContainer) {
@@ -196,10 +190,11 @@ export class MaterializedChatMessageTextChunk implements IMaterializedNode {
 	}
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		return (
-			(await tokenizer.tokenLength(this.text)) +
-			(this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0)
-		);
+		const textTokens = await tokenizer.tokenLength({
+			type: Raw.ChatCompletionContentPartKind.Text,
+			text: this.text,
+		});
+		return textTokens + (this.lineBreakBefore !== LineBreakBefore.None ? 1 : 0);
 	});
 
 	public get isEmpty() {
@@ -213,7 +208,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	constructor(
 		public readonly parent: ContainerType | undefined,
 		public readonly id: number,
-		public readonly role: ChatRole,
+		public readonly role: Raw.ChatRole,
 		public readonly name: string | undefined,
 		public toolCalls: readonly ToolCall[] | undefined,
 		public readonly toolCallId: string | undefined,
@@ -278,7 +273,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	private readonly _tokenCount = once(async (tokenizer: ITokenizer) => {
-		return tokenizer.countMessageTokens(this.toChatMessage());
+		const raw = this.toChatMessage();
+		return tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	});
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
@@ -293,7 +289,9 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	});
 
 	private readonly _baseMessageTokenCount = once((tokenizer: ITokenizer) => {
-		return tokenizer.countMessageTokens({ ...this.toChatMessage(), content: '' });
+		const raw = this.toChatMessage();
+		raw.content = [];
+		return tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	});
 
 	private readonly _text = once((): (string | MaterializedChatMessageImage)[] => {
@@ -308,7 +306,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
 				let prev = result[result.length - 1];
-				if (typeof prev === 'string' && !prev.endsWith('\n')) {
+				if (typeof prev === 'string' && prev && !prev.endsWith('\n')) {
 					result[result.length - 1] = prev + '\n';
 				}
 			}
@@ -323,66 +321,50 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return result;
 	});
 
-	public toChatMessage(): ChatMessage {
-		const content = this.text
-			.filter(element => typeof element === 'string')
-			.join('')
-			.trim();
-
-		if (this.text.some(element => element instanceof MaterializedChatMessageImage)) {
-			if (this.role !== ChatRole.User) {
-				throw new Error('Only User messages can have images');
+	public toChatMessage(): Raw.ChatMessage {
+		const content = this.text.map((element): Raw.ChatCompletionContentPart => {
+			if (typeof element === 'string') {
+				return { type: Raw.ChatCompletionContentPartKind.Text, text: element }; // updated type reference
+			} else if (element instanceof MaterializedChatMessageImage) {
+				return {
+					type: Raw.ChatCompletionContentPartKind.Image, // updated type reference
+					imageUrl: { url: getEncodedBase64(element.src), detail: element.detail },
+				};
+			} else {
+				throw new Error('Unexpected element type');
 			}
+		});
 
-			let prompts: ChatCompletionContentPart[] = this.text.map(element => {
-				if (typeof element === 'string') {
-					return { type: 'text', text: element };
-				} else if (element instanceof MaterializedChatMessageImage) {
-					return {
-						type: 'image_url',
-						image_url: { url: getEncodedBase64(element.src), detail: element.detail },
-					};
-				} else {
-					throw new Error('Unexpected element type');
-				}
-			});
-
-			return {
-				role: ChatRole.User,
-				content: prompts,
-			};
-		}
-
-		if (this.role === ChatRole.System) {
+		if (this.role === Raw.ChatRole.System) {
 			return {
 				role: this.role,
 				content,
 				...(this.name ? { name: this.name } : {}),
 			};
-		} else if (this.role === ChatRole.Assistant) {
-			const msg: AssistantChatMessage = { role: this.role, content };
+		} else if (this.role === Raw.ChatRole.Assistant) {
+			const msg: Raw.AssistantChatMessage = { role: this.role, content };
 			if (this.name) {
 				msg.name = this.name;
 			}
 			if (this.toolCalls?.length) {
-				msg.tool_calls = this.toolCalls.map(tc => ({
+				msg.toolCalls = this.toolCalls.map(tc => ({
 					function: tc.function,
 					id: tc.id,
 					type: tc.type,
 				}));
 			}
 			return msg;
-		} else if (this.role === ChatRole.User) {
+		} else if (this.role === Raw.ChatRole.User) {
 			return {
 				role: this.role,
 				content,
 				...(this.name ? { name: this.name } : {}),
 			};
-		} else if (this.role === ChatRole.Tool) {
+		} else if (this.role === Raw.ChatRole.Tool) {
 			return {
 				role: this.role,
 				content,
-				tool_call_id: this.toolCallId,
+				toolCallId: this.toolCallId!,
 			};
 		} else {
 			return {
@@ -410,14 +392,9 @@ export class MaterializedChatMessageImage {
 	}
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		return await tokenizer.countMessageTokens({
-			role: ChatRole.User,
-			content: [
-				{
-					type: 'image_url',
-					image_url: { url: getEncodedBase64(this.src), detail: this.detail },
-				},
-			],
+		return tokenizer.tokenLength({
+			type: Raw.ChatCompletionContentPartKind.Image,
+			imageUrl: { url: getEncodedBase64(this.src), detail: this.detail },
 		});
 	});
 
@@ -658,7 +635,8 @@ function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
 					c => !(c.keepWith && removeKeepWithIds.has(c.keepWith.id))
 				);
 
-				if (node.isEmpty) { // may have become empty if it only contained tool calls
+				if (node.isEmpty) {
+					// may have become empty if it only contained tool calls
 					removeNode(node);
 				}
 			}

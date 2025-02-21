@@ -8,29 +8,28 @@ import { PromptNodeType } from './jsonTypes';
 import {
 	ContainerFlags,
 	LineBreakBefore,
-	MaterializedChatMessageImage,
 	MaterializedChatMessage,
+	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
 	MaterializedContainer,
 } from './materialized';
-import { ChatMessage, ChatRole } from './openai';
+import { Raw, toMode } from './output/mode';
 import { PromptElement } from './promptElement';
 import {
+	AbstractKeepWith,
 	AssistantMessage,
 	BaseChatMessage,
+	BaseImageMessage,
 	ChatMessagePromptElement,
 	Chunk,
 	Expandable,
+	IfEmpty,
 	isChatMessagePromptElement,
 	LegacyPrioritization,
 	TextChunk,
 	TokenLimit,
 	TokenLimitProps,
 	ToolMessage,
-	ImageProps,
-	BaseImageMessage,
-	AbstractKeepWith,
-	IfEmpty,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -47,7 +46,7 @@ import { URI } from './util/vs/common/uri';
 import { ChatDocumentContext, ChatResponsePart } from './vscodeTypes';
 
 export interface RenderPromptResult {
-	readonly messages: ChatMessage[];
+	readonly messages: Raw.ChatMessage[];
 	readonly tokenCount: number;
 	readonly hasIgnoredFiles: boolean;
 	readonly metadata: MetadataMap;
@@ -743,18 +742,23 @@ async function computeTokensConsumedByLiterals(
 	let tokensConsumed = 0;
 
 	if (isChatMessagePromptElement(instance)) {
-		tokensConsumed += await tokenizer.countMessageTokens({
+		const raw: Raw.ChatMessage = {
 			role: element.props.role,
-			content: '',
+			content: [],
 			...(element.props.name ? { name: element.props.name } : undefined),
-			...(element.props.toolCalls ? { tool_calls: element.props.toolCalls } : undefined),
-			...(element.props.toolCallId ? { tool_call_id: element.props.toolCallId } : undefined),
-		});
+			...(element.props.toolCalls ? { toolCalls: element.props.toolCalls } : undefined),
+			...(element.props.toolCallId ? { toolCallId: element.props.toolCallId } : undefined),
+		};
+
+		tokensConsumed += await tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	}
 
 	for (const piece of pieces) {
 		if (piece.kind === 'literal') {
-			tokensConsumed += await tokenizer.tokenLength(piece.value);
+			tokensConsumed += await tokenizer.tokenLength({
+				type: Raw.ChatCompletionContentPartKind.Text,
+				text: piece.value,
+			});
 		}
 	}
 
@@ -1000,7 +1004,7 @@ class PromptTreeElement {
 		}
 
 		if (this._obj instanceof BaseChatMessage) {
-			if (!this._obj.props.role) {
+			if (this._obj.props.role === undefined || typeof this._obj.props.role !== 'number') {
 				throw new Error(`Invalid ChatMessage!`);
 			}
 

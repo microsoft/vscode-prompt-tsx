@@ -9,14 +9,17 @@ import {
 	MaterializedChatMessageTextChunk,
 	MaterializedContainer,
 } from '../materialized';
-import { ChatRole } from '../openai';
+import { OutputMode, Raw } from '../output/mode';
 import { ITokenizer } from '../tokenizer/tokenizer';
-class MockTokenizer implements ITokenizer {
-	tokenLength(text: string): number {
-		return text.length;
+import { strFrom } from './testUtils';
+
+class MockTokenizer implements ITokenizer<OutputMode.Raw> {
+	readonly mode = OutputMode.Raw;
+	tokenLength(part: Raw.ChatCompletionContentPart): number {
+		return strFrom(part).length;
 	}
-	countMessageTokens(message: any): number {
-		return message.content.length + 3;
+	countMessageTokens(message: Raw.ChatMessage): number {
+		return strFrom(message).length + 3;
 	}
 }
 suite('Materialized', () => {
@@ -31,7 +34,7 @@ suite('Materialized', () => {
 				new MaterializedChatMessage(
 					parent,
 					0,
-					ChatRole.User,
+					Raw.ChatRole.User,
 					'user',
 					undefined,
 					undefined,
@@ -63,7 +66,7 @@ suite('Materialized', () => {
 				new MaterializedChatMessage(
 					parent,
 					0,
-					ChatRole.User,
+					Raw.ChatRole.User,
 					'user',
 					undefined,
 					undefined,

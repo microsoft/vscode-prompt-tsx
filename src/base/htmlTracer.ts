@@ -23,6 +23,7 @@ import {
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 import { IElementEpochData, ITraceData, ITraceEpoch, ITracer, ITraceRenderData } from './tracer';
+import { Raw } from './output/mode';
 
 /**
  * Handler that can trace rendering internals into an HTML summary.
@@ -89,7 +90,7 @@ interface IServerOpts {
 class RequestRouter implements IHTMLRouter {
 	private serverToken = crypto.randomUUID();
 
-	constructor(private readonly opts: IServerOpts) { }
+	constructor(private readonly opts: IServerOpts) {}
 
 	public route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean {
 		const req = httpIncomingMessage as IncomingMessage;
@@ -123,8 +124,8 @@ class RequestRouter implements IHTMLRouter {
 				const DEFAULT_TOKENS = ${JSON.stringify(traceData.budget)};
 				const EPOCHS = ${JSON.stringify(epochs satisfies HTMLTraceEpoch[])};
 				const DEFAULT_MODEL = ${JSON.stringify(
-			await serializeRenderData(traceData.tokenizer, traceData.renderedTree)
-		)};
+					await serializeRenderData(traceData.tokenizer, traceData.renderedTree)
+				)};
 				const SERVER_ADDRESS = ${JSON.stringify(this.opts.baseAddress + '/' + this.serverToken + '/')};
 				${tracerSrc}
 			</script>
@@ -233,7 +234,7 @@ async function serializeMaterialized(
 			type: TraceMaterializedNodeType.Image,
 			value: materialized.src,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
-		}
+		};
 	} else {
 		const containerCommon = {
 			...common,
@@ -261,11 +262,12 @@ async function serializeMaterialized(
 		} else if (materialized instanceof MaterializedChatMessage) {
 			const content = materialized.text
 				.filter(element => typeof element === 'string')
-				.join('').trim();
+				.join('')
+				.trim();
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.ChatMessage,
-				role: materialized.role,
+				role: Raw.ChatRole.display(materialized.role),
 				text: content,
 			};
 		}

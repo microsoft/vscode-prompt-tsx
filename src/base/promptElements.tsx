@@ -8,8 +8,7 @@ import type {
 	LanguageModelTextPart,
 	LanguageModelToolResult,
 } from 'vscode';
-import { contentType } from '.';
-import { ChatRole } from './openai';
+import { contentType, Raw } from '.';
 import { PromptElement } from './promptElement';
 import {
 	BasePromptElementProps,
@@ -32,7 +31,7 @@ export function isChatMessagePromptElement(element: unknown): element is ChatMes
 }
 
 export interface ChatMessageProps extends BasePromptElementProps {
-	role?: ChatRole;
+	role?: Raw.ChatRole;
 	name?: string;
 }
 
@@ -51,7 +50,7 @@ export class BaseChatMessage<
  */
 export class SystemMessage extends BaseChatMessage {
 	constructor(props: ChatMessageProps) {
-		props.role = ChatRole.System;
+		props.role = Raw.ChatRole.System;
 		super(props);
 	}
 }
@@ -63,7 +62,7 @@ export class SystemMessage extends BaseChatMessage {
  */
 export class UserMessage extends BaseChatMessage {
 	constructor(props: ChatMessageProps) {
-		props.role = ChatRole.User;
+		props.role = Raw.ChatRole.User;
 		super(props);
 	}
 }
@@ -96,24 +95,12 @@ export interface AssistantMessageProps extends ChatMessageProps {
  */
 export class AssistantMessage extends BaseChatMessage<AssistantMessageProps> {
 	constructor(props: AssistantMessageProps) {
-		props.role = ChatRole.Assistant;
+		props.role = Raw.ChatRole.Assistant;
 		super(props);
 	}
 }
 
 const WHITESPACE_RE = /\s+/g;
-
-/**
- * A {@link PromptElement} which can be rendered to an OpenAI function chat message.
- *
- * See {@link https://platform.openai.com/docs/api-reference/chat/create#chat-create-messages}
- */
-export class FunctionMessage extends BaseChatMessage {
-	constructor(props: ChatMessageProps & { name: string }) {
-		props.role = ChatRole.Function;
-		super(props);
-	}
-}
 
 export interface ToolMessageProps extends ChatMessageProps {
 	toolCallId: string;
@@ -126,7 +113,7 @@ export interface ToolMessageProps extends ChatMessageProps {
  */
 export class ToolMessage extends BaseChatMessage<ToolMessageProps> {
 	constructor(props: ToolMessageProps) {
-		props.role = ChatRole.Tool;
+		props.role = Raw.ChatRole.Tool;
 		super(props);
 	}
 }
@@ -232,7 +219,12 @@ async function getTextContentBelowBudget(
 		}
 
 		const next = outputText + fullText.slice(Math.max(0, lastIndex), index);
-		if ((await sizing.countTokens(next, cancellation)) > sizing.tokenBudget) {
+		if (
+			(await sizing.countTokens(
+				{ type: Raw.ChatCompletionContentPartKind.Text, text: next },
+				cancellation
+			)) > sizing.tokenBudget
+		) {
 			return outputText;
 		}
 

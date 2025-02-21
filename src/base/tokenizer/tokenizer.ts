@@ -3,68 +3,64 @@
  *--------------------------------------------------------------------------------------------*/
 
 import type { CancellationToken, LanguageModelChatMessage } from 'vscode';
-import { ChatMessage, ChatRole } from '../openai';
+import { ModeToChatMessageType, OutputMode, Raw } from '../output/mode';
 
 /**
  * Represents a tokenizer that can be used to tokenize text in chat messages.
  */
-export interface ITokenizer {
+export interface ITokenizer<M extends OutputMode = OutputMode> {
 	/**
-	 * Return the length of `text` in number of tokens.
+	 * This mode this tokenizer operates on.
+	 */
+	readonly mode: M;
+
+	/**
+	 * Return the length of `part` in number of tokens. If the model does not
+	 * support the given kind of part, it may return 0.
 	 *
 	 * @param {str} text - The input text
 	 * @returns {number}
 	 */
-	tokenLength(text: string, token?: CancellationToken): Promise<number> | number;
+	tokenLength(
+		part: Raw.ChatCompletionContentPart,
+		token?: CancellationToken
+	): Promise<number> | number;
 
-	countMessageTokens(message: ChatMessage): Promise<number> | number;
+	/**
+	 * Returns the token length of the given message.
+	 */
+	countMessageTokens(message: ModeToChatMessageType[M]): Promise<number> | number;
 }
 
-export class AnyTokenizer implements ITokenizer {
+export class VSCodeTokenizer implements ITokenizer<OutputMode.VSCode> {
+	public readonly mode = OutputMode.VSCode;
+
 	constructor(
 		private countTokens: (
 			text: string | LanguageModelChatMessage,
 			token?: CancellationToken
 		) => Thenable<number>,
-		mode: 'vscode' | 'none',
+		mode: OutputMode
 	) {
 		if (mode !== 'vscode') {
-			throw new Error('`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer');
+			throw new Error(
+				'`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer'
+			);
 		}
 	}
 
-	async tokenLength(text: string, token?: CancellationToken): Promise<number> {
-		return this.countTokens(text, token);
-	}
-
-	async countMessageTokens(message: ChatMessage): Promise<number> {
-		const vscode = await import('vscode');
-		return this.countTokens({
-			role: this.toChatRole(message.role),
-			content: [new vscode.LanguageModelTextPart(this.extractText(message))],
-			name: 'name' in message ? message.name : undefined,
-		});
-	}
-
-	extractText(message: ChatMessage): string {
-		if (message.content instanceof Array) {
-			return message.content.map(c => 'text' in c ? c.text : '').join('');
+	async tokenLength(
+		part: Raw.ChatCompletionContentPart,
+		token?: CancellationToken
+	): Promise<number> {
+		if (part.type === Raw.ChatCompletionContentPartKind.Text) {
+			return this.countTokens(part.text, token);
 		}
-		return message.content;
+
+		return Promise.resolve(0);
 	}
 
-	private toChatRole(role: ChatRole) {
-		switch (role) {
-			case ChatRole.User:
-				return 1;
-			case ChatRole.Assistant:
-				return 2;
-			case ChatRole.System:
-				return 1;
-			case ChatRole.Function:
-				return 1;
-			case ChatRole.Tool:
-				return 1;
-		}
+	async countMessageTokens(message: LanguageModelChatMessage): Promise<number> {
+		return this.countTokens(message);
 	}
 }

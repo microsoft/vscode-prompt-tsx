@@ -4,6 +4,7 @@
 
 import { CancellationToken } from 'vscode';
 import { PromptElement } from './promptElement';
+import { Raw } from './output/mode';
 
 /**
  * Represents information about a chat endpoint.
@@ -32,7 +33,7 @@ export interface PromptSizing {
 	/**
 	 * Counts the number of tokens the text consumes.
 	 */
-	countTokens(text: string, token?: CancellationToken): Promise<number> | number;
+	countTokens(text: Raw.ChatCompletionContentPart, token?: CancellationToken): Promise<number> | number;
 }
 
 export interface BasePromptElementProps {

@@ -3,8 +3,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { contentType, HTMLTracer, renderElementJSON, renderPrompt } from '..';
-import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../openai';
+import type * as vscode from 'vscode';
+import { OutputMode, Raw, renderElementJSON } from '..';
+import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../output/openaiTypes';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
@@ -30,12 +31,11 @@ import {
 	BasePromptElementProps,
 	IChatEndpointInfo,
 	PromptElementCtor,
-	PromptElementProps,
 	PromptPiece,
 	PromptPieceChild,
 	PromptSizing,
 } from '../types';
-import type * as vscode from 'vscode';
+import { strFrom } from './testUtils';
 
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
@@ -111,35 +111,62 @@ suite('PromptRenderer', () => {
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(res.messages, [
 			{
-				role: 'system',
-				content:
-					'You are a helpful, pattern-following assistant that translates corporate jargon into plain English.',
+				role: Raw.ChatRole.System,
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: 'You are a helpful, pattern-following assistant that translates corporate jargon into plain English.',
+					},
+				],
 			},
 			{
-				role: 'system',
+				role: Raw.ChatRole.System,
 				name: 'example_user',
-				content: 'New synergies will help drive top-line growth.',
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: 'New synergies will help drive top-line growth.',
+					},
+				],
 			},
 			{
-				role: 'system',
+				role: Raw.ChatRole.System,
 				name: 'example_assistant',
-				content: 'Things working well together will increase revenue.',
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: 'Things working well together will increase revenue.',
+					},
+				],
 			},
 			{
-				role: 'system',
+				role: Raw.ChatRole.System,
 				name: 'example_user',
-				content:
-					"Let's circle back when we have more bandwidth to touch base on opportunities for increased leverage.",
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: "Let's circle back when we have more bandwidth to touch base on opportunities for increased leverage.",
+					},
+				],
 			},
 			{
-				role: 'system',
+				role: Raw.ChatRole.System,
 				name: 'example_assistant',
-				content: "Let's talk later when we're less busy about how to do better.",
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: "Let's talk later when we're less busy about how to do better.",
+					},
+				],
 			},
 			{
-				role: 'user',
-				content:
-					"This late pivot means we don't have time to boil the ocean for the client deliverable.",
+				role: Raw.ChatRole.User,
+				content: [
+					{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: "This late pivot means we don't have time to boil the ocean for the client deliverable.",
+					},
+				],
 			},
 		]);
 		assert.deepStrictEqual(res.tokenCount, 129 - BaseTokensPerCompletion);
@@ -192,16 +219,16 @@ suite('PromptRenderer', () => {
 		// Make sure parallel preparation did not change the order of the produced messages
 		assert.deepStrictEqual(res.messages, [
 			{
-				role: 'user',
-				content: 'Hello 1!',
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello 1!' }],
 			},
 			{
-				role: 'user',
-				content: 'Hello 2!',
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello 2!' }],
 			},
 			{
-				role: 'user',
-				content: 'Hello 3!',
+				role: Raw.ChatRole.User,
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello 3!' }],
 			},
 		]);
 	});
@@ -231,7 +258,7 @@ suite('PromptRenderer', () => {
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(res.messages.length, 1);
-		assert.deepStrictEqual((res.messages[0].content as string).replace(/\n/g, ''), 'abcdefghi');
+		assert.deepStrictEqual(strFrom(res.messages[0]).replace(/\n/g, ''), 'abcdefghi');
 	});
 
 	test('renders tool calls', async () => {
@@ -260,8 +287,8 @@ suite('PromptRenderer', () => {
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(res.messages, [
 			{
-				role: 'assistant',
-				tool_calls: [
+				role: Raw.ChatRole.Assistant,
+				toolCalls: [
 					{
 						id: 'call_123',
 						type: 'function',
@@ -271,12 +298,12 @@ suite('PromptRenderer', () => {
 						},
 					},
 				],
-				content: 'assistant',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'assistant' }],
 			},
 			{
-				role: 'tool',
-				tool_call_id: 'call_123',
-				content: 'tool result',
+				role: Raw.ChatRole.Tool,
+				toolCallId: 'call_123',
+				content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'tool result' }],
 			},
 		]);
 	});
@@ -307,7 +334,9 @@ suite('PromptRenderer', () => {
 				tokenizer
 			).render();
 
-			const messages = res.messages.map(m => `${m.role}: ${m.content}`).join('\n');
+			const messages = res.messages
+				.map(m => `${Raw.ChatRole.display(m.role)}: ${strFrom(m)}`)
+				.join('\n');
 			if (messages === last) {
 				tokens--;
 				continue;
@@ -345,7 +374,7 @@ suite('PromptRenderer', () => {
 
 			let messages: string[] = [];
 			for await (const m of it) {
-				messages.push(m.map(m => m.content).join(''));
+				messages.push(m.map(strFrom).join(''));
 			}
 
 			assert.deepStrictEqual(messages, ['a\nb\nc\nd', 'b\nc\nd', '']);
@@ -381,7 +410,7 @@ suite('PromptRenderer', () => {
 
 			let messages: string[] = [];
 			for await (const m of it) {
-				messages.push(m.map(m => m.content).join(''));
+				messages.push(m.map(strFrom).join(''));
 			}
 
 			assert.deepStrictEqual(messages, ['a\nb\nc#\nc\nd\ne\nf', 'b\nc#\nc\nd\ne\nf', 'f', '']);
@@ -436,10 +465,10 @@ suite('PromptRenderer', () => {
 			let messages: { content: string[]; tcIds: string[] }[] = [];
 			for await (const m of it) {
 				messages.push({
-					content: m.map(m => `${m.role}: ${m.content}`),
+					content: m.map(m => `${Raw.ChatRole.display(m.role)}: ${strFrom(m)}`),
 					tcIds: m
-						.filter(m => m.role === ChatRole.Assistant)
-						.flatMap(m => m.tool_calls ?? [])
+						.filter(m => m.role === Raw.ChatRole.Assistant)
+						.flatMap(m => m.toolCalls ?? [])
 						.map(tc => tc.id),
 				});
 			}
@@ -459,16 +488,16 @@ suite('PromptRenderer', () => {
 			let last = 'NONE';
 			for await (const messages of pruneDown(elements)) {
 				for (let k = 0; k < i; k++) {
-					if (messages.some(m => (m.content as string).includes(order[k]))) {
-						const text = messages.map(m => m.content).join('');
+					if (messages.some(m => strFrom(m).includes(order[k]))) {
+						const text = messages.map(strFrom).join('');
 						throw new Error(
 							`Expected messages TO NOT HAVE "${order[k]}". Got:\n\n${text}\n\nLast was: ${last}`
 						);
 					}
 				}
 				for (let k = i; k < order.length; k++) {
-					if (!messages.some(m => (m.content as string).includes(order[k]))) {
-						const text = messages.map(m => m.content).join('');
+					if (!messages.some(m => strFrom(m).includes(order[k]))) {
+						const text = messages.map(strFrom).join('');
 						throw new Error(
 							`Expected messages TO INCLUDE "${order[k]}". Got:\n\n${text}\n\nLast was: ${last}`
 						);
@@ -476,7 +505,7 @@ suite('PromptRenderer', () => {
 				}
 
 				i++;
-				last = messages.map(m => m.content).join('');
+				last = messages.map(strFrom).join('');
 				if (i === order.length) {
 					break;
 				}
@@ -757,42 +786,64 @@ suite('PromptRenderer', () => {
 			const res = await renderWithMaxPromptTokens(8192, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'system',
-					content: 'You are a helpful assistant that cheers people up.',
+					role: Raw.ChatRole.System,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'You are a helpful assistant that cheers people up.',
+						},
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'How are you?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'How are you?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'I am fantastic. How are you?',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am fantastic. How are you?' },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What time is it?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: "It's high time to be happy!",
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: "It's high time to be happy!" },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What is your name?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What is your name?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'My name is Happy Copilot.',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'My name is Happy Copilot.' },
+					],
 				},
-				{ role: 'user', content: 'Hello, how are you?' },
-				{ role: 'assistant', content: 'I am terrific, how are you?' },
-				{ role: 'user', content: 'What time is it?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello, how are you?' }],
+				},
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am terrific, how are you?' },
+					],
+				},
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
+				},
 			]);
 			assert.deepStrictEqual(res.tokenCount, 130 - BaseTokensPerCompletion);
 		});
@@ -801,42 +852,64 @@ suite('PromptRenderer', () => {
 			const res = await renderWithMaxPromptTokens(130, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'system',
-					content: 'You are a helpful assistant that cheers people up.',
+					role: Raw.ChatRole.System,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'You are a helpful assistant that cheers people up.',
+						},
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'How are you?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'How are you?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'I am fantastic. How are you?',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am fantastic. How are you?' },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What time is it?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: "It's high time to be happy!",
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: "It's high time to be happy!" },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What is your name?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What is your name?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'My name is Happy Copilot.',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'My name is Happy Copilot.' },
+					],
 				},
-				{ role: 'user', content: 'Hello, how are you?' },
-				{ role: 'assistant', content: 'I am terrific, how are you?' },
-				{ role: 'user', content: 'What time is it?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello, how are you?' }],
+				},
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am terrific, how are you?' },
+					],
+				},
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
+				},
 			]);
 			assert.deepStrictEqual(res.tokenCount, 130 - BaseTokensPerCompletion);
 		});
@@ -845,37 +918,59 @@ suite('PromptRenderer', () => {
 			const res = await renderWithMaxPromptTokens(129 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'system',
-					content: 'You are a helpful assistant that cheers people up.',
+					role: Raw.ChatRole.System,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'You are a helpful assistant that cheers people up.',
+						},
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'How are you?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'How are you?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'I am fantastic. How are you?',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am fantastic. How are you?' },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: "It's high time to be happy!",
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: "It's high time to be happy!" },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What is your name?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What is your name?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'My name is Happy Copilot.',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'My name is Happy Copilot.' },
+					],
 				},
-				{ role: 'user', content: 'Hello, how are you?' },
-				{ role: 'assistant', content: 'I am terrific, how are you?' },
-				{ role: 'user', content: 'What time is it?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello, how are you?' }],
+				},
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am terrific, how are you?' },
+					],
+				},
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
+				},
 			]);
 			assert.deepStrictEqual(res.tokenCount, 118 - BaseTokensPerCompletion);
 		});
@@ -884,32 +979,52 @@ suite('PromptRenderer', () => {
 			const res = await renderWithMaxPromptTokens(110 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'system',
-					content: 'You are a helpful assistant that cheers people up.',
+					role: Raw.ChatRole.System,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'You are a helpful assistant that cheers people up.',
+						},
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'How are you?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'How are you?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'I am fantastic. How are you?',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am fantastic. How are you?' },
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'What is your name?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What is your name?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'My name is Happy Copilot.',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'My name is Happy Copilot.' },
+					],
 				},
-				{ role: 'user', content: 'Hello, how are you?' },
-				{ role: 'assistant', content: 'I am terrific, how are you?' },
-				{ role: 'user', content: 'What time is it?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello, how are you?' }],
+				},
+				{
+					role: Raw.ChatRole.Assistant,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am terrific, how are you?' },
+					],
+				},
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
+				},
 			]);
 			assert.deepStrictEqual(res.tokenCount, 102 - BaseTokensPerCompletion);
 		});
@@ -918,20 +1033,30 @@ suite('PromptRenderer', () => {
 			const res = await renderWithMaxPromptTokens(54 - BaseTokensPerCompletion, Prompt1, {});
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'system',
-					content: 'You are a helpful assistant that cheers people up.',
+					role: Raw.ChatRole.System,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'You are a helpful assistant that cheers people up.',
+						},
+					],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_user',
-					content: 'How are you?',
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'How are you?' }],
 				},
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					name: 'example_assistant',
-					content: 'I am fantastic. How are you?',
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'I am fantastic. How are you?' },
+					],
 				},
-				{ role: 'user', content: 'What time is it?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What time is it?' }],
+				},
 			]);
 			assert.deepStrictEqual(res.tokenCount, 53 - BaseTokensPerCompletion);
 		});
@@ -987,11 +1112,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 
 			// Ensure that the prompt received budget based on the flex
-			assert.ok(res.messages[0].content.length > res.messages[1].content.length);
-			assert.ok(res.messages[2].content.length > res.messages[0].content.length);
+			assert.ok(strFrom(res.messages[0]) > strFrom(res.messages[1]));
+			assert.ok(strFrom(res.messages[2]) > strFrom(res.messages[0]));
 
 			// Ensure that children received budget based on the parent budget
-			const firstMessageContent = res.messages[0].content as string;
+			const firstMessageContent = strFrom(res.messages[0]);
 			const barPartStart = firstMessageContent.indexOf('Bar');
 			const fooPart = firstMessageContent.slice(0, barPartStart);
 			const barPart = firstMessageContent.slice(barPartStart);
@@ -1069,34 +1194,47 @@ suite('PromptRenderer', () => {
 			const res1 = await inst1.render(undefined, undefined);
 			assert.deepStrictEqual(res1.messages, [
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					content: [
-						'You are a helpful assistant that cheers people up.',
-						'Here are some examples of how you should respond to the user:',
-						'Example 1:',
-						'User: "I have a list of numbers, how do I sum them?"',
-						'Assistant: "You can use the reduce function."',
-						'Example 2:',
-						'User: "What is the airspeed velocity of an unladen swallow?"',
-						'Assistant: "Sorry, I can\'t assist with that."',
-						'Example 3:',
-						'User: "What is the difference between map and forEach?"',
-						'Assistant: "The map function returns a new array, the forEach function does not."',
-					].join('\n'),
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: [
+								'You are a helpful assistant that cheers people up.',
+								'Here are some examples of how you should respond to the user:',
+								'Example 1:',
+								'User: "I have a list of numbers, how do I sum them?"',
+								'Assistant: "You can use the reduce function."',
+								'Example 2:',
+								'User: "What is the airspeed velocity of an unladen swallow?"',
+								'Assistant: "Sorry, I can\'t assist with that."',
+								'Example 3:',
+								'User: "What is the difference between map and forEach?"',
+								'Assistant: "The map function returns a new array, the forEach function does not."',
+							].join('\n'),
+						},
+					],
 				},
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
-						'Here are some relevant code snippets:',
-						'```ts',
-						'console.log(42)',
-						'```',
-						'```ts',
-						'console.log("Don\'t Panic")',
-						'```',
-					].join('\n'),
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: [
+								'Here are some relevant code snippets:',
+								'```ts',
+								'console.log(42)',
+								'```',
+								'```ts',
+								'console.log("Don\'t Panic")',
+								'```',
+							].join('\n'),
+						},
+					],
 				},
-				{ role: 'user', content: 'What is your name?' },
+				{
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'What is your name?' }],
+				},
 			]);
 			assert.deepStrictEqual(res1.tokenCount, 165 - BaseTokensPerCompletion);
 		});
@@ -1110,26 +1248,36 @@ suite('PromptRenderer', () => {
 			const res2 = await inst2.render(undefined, undefined);
 			assert.deepStrictEqual(res2.messages, [
 				{
-					role: 'system',
+					role: Raw.ChatRole.System,
 					content: [
-						'You are a helpful assistant that cheers people up.',
-						'Here are some examples of how you should respond to the user:',
-						'Example 1:',
-						'User: "I have a list of numbers, how do I sum them?"',
-						'Assistant: "You can use the reduce function."',
-						'Example 2:',
-						'User: "What is the airspeed velocity of an unladen swallow?"',
-						'Assistant: "Sorry, I can\'t assist with that."',
-					].join('\n'),
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: [
+								'You are a helpful assistant that cheers people up.',
+								'Here are some examples of how you should respond to the user:',
+								'Example 1:',
+								'User: "I have a list of numbers, how do I sum them?"',
+								'Assistant: "You can use the reduce function."',
+								'Example 2:',
+								'User: "What is the airspeed velocity of an unladen swallow?"',
+								'Assistant: "Sorry, I can\'t assist with that."',
+							].join('\n'),
+						},
+					],
 				},
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
-						'Here are some relevant code snippets:',
-						'```ts',
-						'console.log(42)',
-						'```',
-					].join('\n'),
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: [
+								'Here are some relevant code snippets:',
+								'```ts',
+								'console.log(42)',
+								'```',
+							].join('\n'),
+						},
+					],
 				},
 			]);
 			assert.equal(res2.tokenCount, 108);
@@ -1240,21 +1388,26 @@ suite('PromptRenderer', () => {
 	suite('flex behavior', () => {
 		const consumeRe = /consume=(\d+)/g;
 
-		class FakeTokenizer implements ITokenizer {
+		class FakeTokenizer implements ITokenizer<OutputMode.Raw> {
+			readonly mode = OutputMode.Raw;
 			baseTokensPerMessage = 0;
 			baseTokensPerName = 0;
 			baseTokensPerCompletion = 0;
 
-			tokenLength(text: string): number {
+			tokenLength(part: Raw.ChatCompletionContentPart): number {
+				return this.countStr(strFrom(part));
+			}
+
+			countMessageTokens(message: Raw.ChatMessage): number {
+				return this.countStr(strFrom(message));
+			}
+
+			private countStr(s: string) {
 				let n = 0;
-				for (const match of text.matchAll(consumeRe)) {
+				for (const match of s.matchAll(consumeRe)) {
 					n += Number(match[1]);
 				}
 				return n;
-			}
-
-			countMessageTokens(message: ChatMessage): number {
-				return this.tokenLength(message.content as string);
 			}
 		}
 
@@ -1277,7 +1430,7 @@ suite('PromptRenderer', () => {
 			}
 		}
 
-		async function flexTest(elements: PromptPiece, expected: ChatMessage[]) {
+		async function flexTest(elements: PromptPiece, expected: Raw.ChatMessage[]) {
 			const inst = new PromptRenderer(
 				{ modelMaxPromptTokens: 100 } satisfies Partial<IChatEndpointInfo> as IChatEndpointInfo,
 				class extends PromptElement {
@@ -1300,12 +1453,14 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=10, content=100',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, content=100' },
+						],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow=90',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow=90' }],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1319,12 +1474,14 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=10, content=80',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, content=80' },
+						],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow=90',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow=90' }],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1339,16 +1496,18 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=10, content=50',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, content=50' },
+						],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow1=45',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow1=45' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow2=45',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow2=45' }],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1363,16 +1522,18 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=10, content=100',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, content=100' },
+						],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow1=45',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow1=45' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow2=45',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow2=45' }],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1397,8 +1558,8 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'Hello!',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello!' }],
 				},
 			]);
 		});
@@ -1428,8 +1589,8 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'Hello world!',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello world!' }],
 				},
 			]);
 		});
@@ -1460,8 +1621,8 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'world\nworld',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'world\nworld' }],
 				},
 			]);
 		});
@@ -1477,24 +1638,26 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=5, 1=33',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=5, 1=33' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'consume=10, 2=33',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, 2=33' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'consume=5, 3=33',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=5, 3=33' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'consume=1, grow4=1',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=1, grow4=1' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'consume=79, grow5=80',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=79, grow5=80' },
+						],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1528,13 +1691,18 @@ suite('PromptRenderer', () => {
 				[
 					{
 						content: [
-							'consume=5, 1=33',
-							'consume=10, 2=33',
-							'consume=5, 3=33',
-							'consume=1, grow4=1',
-							'consume=79, grow5=80',
-						].join('\n'),
-						role: ChatRole.User,
+							{
+								type: Raw.ChatCompletionContentPartKind.Text,
+								text: [
+									'consume=5, 1=33',
+									'consume=10, 2=33',
+									'consume=5, 3=33',
+									'consume=1, grow4=1',
+									'consume=79, grow5=80',
+								].join('\n'),
+							},
+						],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1562,16 +1730,16 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=42',
-						role: ChatRole.System,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=42' }],
+						role: Raw.ChatRole.System,
 					},
 					{
-						content: 'grow1=29',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow1=29' }],
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'grow2=29',
-						role: ChatRole.User,
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow2=29' }],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1589,31 +1757,39 @@ suite('PromptRenderer', () => {
 				</>,
 				[
 					{
-						content: 'consume=10, content1=13', // non-flex elements have 40 unreserved budget, #2 uses flex=2 to get a bigger share
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=10, content1=13' },
+						], // non-flex elements have 40 unreserved budget, #2 uses flex=2 to get a bigger share
+						role: Raw.ChatRole.User,
 					},
 					{
-						content: 'consume=20, content2=26',
-						role: ChatRole.User,
-					},
-
-					{
-						content: 'consume=15, grow2a=25', // 70 budget left over, 20 reserved, shared between flexGrow=2
-						role: ChatRole.User,
-					},
-
-					{
-						content: 'grow1a=11', // 35 used, b asked for a larger share
-						role: ChatRole.User,
-					},
-					{
-						content: 'grow1b=23',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=20, content2=26' },
+						],
+						role: Raw.ChatRole.User,
 					},
 
 					{
-						content: 'consume=20, grow2b=25',
-						role: ChatRole.User,
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=15, grow2a=25' },
+						], // 70 budget left over, 20 reserved, shared between flexGrow=2
+						role: Raw.ChatRole.User,
+					},
+
+					{
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow1a=11' }], // 35 used, b asked for a larger share
+						role: Raw.ChatRole.User,
+					},
+					{
+						content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'grow1b=23' }],
+						role: Raw.ChatRole.User,
+					},
+
+					{
+						content: [
+							{ type: Raw.ChatCompletionContentPartKind.Text, text: 'consume=20, grow2b=25' },
+						],
+						role: Raw.ChatRole.User,
 					},
 				]
 			);
@@ -1649,7 +1825,16 @@ suite('PromptRenderer', () => {
 					}
 				},
 				{},
-				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+				{
+					tokenBudget: 100,
+					countTokens: t =>
+						Promise.resolve(
+							tokenizer.tokenLength({
+								type: Raw.ChatCompletionContentPartKind.Text,
+								text: t,
+							})
+						),
+				}
 			);
 
 			const actual = await new PromptRenderer(
@@ -1676,7 +1861,10 @@ suite('PromptRenderer', () => {
 			).render();
 
 			// if priorities were not scoped, we'd see hello80 here instead of outer70
-			assert.strictEqual(actual.messages[0].content, 'hello90\nouter60\nouter70\nouter80\nouter90');
+			assert.strictEqual(
+				strFrom(actual.messages[0]),
+				'hello90\nouter60\nouter70\nouter80\nouter90'
+			);
 		});
 
 		test('round trips messages', async () => {
@@ -1699,7 +1887,16 @@ suite('PromptRenderer', () => {
 			const r = await renderElementJSON(
 				MyElement,
 				{},
-				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+				{
+					tokenBudget: 100,
+					countTokens: t =>
+						Promise.resolve(
+							tokenizer.tokenLength({
+								type: Raw.ChatCompletionContentPartKind.Text,
+								text: t,
+							})
+						),
+				}
 			);
 
 			const expected = await new PromptRenderer(
@@ -1775,7 +1972,7 @@ suite('PromptRenderer', () => {
 		const inst = new PromptRenderer(fakeEndpoint, Outer, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
 		assert.deepStrictEqual(
-			res.messages.map(m => m.content).join('\n'),
+			res.messages.map(m => strFrom(m)).join('\n'),
 			['before', 'inbefore', 'wrapped', 'inafter', 'after'].join('\n')
 		);
 	});
@@ -1908,7 +2105,12 @@ suite('PromptRenderer', () => {
 									value={async sizing => {
 										sizingInCalls.push(sizing.tokenBudget);
 										let str = 'hi';
-										while ((await sizing.countTokens(str + 'a')) <= sizing.tokenBudget) {
+										while (
+											(await sizing.countTokens({
+												type: Raw.ChatCompletionContentPartKind.Text,
+												text: str + 'a',
+											})) <= sizing.tokenBudget
+										) {
 											str += 'a';
 										}
 										return str;
@@ -1927,9 +2129,13 @@ suite('PromptRenderer', () => {
 			assert.strictEqual(res.tokenCount, 50);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content:
-						'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+						},
+					],
 				},
 			]);
 		});
@@ -1946,7 +2152,13 @@ suite('PromptRenderer', () => {
 									flexGrow={1}
 									value={async sizing => {
 										let str = 'hi';
-										while ((await sizing.countTokens(str + 'a')) < sizing.tokenBudget / 2) {
+										while (
+											(await sizing.countTokens({
+												type: Raw.ChatCompletionContentPartKind.Text,
+												text: str + 'a',
+											})) <
+											sizing.tokenBudget / 2
+										) {
 											str += 'a';
 										}
 										sizingInCalls.push(`a=${sizing.tokenBudget}`);
@@ -1956,7 +2168,13 @@ suite('PromptRenderer', () => {
 								<Expandable
 									value={async sizing => {
 										let str = 'hi';
-										while ((await sizing.countTokens(str + 'b')) < sizing.tokenBudget / 2) {
+										while (
+											(await sizing.countTokens({
+												type: Raw.ChatCompletionContentPartKind.Text,
+												text: str + 'b',
+											})) <
+											sizing.tokenBudget / 2
+										) {
 											str += 'b';
 										}
 										sizingInCalls.push(`b=${sizing.tokenBudget}`);
@@ -1975,9 +2193,13 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=33', 'b=26', 'a=30']);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content:
-						'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsmaller',
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'hiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nhibbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\nsmaller',
+						},
+					],
 				},
 			]);
 			assert.strictEqual(res.tokenCount, 34);
@@ -2005,7 +2227,12 @@ suite('PromptRenderer', () => {
 											return 'hi';
 										}
 										let str = 'hi';
-										while ((await sizing.countTokens(str + 'a')) <= sizing.tokenBudget) {
+										while (
+											(await sizing.countTokens({
+												type: Raw.ChatCompletionContentPartKind.Text,
+												text: str + 'a',
+											})) <= sizing.tokenBudget
+										) {
 											str += 'a';
 										}
 										return str;
@@ -2023,9 +2250,13 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content:
-						'hi\nhiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: 'hi\nhiaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\nsmaller',
+						},
+					],
 				},
 			]);
 		});
@@ -2066,8 +2297,8 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'smaller',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'smaller' }],
 				},
 			]);
 		});
@@ -2092,10 +2323,7 @@ suite('PromptRenderer', () => {
 
 		const inst = new PromptRenderer(fakeEndpoint, Wrapper, {}, tokenizer);
 		const res = await inst.render(undefined, undefined);
-		assert.deepStrictEqual(
-			res.messages.map(m => m.content).join(''),
-			'hello everyone in the world!'
-		);
+		assert.deepStrictEqual(res.messages.map(strFrom).join(''), 'hello everyone in the world!');
 	});
 
 	suite('TokenLimit', () => {
@@ -2121,8 +2349,10 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'outside\n12345\n67890',
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'outside\n12345\n67890' },
+					],
 				},
 			]);
 		});
@@ -2152,8 +2382,8 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'asdf\nasdf',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'asdf\nasdf' }],
 				},
 			]);
 		});
@@ -2183,8 +2413,8 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'asdf\nasdf',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'asdf\nasdf' }],
 				},
 			]);
 		});
@@ -2220,8 +2450,10 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'asdf\nasdf\nasdf\nasdf',
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'asdf\nasdf\nasdf\nasdf' },
+					],
 				},
 			]);
 		});
@@ -2254,8 +2486,13 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: '12345\n67890\n12345\n67890\nextra',
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: '12345\n67890\n12345\n67890\nextra',
+						},
+					],
 				},
 			]);
 		});
@@ -2288,8 +2525,13 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: '12345\n67890\nextra\n12345\n67890',
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Text,
+							text: '12345\n67890\nextra\n12345\n67890',
+						},
+					],
 				},
 			]);
 		});
@@ -2311,11 +2553,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/jpeg;base64,/9j/asdfasdfasdf', detail: 'high' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/jpeg;base64,/9j/asdfasdfasdf', detail: 'high' },
 						},
 					],
 				},
@@ -2337,11 +2579,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
 						},
 					],
 				},
@@ -2363,11 +2605,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/gif;base64,R0lGODasdfasdfasdf', detail: 'low' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/gif;base64,R0lGODasdfasdfasdf', detail: 'low' },
 						},
 					],
 				},
@@ -2389,11 +2631,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/webp;base64,UklGRasdfasdfasdf', detail: 'low' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/webp;base64,UklGRasdfasdfasdf', detail: 'low' },
 						},
 					],
 				},
@@ -2417,11 +2659,11 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
 						},
 					],
 				},
@@ -2445,12 +2687,12 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
-						{ text: 'some text in a text chunk', type: 'text' },
+						{ text: 'some text in a text chunk', type: Raw.ChatCompletionContentPartKind.Text },
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
 						},
 					],
 				},
@@ -2473,13 +2715,13 @@ suite('PromptRenderer', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
+					role: Raw.ChatRole.User,
 					content: [
 						{
-							type: 'image_url',
-							image_url: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: { url: 'data:image/png;base64,iVBORasdfasdfasdf', detail: 'high' },
 						},
-						{ text: 'some text in a text chunk', type: 'text' },
+						{ text: 'some text in a text chunk', type: Raw.ChatCompletionContentPartKind.Text },
 					],
 				},
 			]);
@@ -2496,8 +2738,8 @@ suite('PromptRenderer', () => {
 			);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'Not an empty string',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Not an empty string' }],
 				},
 			]);
 		});
@@ -2511,8 +2753,8 @@ suite('PromptRenderer', () => {
 			);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'empty alt!',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'empty alt!' }],
 				},
 			]);
 		});
@@ -2540,8 +2782,8 @@ suite('PromptRenderer', () => {
 			);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'hi!',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'hi!' }],
 				},
 			]);
 		});
@@ -2557,8 +2799,8 @@ suite('PromptRenderer', () => {
 			);
 			assert.deepStrictEqual(res.messages, [
 				{
-					role: 'user',
-					content: 'alternate',
+					role: Raw.ChatRole.User,
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'alternate' }],
 				},
 			]);
 		});
