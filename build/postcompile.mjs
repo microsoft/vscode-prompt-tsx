@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { copyStaticAssets } from './postinstall';
+import { copyStaticAssets } from './postinstall.mjs';
 
 async function main() {
 	// Ship the vscodeTypes.d.ts file in the dist bundle

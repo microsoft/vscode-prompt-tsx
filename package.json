@@ -7,14 +7,14 @@
 	"scripts": {
 		"fmt": "prettier . --write",
 		"prepack": "npm run compile",
-		"compile": "tsx ./build/build-tracer.ts && tsc -p tsconfig.json && tsx ./build/postcompile.ts",
+		"compile": "tsx ./build/build-tracer.ts && tsc -p tsconfig.json && node ./build/postcompile.mjs",
 		"watch": "concurrently \"npm run -s watch:base\" \"npm run -s watch:tracer\"",
 		"watch:tracer": "tsx ./build/build-tracer.ts --watch",
 		"watch:base": "tsc --watch --sourceMap --preserveWatchOutput",
 		"test": "vscode-test",
 		"test:unit": "cross-env IS_OUTSIDE_VSCODE=1 mocha --import=tsx -u tdd \"src/base/test/**/*.test.{ts,tsx}\"",
 		"prettier": "prettier --list-different --write --cache .",
-		"prepare": "tsx ./build/postinstall.ts"
+		"prepare": "node ./build/postinstall.mjs"
 	},
 	"keywords": [],
 	"author": "Microsoft Corporation",

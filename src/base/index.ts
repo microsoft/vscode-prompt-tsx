@@ -63,7 +63,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer | LanguageModelChat,
+	tokenizerMetadata: LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode?: OutputMode.VSCode
@@ -192,9 +192,9 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 				throw new Error('Tools may only return text, not messages.'); // for now...
 			},
 			tokenLength(part, token) {
-				if (part.type === Raw.ChatCompletionContentPartKind.Text) {
+				if (typeof part === 'string' || part.type === Raw.ChatCompletionContentPartKind.Text) {
 					return Promise.resolve(
-						budgetInformation?.countTokens(part.text, token) ?? Promise.resolve(1)
+						budgetInformation?.countTokens(typeof part === 'string' ? part : part.text, token) ?? Promise.resolve(1)
 					);
 				}
 				return Promise.resolve(1);

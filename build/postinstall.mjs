@@ -5,9 +5,10 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+const __dirname = path.dirname(new URL(import.meta.url).pathname);
 const REPO_ROOT = path.join(__dirname, '..');
 
-export async function copyStaticAssets(srcpaths: string[], dst: string): Promise<void> {
+export async function copyStaticAssets(srcpaths, dst) {
 	await Promise.all(
 		srcpaths.map(async srcpath => {
 			const src = path.join(REPO_ROOT, srcpath);

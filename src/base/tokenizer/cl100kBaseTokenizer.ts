@@ -45,12 +45,14 @@ export class Cl100KBaseTokenizer implements ITokenizer<OutputMode.OpenAI> {
 	 * @param text The text to calculate the token length for.
 	 * @returns The number of tokens in the text.
 	 */
-	tokenLength(part: Raw.ChatCompletionContentPart): number {
-		if (part.type === Raw.ChatCompletionContentPartKind.Text) {
-			return part.text ? this.tokenize(part.text).length : 0;
-		}
-
-		return 0;
+	tokenLength(part: string | Raw.ChatCompletionContentPart): number {
+		const str =
+			typeof part === 'string'
+				? part
+				: part.type === Raw.ChatCompletionContentPartKind.Text
+				? part.text
+				: '';
+		return str ? this.tokenize(str).length : 0;
 	}
 
 	/**

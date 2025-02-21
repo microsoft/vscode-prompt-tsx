@@ -7,7 +7,7 @@ import {
 	LineBreakBefore,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
-	MaterializedContainer,
+	GenericMaterializedContainer,
 } from '../materialized';
 import { OutputMode, Raw } from '../output/mode';
 import { ITokenizer } from '../tokenizer/tokenizer';
@@ -25,7 +25,7 @@ class MockTokenizer implements ITokenizer<OutputMode.Raw> {
 suite('Materialized', () => {
 	test('should calculate token count correctly', async () => {
 		const tokenizer = new MockTokenizer();
-		const container = new MaterializedContainer(
+		const container = new GenericMaterializedContainer(
 			undefined,
 			1,
 			undefined,
@@ -57,7 +57,7 @@ suite('Materialized', () => {
 
 	test('should calculate lower bound token count correctly', async () => {
 		const tokenizer = new MockTokenizer();
-		const container = new MaterializedContainer(
+		const container = new GenericMaterializedContainer(
 			undefined,
 			1,
 			undefined,

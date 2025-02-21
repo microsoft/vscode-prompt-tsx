@@ -4,6 +4,7 @@
 
 import type { CancellationToken, LanguageModelChatMessage } from 'vscode';
 import { ModeToChatMessageType, OutputMode, Raw } from '../output/mode';
+import { ChatCompletionContentPartOpaque } from '../output/rawTypes';
 
 /**
  * Represents a tokenizer that can be used to tokenize text in chat messages.
@@ -22,7 +23,7 @@ export interface ITokenizer<M extends OutputMode = OutputMode> {
 	 * @returns {number}
 	 */
 	tokenLength(
-		part: Raw.ChatCompletionContentPart,
+		part: string | Raw.ChatCompletionContentPart,
 		token?: CancellationToken
 	): Promise<number> | number;
 
@@ -42,7 +43,7 @@ export class VSCodeTokenizer implements ITokenizer<OutputMode.VSCode> {
 		) => Thenable<number>,
 		mode: OutputMode
 	) {
-		if (mode !== 'vscode') {
+		if (mode !== OutputMode.VSCode) {
 			throw new Error(
 				'`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer'
 			);

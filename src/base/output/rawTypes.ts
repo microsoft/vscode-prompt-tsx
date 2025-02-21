@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../util/assert';
-import type { toMode } from './mode';
+import type { OutputMode, toMode } from './mode';
 
 /**
  * A chat message emitted by this library. This can be mapped to other APIs
@@ -114,9 +114,11 @@ export interface ChatCompletionContentPartOpaque {
 	value: unknown;
 
 	/**
-	 * Token usage of this content part.
+	 * Consumer-defined data associated with the part. This can be used to
+	 * implement token counting logic or filter applicability with
+	 * {@link ITokenizer.allowOpaque}
 	 */
-	tokenUsage: number;
+	metadata?: unknown;
 
 	/**
 	 * The type of the content part.
