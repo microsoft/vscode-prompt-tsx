@@ -3,6 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 import * as Raw from './rawTypes';
 import * as OpenAI from './openaiTypes';
+import { OutputMode } from './mode';
 
 function onlyStringContent(content: Raw.ChatCompletionContentPart[]): string {
 	return content
@@ -30,6 +31,11 @@ function stringAndImageContent(
 					image_url: part.imageUrl,
 					type: 'image_url',
 				};
+			} else if (
+				part.type === Raw.ChatCompletionContentPartKind.Opaque &&
+				Raw.ChatCompletionContentPartOpaque.usableIn(part, OutputMode.OpenAI)
+			) {
+				return part as any;
 			}
 		})
 		.filter(r => !!r);

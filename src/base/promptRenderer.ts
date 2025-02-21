@@ -11,7 +11,7 @@ import {
 	MaterializedChatMessage,
 	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
-	MaterializedContainer,
+	GenericMaterializedContainer,
 } from './materialized';
 import { Raw, toMode } from './output/mode';
 import { PromptElement } from './promptElement';
@@ -434,7 +434,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * around with budgets. It should be side-effect-free.
 	 */
 	private async _getFinalElementTree(tokenBudget: number, token: CancellationToken | undefined) {
-		const root = this._root.materialize() as MaterializedContainer;
+		const root = this._root.materialize() as GenericMaterializedContainer;
 		const allMetadata = [...root.allMetadata()];
 		const limits = [{ limit: tokenBudget, id: this._root.id }, ...this._tokenLimits];
 		let removed = 0;
@@ -476,7 +476,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	/** Grows all Expandable elements, returns if any changes were made. */
 	private async _grow(
-		tree: MaterializedContainer | MaterializedChatMessage,
+		tree: GenericMaterializedContainer | MaterializedChatMessage,
 		tokensUsed: number,
 		tokenBudget: number,
 		token: CancellationToken | undefined
@@ -516,7 +516,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				token
 			);
 
-			const newContainer = tempRoot.materialize() as MaterializedContainer;
+			const newContainer = tempRoot.materialize() as GenericMaterializedContainer;
 			const oldContainer = tree.replaceNode(growable.elem.id, newContainer);
 			if (!oldContainer) {
 				throw new Error('unreachable: could not find old element to replace');
@@ -986,15 +986,15 @@ class PromptTreeElement {
 	}
 
 	public materialize(
-		parent?: MaterializedChatMessage | MaterializedContainer
-	): MaterializedChatMessage | MaterializedContainer | MaterializedChatMessageImage {
+		parent?: MaterializedChatMessage | GenericMaterializedContainer
+	): MaterializedChatMessage | GenericMaterializedContainer | MaterializedChatMessageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 
 		if (this._obj instanceof BaseImageMessage) {
 			// #region materialize baseimage
 			return new MaterializedChatMessageImage(
 				parent,
-				1,
+				this.id,
 				this._obj.props.src,
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
@@ -1026,7 +1026,7 @@ class PromptTreeElement {
 			if (this._obj instanceof IfEmpty) flags |= ContainerFlags.EmptyAlternate;
 			if (this._obj?.props.passPriority) flags |= ContainerFlags.PassPriority;
 
-			const container = new MaterializedContainer(
+			const container = new GenericMaterializedContainer(
 				parent,
 				this.id,
 				this._obj?.constructor.name,
@@ -1089,7 +1089,7 @@ class PromptText {
 		result.push(this);
 	}
 
-	public materialize(parent: MaterializedChatMessage | MaterializedContainer) {
+	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
 		const lineBreak = this.lineBreakBefore
 			? LineBreakBefore.Always
 			: this.childIndex === 0

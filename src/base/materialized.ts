@@ -30,10 +30,11 @@ interface IMaterializedContainer extends IMaterializedNode {
 }
 
 export type MaterializedNode =
-	| MaterializedContainer
+	| GenericMaterializedContainer
 	| MaterializedChatMessage
 	| MaterializedChatMessageTextChunk
-	| MaterializedChatMessageImage;
+	| MaterializedChatMessageImage
+	| MaterializedChatMessageOpaque;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -46,9 +47,13 @@ export const enum ContainerFlags {
 	EmptyAlternate = 1 << 3,
 }
 
-type ContainerType = MaterializedChatMessage | MaterializedContainer;
+type ContainerType = MaterializedChatMessage | GenericMaterializedContainer;
+type ContentType =
+	| MaterializedChatMessageTextChunk
+	| MaterializedChatMessageImage
+	| MaterializedChatMessageOpaque;
 
-export class MaterializedContainer implements IMaterializedContainer {
+export class GenericMaterializedContainer implements IMaterializedContainer {
 	public readonly children: MaterializedNode[];
 
 	public keepWithId?: number;
@@ -58,7 +63,7 @@ export class MaterializedContainer implements IMaterializedContainer {
 		public readonly id: number,
 		public readonly name: string | undefined,
 		public readonly priority: number,
-		childrenRef: (parent: MaterializedContainer) => MaterializedNode[],
+		childrenRef: (parent: GenericMaterializedContainer) => MaterializedNode[],
 		public readonly metadata: PromptMetadata[],
 		public readonly flags: number
 	) {
@@ -125,7 +130,7 @@ export class MaterializedContainer implements IMaterializedContainer {
 	/**
 	 * Finds a node in the tree by ID.
 	 */
-	findById(nodeId: number): MaterializedContainer | MaterializedChatMessage | undefined {
+	findById(nodeId: number): ContainerType | undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -149,7 +154,7 @@ export class MaterializedContainer implements IMaterializedContainer {
 	*toChatMessages(): Generator<Raw.ChatMessage> {
 		for (const child of this.children) {
 			assertContainerOrChatMessage(child);
-			if (child instanceof MaterializedContainer) {
+			if (child instanceof GenericMaterializedContainer) {
 				yield* child.toChatMessages();
 			} else if (!child.isEmpty && child instanceof MaterializedChatMessage) {
 				// note: empty messages are already removed during pruning, but the
@@ -230,7 +235,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	/** Gets the text this message contains */
-	public get text(): (string | MaterializedChatMessageImage)[] {
+	public get text(): (string | MaterializedChatMessageImage | MaterializedChatMessageOpaque)[] {
 		return this._text();
 	}
 
@@ -268,7 +273,11 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	 */
 	findById(
 		nodeId: number
-	): MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage | undefined {
+	):
+		| GenericMaterializedContainer
+		| MaterializedChatMessage
+		| MaterializedChatMessageImage
+		| undefined {
 		return findNodeById(nodeId, this);
 	}
 
@@ -294,16 +303,19 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	});
 
-	private readonly _text = once((): (string | MaterializedChatMessageImage)[] => {
-		let result: (string | MaterializedChatMessageImage)[] = [];
-		for (const { text, isTextSibling } of textChunks(this)) {
-			if (text instanceof MaterializedChatMessageImage) {
-				result.push(text);
+	private readonly _text = once(() => {
+		let result: (string | MaterializedChatMessageImage | MaterializedChatMessageOpaque)[] = [];
+		for (const { content, isTextSibling } of contentChunks(this)) {
+			if (
+				content instanceof MaterializedChatMessageImage ||
+				content instanceof MaterializedChatMessageOpaque
+			) {
+				result.push(content);
 				continue;
 			}
 			if (
-				text.lineBreakBefore === LineBreakBefore.Always ||
-				(text.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
+				content.lineBreakBefore === LineBreakBefore.Always ||
+				(content.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
 			) {
 				let prev = result[result.length - 1];
 				if (typeof prev === 'string' && prev && !prev.endsWith('\n')) {
@@ -312,9 +324,9 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			}
 
 			if (typeof result[result.length - 1] === 'string') {
-				result[result.length - 1] += text.text;
+				result[result.length - 1] += content.text;
 			} else {
-				result.push(text.text);
+				result.push(content.text);
 			}
 		}
 
@@ -376,6 +388,28 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 }
 
+export class MaterializedChatMessageOpaque {
+	public readonly metadata: PromptMetadata[] = [];
+
+	constructor(
+		public readonly parent: ContainerType | undefined,
+		public readonly id: number,
+		public readonly src: string,
+		public readonly priority: number,
+		public readonly lineBreakBefore: LineBreakBefore,
+		private readonly part: Raw.ChatCompletionContentPartOpaque
+	) {}
+
+	public upperBoundTokenCount(tokenizer: ITokenizer) {
+		return this.part.tokenUsage &&
+			Raw.ChatCompletionContentPartOpaque.usableIn(this.part, tokenizer.mode)
+			? this.part.tokenUsage
+			: 0;
+	}
+
+	isEmpty: boolean = false;
+}
+
 export class MaterializedChatMessageImage {
 	constructor(
 		public readonly parent: ContainerType | undefined,
@@ -401,41 +435,44 @@ export class MaterializedChatMessageImage {
 	isEmpty: boolean = false;
 }
 
-function isContainerType(
-	node: MaterializedNode
-): node is MaterializedContainer | MaterializedChatMessage {
-	return !(
-		node instanceof MaterializedChatMessageTextChunk || node instanceof MaterializedChatMessageImage
+function isContainerType(node: MaterializedNode): node is ContainerType {
+	return node instanceof GenericMaterializedContainer || node instanceof MaterializedChatMessage;
+}
+
+function isContentType(node: MaterializedNode): node is ContentType {
+	return (
+		node instanceof MaterializedChatMessageTextChunk ||
+		node instanceof MaterializedChatMessageImage ||
+		node instanceof MaterializedChatMessageOpaque
 	);
 }
 
-function assertContainerOrChatMessage(
-	v: MaterializedNode
-): asserts v is MaterializedContainer | MaterializedChatMessage | MaterializedChatMessageImage {
-	if (
-		!(v instanceof MaterializedContainer) &&
-		!(v instanceof MaterializedChatMessage) &&
-		!(v instanceof MaterializedChatMessageImage)
-	) {
-		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${v.text}"`);
+function assertContainerOrChatMessage(v: MaterializedNode): asserts v is ContainerType {
+	if (!isContainerType(v)) {
+		throw new Error(`Cannot have a text node outside a ChatMessage. Text: "${(v as any).text}"`);
 	}
 }
 
-function* textChunks(
-	node: MaterializedContainer | MaterializedChatMessage,
+function* contentChunks(
+	node: ContainerType,
 	isTextSibling = false
 ): Generator<{
-	text: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
+	content: ContentType;
 	isTextSibling: boolean;
 }> {
 	for (const child of node.children) {
 		if (child instanceof MaterializedChatMessageTextChunk) {
-			yield { text: child, isTextSibling };
+			yield { content: child, isTextSibling };
 			isTextSibling = true;
-		} else if (child instanceof MaterializedChatMessageImage) {
-			yield { text: child, isTextSibling: false };
+		} else if (
+			child instanceof MaterializedChatMessageImage ||
+			child instanceof MaterializedChatMessageOpaque
+		) {
+			yield { content: child, isTextSibling: false };
+		} else if (child instanceof MaterializedChatMessageOpaque) {
+			yield { content: child, isTextSibling: true };
 		} else {
-			if (child) yield* textChunks(child, isTextSibling);
+			if (child) yield* contentChunks(child, isTextSibling);
 			isTextSibling = false;
 		}
 	}
@@ -445,18 +482,12 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
-				node: MaterializedChatMessageTextChunk | MaterializedChatMessageImage;
+				chain: ContainerType[];
+				node: ContentType;
 		  };
 
-	function findLowestInTree(
-		node: MaterializedNode,
-		chain: (MaterializedContainer | MaterializedChatMessage)[]
-	) {
-		if (
-			node instanceof MaterializedChatMessageTextChunk ||
-			node instanceof MaterializedChatMessageImage
-		) {
+	function findLowestInTree(node: MaterializedNode, chain: ContainerType[]) {
+		if (isContentType(node)) {
 			if (!lowest || node.priority < lowest.node.priority) {
 				lowest = { chain: chain.slice(), node };
 			}
@@ -478,11 +509,11 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 	removeNode(lowest.node);
 }
 
-function removeLowestPriorityChild(node: MaterializedContainer | MaterializedChatMessage) {
+function removeLowestPriorityChild(node: ContainerType) {
 	let lowest:
 		| undefined
 		| {
-				chain: (MaterializedContainer | MaterializedChatMessage)[];
+				chain: ContainerType[];
 				index: number;
 				value: MaterializedNode;
 				lowestNested?: number;
@@ -496,7 +527,7 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 		const { chain, index } = queue[i];
 		const child = chain[chain.length - 1].children[index];
 
-		if (child instanceof MaterializedContainer && child.has(ContainerFlags.PassPriority)) {
+		if (child instanceof GenericMaterializedContainer && child.has(ContainerFlags.PassPriority)) {
 			const newChain = [...chain, child];
 			queue.splice(i + 1, 0, ...child.children.map((_, i) => ({ chain: newChain, index: i })));
 		} else if (!lowest || child.priority < lowest.value.priority) {
@@ -516,11 +547,10 @@ function removeLowestPriorityChild(node: MaterializedContainer | MaterializedCha
 		throw new Error('No lowest priority node found');
 	}
 
-	const containingList = lowest.chain[lowest.chain.length - 1].children;
 	if (
-		lowest.value instanceof MaterializedChatMessageTextChunk ||
-		lowest.value instanceof MaterializedChatMessageImage ||
-		(lowest.value instanceof MaterializedContainer && lowest.value.has(ContainerFlags.IsChunk)) ||
+		isContentType(lowest.value) ||
+		(lowest.value instanceof GenericMaterializedContainer &&
+			lowest.value.has(ContainerFlags.IsChunk)) ||
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
 		removeNode(lowest.value);
@@ -542,9 +572,7 @@ function getLowestPriorityAmongChildren(node: MaterializedNode): number {
 	return lowest;
 }
 
-function* allMetadata(
-	node: MaterializedContainer | MaterializedChatMessage
-): Generator<PromptMetadata> {
+function* allMetadata(node: ContainerType): Generator<PromptMetadata> {
 	yield* node.metadata;
 	for (const child of node.children) {
 		if (isContainerType(child)) {
@@ -590,19 +618,19 @@ function* forEachNode(node: MaterializedNode) {
 	}
 }
 
-function getRoot(node: MaterializedNode): MaterializedContainer {
+function getRoot(node: MaterializedNode): GenericMaterializedContainer {
 	let current = node;
 	while (current.parent) {
 		current = current.parent;
 	}
 
-	return current as MaterializedContainer;
+	return current as GenericMaterializedContainer;
 }
 
 function isKeepWith(
 	node: MaterializedNode
-): node is MaterializedContainer & { keepWithId: number } {
-	return node instanceof MaterializedContainer && node.keepWithId !== undefined;
+): node is GenericMaterializedContainer & { keepWithId: number } {
+	return node instanceof GenericMaterializedContainer && node.keepWithId !== undefined;
 }
 
 /** Global list of 'keepWiths' currently being removed to avoid recursing indefinitely */

@@ -12,11 +12,9 @@ export * as OpenAI from './openaiTypes';
 export * as Raw from './rawTypes';
 
 export enum OutputMode {
-	Raw = 'raw',
-	OpenAI = 'openai',
-	VSCode = 'vscode',
-	/** @deprecated, use {@link OpenAI} */
-	OpenAIOld = 'none',
+	Raw = 1,
+	OpenAI = 1 << 1,
+	VSCode = 1 << 2,
 }
 
 /** Map of the mode to the type of message it produces. */
@@ -24,7 +22,6 @@ export interface ModeToChatMessageType {
 	[OutputMode.Raw]: RawChatMessage;
 	[OutputMode.VSCode]: LanguageModelChatMessage;
 	[OutputMode.OpenAI]: OpenAIChatMessage;
-	[OutputMode.OpenAIOld]: OpenAIChatMessage;
 }
 
 /**
@@ -52,7 +49,6 @@ export function toMode<Mode extends keyof ModeToChatMessageType>(
 				messages instanceof Array ? toVsCodeChatMessages(messages) : toVsCodeChatMessage(messages)
 			) as ModeToChatMessageType[Mode];
 		case OutputMode.OpenAI:
-		case OutputMode.OpenAIOld:
 			return (
 				messages instanceof Array ? toOpenAIChatMessages(messages) : toOpenAiChatMessage(messages)
 			) as ModeToChatMessageType[Mode];

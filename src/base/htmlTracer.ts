@@ -17,8 +17,9 @@ import {
 	MaterializedChatMessageImage,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
-	MaterializedContainer,
+	GenericMaterializedContainer,
 	MaterializedNode,
+	MaterializedChatMessageOpaque,
 } from './materialized';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -213,7 +214,7 @@ async function serializeMaterialized(
 	tokenizer: ITokenizer,
 	materialized: MaterializedNode,
 	inChatMessage: boolean
-): Promise<ITraceMaterializedNode> {
+): Promise<ITraceMaterializedNode | undefined> {
 	const common = {
 		metadata: materialized.metadata.map(serializeMetadata),
 		priority: materialized.priority,
@@ -235,26 +236,31 @@ async function serializeMaterialized(
 			value: materialized.src,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
 		};
+	} else if (materialized instanceof MaterializedChatMessageOpaque) {
+		// todo: add to visualizer
+		return undefined;
 	} else {
 		const containerCommon = {
 			...common,
 			id: materialized.id,
 			name: materialized.name,
-			children: await Promise.all(
-				materialized.children.map(c =>
-					serializeMaterialized(
-						tokenizer,
-						c,
-						inChatMessage || materialized instanceof MaterializedChatMessage
+			children: (
+				await Promise.all(
+					materialized.children.map(c =>
+						serializeMaterialized(
+							tokenizer,
+							c,
+							inChatMessage || materialized instanceof MaterializedChatMessage
+						)
 					)
 				)
-			),
+			).filter(r => !!r),
 			tokens: inChatMessage
 				? await materialized.upperBoundTokenCount(tokenizer)
 				: await materialized.tokenCount(tokenizer),
 		};
 
-		if (materialized instanceof MaterializedContainer) {
+		if (materialized instanceof GenericMaterializedContainer) {
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.Container,

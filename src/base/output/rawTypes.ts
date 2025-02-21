@@ -3,7 +3,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { assertNever } from '../util/assert';
-import type { toMode } from './mode';
+import type { OutputMode, toMode } from './mode';
 
 /**
  * A chat message emitted by this library. This can be mapped to other APIs
@@ -114,14 +114,28 @@ export interface ChatCompletionContentPartOpaque {
 	value: unknown;
 
 	/**
-	 * Token usage of this content part.
+	 * Constant-value token usage of this content part. If undefined, it will
+	 * be assumed 0.
 	 */
-	tokenUsage: number;
+	tokenUsage?: number;
+
+	/**
+	 * A bitset of output modes where this content part will be omitted.
+	 * E.g. `scope: OutputMode.Anthropic | OutputMode.VSCode`. Not all outputs
+	 * will support opaque parts everywhere.
+	 */
+	scope?: number;
 
 	/**
 	 * The type of the content part.
 	 */
 	type: ChatCompletionContentPartKind.Opaque;
+}
+
+export namespace ChatCompletionContentPartOpaque {
+	export function usableIn(part: ChatCompletionContentPartOpaque, mode: OutputMode) {
+		return !part.scope || (part.scope & mode) !== 0;
+	}
 }
 
 export interface ChatMessageToolCall {

@@ -42,7 +42,7 @@ export class VSCodeTokenizer implements ITokenizer<OutputMode.VSCode> {
 		) => Thenable<number>,
 		mode: OutputMode
 	) {
-		if (mode !== 'vscode') {
+		if (mode !== OutputMode.VSCode) {
 			throw new Error(
 				'`mode` must be set to vscode when using vscode.LanguageModelChat as the tokenizer'
 			);
