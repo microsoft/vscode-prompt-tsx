@@ -1,6 +1,6 @@
 {
 	"name": "@vscode/prompt-tsx",
-	"version": "0.3.0-alpha.19",
+	"version": "0.3.0-alpha.20",
 	"description": "Declare LLM prompts with TSX",
 	"main": "./dist/base/index.js",
 	"types": "./dist/base/index.d.ts",
@@ -13,6 +13,7 @@
 		"watch:base": "tsc --watch --sourceMap --preserveWatchOutput",
 		"test": "vscode-test",
 		"test:unit": "cross-env IS_OUTSIDE_VSCODE=1 mocha --import=tsx -u tdd \"src/base/test/**/*.test.{ts,tsx}\"",
+		"test:bench": "tsx ./src/base/test/renderer.bench.tsx",
 		"prettier": "prettier --list-different --write --cache .",
 		"prepare": "tsx ./build/postinstall.ts"
 	},
@@ -38,6 +39,7 @@
 		"mocha": "^10.2.0",
 		"preact": "^10.24.2",
 		"prettier": "^2.8.8",
+		"tinybench": "^3.1.1",
 		"tsx": "^4.19.1",
 		"typescript": "^5.6.2"
 	}

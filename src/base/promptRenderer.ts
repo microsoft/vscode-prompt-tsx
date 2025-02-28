@@ -461,14 +461,26 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				}
 			}
 
-			// Trim the elements to fit within the token budget. We check the "lower bound"
-			// first because that's much more cache-friendly as we remove elements.
-			while (
-				(await container.upperBoundTokenCount(this._tokenizer)) > limit.limit &&
-				(await container.tokenCount(this._tokenizer)) > limit.limit
-			) {
-				container.removeLowestPriorityChild();
-				removed++;
+			// Trim the elements to fit within the token budget. The "upper bound" count
+			// is a cachable count derived from the individual token counts of each component.
+			// The actual token count is <= the upper bound count due to BPE merging of tokens
+			// at component boundaries.
+			//
+			// To avoid excess tokenization, we first calculate the precise token
+			// usage of the message, and then remove components, subtracting their
+			// "upper bound" usage from the count until it's <= the budget. We then
+			// repeat this and refine as necessary, though most of the time we only
+			// need a single iteration of this.<sup>[citation needed]</sup>
+			let tokenCount = await container.tokenCount(this._tokenizer);
+			while (tokenCount > limit.limit) {
+				while (tokenCount > limit.limit) {
+					for (const node of container.removeLowestPriorityChild()) {
+						removed++;
+						const rmCount = node.upperBoundTokenCount(this._tokenizer);
+						tokenCount -= typeof rmCount === 'number' ? rmCount : await rmCount;
+					}
+				}
+				tokenCount = await container.tokenCount(this._tokenizer);
 			}
 		}
 
