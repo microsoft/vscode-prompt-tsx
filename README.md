@@ -91,7 +91,7 @@ const participant = vscode.chat.createChatParticipant(
 			chatModel
 		);
 
-		const chatRequest = await chatModel.sendChatRequest(messages, {}, token);
+		const chatRequest = await chatModel.sendRequest(messages, {}, token);
 
 		// ... Report stream data to VS Code UI
 	}
