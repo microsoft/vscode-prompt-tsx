@@ -584,7 +584,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			todo.push({
 				node: childNode,
 				ctor: piece.ctor,
-				props: { priority: element.props.priority, ...piece.props },
+				props: piece.props,
 				children: piece.children,
 			});
 		}

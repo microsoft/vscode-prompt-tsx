@@ -717,6 +717,25 @@ suite('PromptRenderer', () => {
 				['a', 'b', 'c', 'd', 'e']
 			);
 		});
+
+		test('does not inherit priority to extrinsics any more (vscode-copilot-release#5148)', async () => {
+			class Wrap extends PromptElement {
+				render() {
+					return <>{this.props.children}</>;
+				}
+			}
+
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<Wrap priority={1}>a</Wrap>
+						<Wrap priority={2}>b</Wrap>
+						<Wrap>c</Wrap>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c']
+			);
+		});
 	});
 
 	suite('truncates tokens exceeding token budget', async () => {
