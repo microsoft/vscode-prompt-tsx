@@ -390,7 +390,7 @@ import { LanguageModelPromptTsxPart, LanguageModelToolInvocationOptions, Languag
 async function doToolInvocation(
 	options: LanguageModelToolInvocationOptions
 ): LanguageModelToolResult {
-    const json = await renderElementJSON(MyElement, { /* props */ }, options.tokenizationOptions)
+	const json = await renderElementJSON(MyElement, { /* props */ }, options.tokenizationOptions)
 	return new LanguageModelToolResult([new LanguageModelPromptTsxPart(json)])
 }
 ```
