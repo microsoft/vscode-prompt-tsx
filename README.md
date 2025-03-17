@@ -243,7 +243,7 @@ When `flexGrow` is set for an element, other elements are rendered first, and th
 ```tsx
 class SimpleTextChunk extends PromptElement<{ text: string }, string> {
 	prepare(sizing: PromptSizing): Promise<string> {
-		const words = text.split(' ');
+		const words = this.props.text.split(' ');
 		let str = '';
 
 		for (const word of words) {
