@@ -2581,5 +2581,39 @@ suite('PromptRenderer', () => {
 				},
 			]);
 		});
+
+		test('multi children (#162)', async () => {
+			const res1 = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt={<Wrapper x="alternate" />}>
+						<Wrapper x="a" />
+						<Wrapper x="b" />
+					</IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res1.messages, [
+				{
+					role: 'user',
+					content: 'a\nb',
+				},
+			]);
+
+			const res2 = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					<IfEmpty alt={<Wrapper x="alternate" />}>
+						<Wrapper x="" />
+						<Wrapper x="" />
+					</IfEmpty>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res2.messages, [
+				{
+					role: 'user',
+					content: 'alternate',
+				},
+			]);
+		});
 	});
 });

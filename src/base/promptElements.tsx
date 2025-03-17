@@ -446,6 +446,17 @@ export interface IfEmptyProps extends BasePromptElementProps {
  */
 export class IfEmpty extends PromptElement<IfEmptyProps> {
 	render(): PromptPiece {
-		return <>{[this.props.alt, this.props.children]}</>;
+		return (
+			<>
+				<LogicalWrapper>{this.props.alt}</LogicalWrapper>
+				<LogicalWrapper flexGrow={1}>{this.props.children}</LogicalWrapper>
+			</>
+		);
+	}
+}
+
+class LogicalWrapper extends PromptElement {
+	render(): PromptPiece {
+		return <>{this.props.children}</>;
 	}
 }
