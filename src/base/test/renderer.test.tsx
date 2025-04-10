@@ -37,6 +37,18 @@ import {
 } from '../types';
 import type * as vscode from 'vscode';
 
+class LanguageModelTextPart implements vscode.LanguageModelTextPart {
+	constructor(public value: string) {}
+}
+
+class LanguageModelPromptTsxPart implements vscode.LanguageModelPromptTsxPart {
+	constructor(public value: unknown) {}
+}
+
+class LanguageModelToolResult implements vscode.LanguageModelToolResult {
+	constructor(public content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>) {}
+}
+
 suite('PromptRenderer', () => {
 	const fakeEndpoint: any = {
 		modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
@@ -697,6 +709,96 @@ suite('PromptRenderer', () => {
 				</>,
 				['a', 'b', 'c', 'd', 'e']
 			);
+		});
+
+		test('passes priority with tool', async () => {
+			class MyElement extends PromptElement {
+				render() {
+					return (
+						<>
+							<TextChunk priority={1}>a</TextChunk>
+							<SimpleWrapper passPriority>
+								<TextChunk priority={2}>b</TextChunk>
+								<TextChunk priority={5}>e</TextChunk>
+							</SimpleWrapper>
+							<TextChunk priority={3}>c</TextChunk>
+							<TextChunk priority={4}>d</TextChunk>
+						</>
+					);
+				}
+			}
+			const r = await renderElementJSON(
+				MyElement,
+				{},
+				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
+
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<ToolResult
+							priority={50}
+							data={new LanguageModelToolResult([new LanguageModelPromptTsxPart(r)])}
+						/>
+					</UserMessage>
+				</>,
+				['a', 'b', 'c', 'd', 'e']
+			);
+		});
+
+		test('keepWith using tool', async () => {
+			class MyElement extends PromptElement {
+				render() {
+					const KeepWith1 = useKeepWith();
+					const KeepWith2 = useKeepWith();
+					const KeepWith3 = useKeepWith();
+
+					return (
+						<>
+							<KeepWith1 priority={1}>
+								<TextChunk priority={1}>a</TextChunk>
+								<TextChunk priority={2}>b</TextChunk>
+							</KeepWith1>
+							<KeepWith1 priority={2}>
+								<KeepWith2>
+									<TextChunk>c#</TextChunk>
+								</KeepWith2>
+								<TextChunk>c</TextChunk>
+							</KeepWith1>
+							<KeepWith1 priority={3}>
+								<TextChunk>d</TextChunk>
+							</KeepWith1>
+							<KeepWith2 priority={4}>
+								<TextChunk>e</TextChunk>
+							</KeepWith2>
+							<KeepWith3 priority={5}>f</KeepWith3>
+						</>
+					);
+				}
+			}
+			const r = await renderElementJSON(
+				MyElement,
+				{},
+				{ tokenBudget: 100, countTokens: t => Promise.resolve(tokenizer.tokenLength(t)) }
+			);
+
+			const it = await pruneDown(
+				<>
+					<UserMessage priority={1}>
+						<ToolResult
+							priority={50}
+							data={new LanguageModelToolResult([new LanguageModelPromptTsxPart(r)])}
+						/>
+					</UserMessage>
+				</>
+			);
+
+			let messages: string[] = [];
+			for await (const m of it) {
+				messages.push(m.map(m => m.content).join(''));
+			}
+
+			assert.deepStrictEqual(messages, ['a\nb\nc#\nc\nd\ne\nf', 'b\nc#\nc\nd\ne\nf', 'f', '']);
 		});
 
 		test('passes priority nested', async () => {
@@ -1640,18 +1742,6 @@ suite('PromptRenderer', () => {
 	});
 
 	suite('renderElementJSON', () => {
-		class LanguageModelTextPart implements vscode.LanguageModelTextPart {
-			constructor(public value: string) {}
-		}
-
-		class LanguageModelPromptTsxPart implements vscode.LanguageModelPromptTsxPart {
-			constructor(public value: unknown) {}
-		}
-
-		class LanguageModelToolResult implements vscode.LanguageModelToolResult {
-			constructor(public content: Array<LanguageModelTextPart | LanguageModelPromptTsxPart>) {}
-		}
-
 		test('scopes priorities', async () => {
 			const json = await renderElementJSON(
 				class extends PromptElement {
