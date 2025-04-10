@@ -396,7 +396,10 @@ export abstract class AbstractKeepWith extends PromptElement {
 
 let keepWidthId = 0;
 
-export type KeepWithCtor = typeof AbstractKeepWith & { id: number };
+export type KeepWithCtor = {
+	new (props: PromptElementProps<BasePromptElementProps>): AbstractKeepWith;
+	id: number;
+};
 
 /**
  * Returns a PromptElement that ensures each wrapped element is retained only
@@ -455,7 +458,7 @@ export class IfEmpty extends PromptElement<IfEmptyProps> {
 	}
 }
 
-class LogicalWrapper extends PromptElement {
+export class LogicalWrapper extends PromptElement {
 	render(): PromptPiece {
 		return <>{this.props.children}</>;
 	}
