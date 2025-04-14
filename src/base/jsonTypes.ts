@@ -5,6 +5,7 @@
 import type { Range } from 'vscode';
 import { ChatResponseReferencePartStatusKind } from './results';
 import { UriComponents } from './util/vs/common/uri';
+import { BasePromptElementProps, PromptElementProps } from './types';
 
 // Types in this region are the JSON representation of prompt elements. These
 // can be transmitted between tools and tool callers.
@@ -36,27 +37,36 @@ export interface TextJSON {
 export const enum PieceCtorKind {
 	BaseChatMessage = 1,
 	Other = 2,
-	ImageChatMessage = 3
+	ImageChatMessage = 3,
 }
+
+export const jsonRetainedProps = Object.keys({
+	flexBasis: 1,
+	flexGrow: 1,
+	flexReserve: 1,
+	passPriority: 1,
+	priority: 1,
+} satisfies { [key in keyof BasePromptElementProps]: 1 }) as readonly (keyof BasePromptElementProps)[];
 
 export interface BasePieceJSON {
 	type: PromptNodeType.Piece;
 	ctor: PieceCtorKind.BaseChatMessage | PieceCtorKind.Other;
-	priority: number | undefined;
+	ctorName: string | undefined;
 	children: PromptNodeJSON[];
 	references: PromptReferenceJSON[] | undefined;
-	props?: Record<string, unknown>;
+	props: Record<string, unknown>;
+	keepWithId?: number;
+	flags?: number; // ContainerFlags
 }
 
 export interface ImageChatMessagePieceJSON {
 	type: PromptNodeType.Piece;
 	ctor: PieceCtorKind.ImageChatMessage;
-	priority: number | undefined;
 	children: PromptNodeJSON[];
 	references: PromptReferenceJSON[] | undefined;
 	props: {
 		src: string;
-		detail?: "low" | "high";
+		detail?: 'low' | 'high';
 	};
 }
 

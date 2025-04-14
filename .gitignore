@@ -133,3 +133,5 @@ dist
 .pnp.*
 
 src/base/htmlTracerSrc.ts
+
+*.cpuprofile

@@ -91,7 +91,7 @@ const participant = vscode.chat.createChatParticipant(
 			chatModel
 		);
 
-		const chatRequest = await chatModel.sendChatRequest(messages, {}, token);
+		const chatRequest = await chatModel.sendRequest(messages, {}, token);
 
 		// ... Report stream data to VS Code UI
 	}
@@ -243,7 +243,7 @@ When `flexGrow` is set for an element, other elements are rendered first, and th
 ```tsx
 class SimpleTextChunk extends PromptElement<{ text: string }, string> {
 	prepare(sizing: PromptSizing): Promise<string> {
-		const words = text.split(' ');
+		const words = this.props.text.split(' ');
 		let str = '';
 
 		for (const word of words) {
@@ -382,20 +382,16 @@ Visual Studio Code's API supports language models tools, sometimes called 'funct
 
 As a tool, you can use this library normally. However, to return data to the tool caller, you will want to use a special function `renderElementJSON` to serialize your elements to a plain, transferrable JSON object that can be used by a consumer if they also leverage prompt-tsx:
 
-Note that when VS Code invokes your language model tool, the `options` may contain `tokenOptions` which you should pass through as the third argument to `renderElementJSON`:
+Note that when VS Code invokes your language model tool, the `options` may contain `tokenizationOptions` which you should pass through as the third argument to `renderElementJSON`:
 
 ```ts
-// 1. Import prompt-tsx's well-known content type:
-import { contentType } from '@vscode/prompt-tsx';
+import { LanguageModelPromptTsxPart, LanguageModelToolInvocationOptions, LanguageModelToolResult } from 'vscode'
 
 async function doToolInvocation(
 	options: LanguageModelToolInvocationOptions
-): vscode.LanguageModelToolResult {
-	return {
-		// In constructing your response, render the tree as JSON.
-		[contentType]: await renderElementJSON(MyElement, options.parameters, options.tokenOptions),
-		toString: () => '...',
-	};
+): LanguageModelToolResult {
+	const json = await renderElementJSON(MyElement, { /* props */ }, options.tokenizationOptions)
+	return new LanguageModelToolResult([new LanguageModelPromptTsxPart(json)])
 }
 ```
 
@@ -408,7 +404,7 @@ class MyElement extends PromptElement {
 	async render(_state: void, sizing: PromptSizing) {
 		const result = await vscode.lm.invokeTool(toolId, {
 			parameters: getToolParameters(),
-			tokenOptions: {
+			tokenizationOptions: {
 				tokenBudget: sizing.tokenBudget,
 				countTokens: (text, token) => sizing.countTokens(text, token),
 			},

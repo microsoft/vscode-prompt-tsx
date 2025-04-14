@@ -164,13 +164,14 @@ export class GenericMaterializedContainer implements IMaterializedContainer {
 		}
 	}
 
-	/** Removes the node in the tree with the lowest priority. */
-	removeLowestPriorityChild(): void {
-		if (this.has(ContainerFlags.IsLegacyPrioritization)) {
-			removeLowestPriorityLegacy(this);
-		} else {
-			removeLowestPriorityChild(this);
-		}
+	/**
+	 * Removes the node in the tree with the lowest priority. Returns the
+	 * list of nodes that were removed.
+	 */
+	removeLowestPriorityChild(): MaterializedNode[] {
+		const removed: MaterializedNode[] = [];
+		removeLowestPriorityChild(this, removed);
+		return removed;
 	}
 }
 
@@ -256,11 +257,11 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return replaced;
 	}
 
-	/** Remove the lowest priority chunk among this message's children. */
-	removeLowestPriorityChild() {
-		removeLowestPriorityChild(this);
+	removeLowestPriorityChild(): MaterializedNode[] {
+		const removed: MaterializedNode[] = [];
+		removeLowestPriorityChild(this, removed);
+		return removed;
 	}
-
 	onChunksChange() {
 		this._tokenCount.clear();
 		this._upperBound.clear();
@@ -478,7 +479,7 @@ function* contentChunks(
 	}
 }
 
-function removeLowestPriorityLegacy(root: MaterializedNode) {
+function removeLowestPriorityLegacy(root: MaterializedNode, removed: MaterializedNode[]) {
 	let lowest:
 		| undefined
 		| {
@@ -506,10 +507,13 @@ function removeLowestPriorityLegacy(root: MaterializedNode) {
 		throw new Error('No lowest priority node found');
 	}
 
-	removeNode(lowest.node);
+	removeNode(lowest.node, removed);
 }
 
-function removeLowestPriorityChild(node: ContainerType) {
+function removeLowestPriorityChild(
+	node: ContainerType,
+	removed: MaterializedNode[]
+) {
 	let lowest:
 		| undefined
 		| {
@@ -518,6 +522,11 @@ function removeLowestPriorityChild(node: ContainerType) {
 				value: MaterializedNode;
 				lowestNested?: number;
 		  };
+
+	if (node instanceof GenericMaterializedContainer && node.has(ContainerFlags.IsLegacyPrioritization)) {
+		removeLowestPriorityLegacy(node, removed);
+		return;
+	}
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -553,9 +562,9 @@ function removeLowestPriorityChild(node: ContainerType) {
 			lowest.value.has(ContainerFlags.IsChunk)) ||
 		(isContainerType(lowest.value) && !lowest.value.children.length)
 	) {
-		removeNode(lowest.value);
+		removeNode(lowest.value, removed);
 	} else {
-		lowest.value.removeLowestPriorityChild();
+		removeLowestPriorityChild(lowest.value, removed);
 	}
 }
 
@@ -636,7 +645,7 @@ function isKeepWith(
 /** Global list of 'keepWiths' currently being removed to avoid recursing indefinitely */
 const currentlyBeingRemovedKeepWiths = new Set<number>();
 
-function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
+function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode, removed: MaterializedNode[]) {
 	const removeKeepWithIds = new Set<number>();
 	for (const node of forEachNode(nodeThatWasRemoved)) {
 		if (isKeepWith(node) && !currentlyBeingRemovedKeepWiths.has(node.keepWithId)) {
@@ -656,7 +665,7 @@ function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
 		const root = getRoot(nodeThatWasRemoved);
 		for (const node of forEachNode(root)) {
 			if (isKeepWith(node) && removeKeepWithIds.has(node.keepWithId)) {
-				removeNode(node);
+				removeNode(node, removed);
 			} else if (node instanceof MaterializedChatMessage && node.toolCalls) {
 				node.toolCalls = filterIfDifferent(
 					node.toolCalls,
@@ -665,7 +674,7 @@ function removeOtherKeepWiths(nodeThatWasRemoved: MaterializedNode) {
 
 				if (node.isEmpty) {
 					// may have become empty if it only contained tool calls
-					removeNode(node);
+					removeNode(node, removed);
 				}
 			}
 		}
@@ -691,7 +700,7 @@ function findNodeById(nodeId: number, container: ContainerType): ContainerType |
 	}
 }
 
-function removeNode(node: MaterializedNode) {
+function removeNode(node: MaterializedNode, removed: MaterializedNode[]) {
 	const parent = node.parent;
 	if (!parent) {
 		return; // root
@@ -703,10 +712,11 @@ function removeNode(node: MaterializedNode) {
 	}
 
 	parent.children.splice(index, 1);
-	removeOtherKeepWiths(node);
+	removed.push(node);
+	removeOtherKeepWiths(node, removed);
 
 	if (parent.isEmpty) {
-		removeNode(parent);
+		removeNode(parent, removed);
 	} else {
 		parent.onChunksChange();
 	}

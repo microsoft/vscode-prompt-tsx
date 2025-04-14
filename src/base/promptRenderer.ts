@@ -7,11 +7,11 @@ import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
 import {
 	ContainerFlags,
+	GenericMaterializedContainer,
 	LineBreakBefore,
 	MaterializedChatMessage,
 	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
-	GenericMaterializedContainer,
 } from './materialized';
 import { Raw, toMode } from './output/mode';
 import { PromptElement } from './promptElement';
@@ -25,11 +25,14 @@ import {
 	Expandable,
 	IfEmpty,
 	isChatMessagePromptElement,
+	KeepWithCtor,
 	LegacyPrioritization,
+	LogicalWrapper,
 	TextChunk,
 	TokenLimit,
 	TokenLimitProps,
 	ToolMessage,
+	useKeepWith
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -460,14 +463,26 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				}
 			}
 
-			// Trim the elements to fit within the token budget. We check the "lower bound"
-			// first because that's much more cache-friendly as we remove elements.
-			while (
-				(await container.upperBoundTokenCount(this._tokenizer)) > limit.limit &&
-				(await container.tokenCount(this._tokenizer)) > limit.limit
-			) {
-				container.removeLowestPriorityChild();
-				removed++;
+			// Trim the elements to fit within the token budget. The "upper bound" count
+			// is a cachable count derived from the individual token counts of each component.
+			// The actual token count is <= the upper bound count due to BPE merging of tokens
+			// at component boundaries.
+			//
+			// To avoid excess tokenization, we first calculate the precise token
+			// usage of the message, and then remove components, subtracting their
+			// "upper bound" usage from the count until it's <= the budget. We then
+			// repeat this and refine as necessary, though most of the time we only
+			// need a single iteration of this.<sup>[citation needed]</sup>
+			let tokenCount = await container.tokenCount(this._tokenizer);
+			while (tokenCount > limit.limit) {
+				while (tokenCount > limit.limit) {
+					for (const node of container.removeLowestPriorityChild()) {
+						removed++;
+						const rmCount = node.upperBoundTokenCount(this._tokenizer);
+						tokenCount -= typeof rmCount === 'number' ? rmCount : await rmCount;
+					}
+				}
+				tokenCount = await container.tokenCount(this._tokenizer);
 			}
 		}
 
@@ -571,7 +586,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			todo.push({
 				node: childNode,
 				ctor: piece.ctor,
-				props: { priority: element.props.priority, ...piece.props },
+				props: piece.props,
 				children: piece.children,
 			});
 		}
@@ -860,7 +875,11 @@ class PromptSizingContext {
 class PromptTreeElement {
 	private static _nextId = 0;
 
-	public static fromJSON(index: number, json: JSONT.PieceJSON): PromptTreeElement {
+	public static fromJSON(
+		index: number,
+		json: JSONT.PieceJSON,
+		keepWithMap: Map<number, KeepWithCtor>
+	): PromptTreeElement {
 		const element = new PromptTreeElement(null, index);
 		element._metadata =
 			json.references?.map(r => new ReferenceMetadata(PromptReference.fromJSON(r))) ?? [];
@@ -868,7 +887,7 @@ class PromptTreeElement {
 			.map((childJson, i) => {
 				switch (childJson.type) {
 					case JSONT.PromptNodeType.Piece:
-						return PromptTreeElement.fromJSON(i, childJson);
+						return PromptTreeElement.fromJSON(i, childJson, keepWithMap);
 					case JSONT.PromptNodeType.Text:
 						return PromptText.fromJSON(element, i, childJson);
 					default:
@@ -879,10 +898,23 @@ class PromptTreeElement {
 
 		switch (json.ctor) {
 			case JSONT.PieceCtorKind.BaseChatMessage:
+				element._objFlags = json.flags ?? 0;
 				element._obj = new BaseChatMessage(json.props!);
 				break;
-			case JSONT.PieceCtorKind.Other:
-				break; // no-op
+			case JSONT.PieceCtorKind.Other: {
+				if (json.keepWithId !== undefined) {
+					let kw = keepWithMap.get(json.keepWithId);
+					if (!kw) {
+						kw = useKeepWith();
+						keepWithMap.set(json.keepWithId, kw);
+					}
+					element._obj = new kw(json.props || {});
+				} else {
+					element._obj = new LogicalWrapper(json.props || {});
+				}
+				element._objFlags = json.flags ?? 0;
+				break;
+			}
 			case JSONT.PieceCtorKind.ImageChatMessage:
 				element._obj = new BaseImageMessage(json.props!);
 				break;
@@ -899,6 +931,7 @@ class PromptTreeElement {
 	private _state: any | undefined = undefined;
 	private _children: PromptNode[] = [];
 	private _metadata: PromptMetadata[] = [];
+	private _objFlags: number = 0;
 
 	constructor(
 		public readonly parent: PromptTreeElement | null = null,
@@ -908,8 +941,18 @@ class PromptTreeElement {
 
 	public setObj(obj: PromptElement) {
 		this._obj = obj;
+
+		// todo@connor4312: clean this up so we don't actually hold _obj but instead
+		// just hold metadata that can be more cleanly rehydrated
+
+		if (this._obj instanceof LegacyPrioritization)
+			this._objFlags |= ContainerFlags.IsLegacyPrioritization;
+		if (this._obj instanceof Chunk) this._objFlags |= ContainerFlags.IsChunk;
+		if (this._obj instanceof IfEmpty) this._objFlags |= ContainerFlags.EmptyAlternate;
+		if (this._obj.props.passPriority) this._objFlags |= ContainerFlags.PassPriority;
 	}
 
+	/** @deprecated remove when Expandable is gone */
 	public getObj(): PromptElement | null {
 		return this._obj;
 	}
@@ -929,7 +972,7 @@ class PromptTreeElement {
 	}
 
 	public appendPieceJSON(data: JSONT.PieceJSON): PromptTreeElement {
-		const child = PromptTreeElement.fromJSON(this._children.length, data);
+		const child = PromptTreeElement.fromJSON(this._children.length, data, new Map());
 		this._children.push(child);
 		return child;
 	}
@@ -952,34 +995,42 @@ class PromptTreeElement {
 		const json: JSONT.PieceJSON = {
 			type: JSONT.PromptNodeType.Piece,
 			ctor: JSONT.PieceCtorKind.Other,
+			ctorName: this._obj?.constructor.name,
 			children: this._children
 				.slice()
 				.sort((a, b) => a.childIndex - b.childIndex)
 				.map(c => c.toJSON()),
-			priority: this._obj?.props.priority,
+			props: {},
 			references: this._metadata
 				.filter(m => m instanceof ReferenceMetadata)
 				.map(r => r.reference.toJSON()),
 		};
 
+		if (this._obj) {
+			json.props = pickProps(this._obj.props, JSONT.jsonRetainedProps);
+		}
+
 		if (this._obj instanceof BaseChatMessage) {
 			json.ctor = JSONT.PieceCtorKind.BaseChatMessage;
-			json.props = {
-				role: this._obj.props.role,
-				name: this._obj.props.name,
-				priority: this._obj.props.priority,
-				toolCalls: this._obj.props.toolCalls,
-				toolCallId: this._obj.props.toolCallId,
-			};
+			Object.assign(
+				json.props,
+				pickProps(this._obj.props, ['role', 'name', 'toolCalls', 'toolCallId'])
+			);
 		} else if (this._obj instanceof BaseImageMessage) {
 			return {
 				...json,
 				ctor: JSONT.PieceCtorKind.ImageChatMessage,
 				props: {
-					src: this._obj.props.src,
-					detail: this._obj.props.detail,
+					...json.props,
+					...pickProps(this._obj.props, ['src', 'detail']),
 				},
 			};
+		} else if (this._obj instanceof AbstractKeepWith) {
+			json.keepWithId = this._obj.id;
+		}
+
+		if (this._objFlags !== 0) {
+			json.flags = this._objFlags;
 		}
 
 		return json;
@@ -1020,12 +1071,6 @@ class PromptTreeElement {
 				parent => this._children.map(child => child.materialize(parent))
 			);
 		} else {
-			let flags = 0;
-			if (this._obj instanceof LegacyPrioritization) flags |= ContainerFlags.IsLegacyPrioritization;
-			if (this._obj instanceof Chunk) flags |= ContainerFlags.IsChunk;
-			if (this._obj instanceof IfEmpty) flags |= ContainerFlags.EmptyAlternate;
-			if (this._obj?.props.passPriority) flags |= ContainerFlags.PassPriority;
-
 			const container = new GenericMaterializedContainer(
 				parent,
 				this.id,
@@ -1033,7 +1078,7 @@ class PromptTreeElement {
 				this._obj?.props.priority ?? (this._obj?.props.passPriority ? 0 : Number.MAX_SAFE_INTEGER),
 				parent => this._children.map(child => child.materialize(parent)),
 				this._metadata,
-				flags
+				this._objFlags
 			);
 
 			if (this._obj instanceof AbstractKeepWith) {
@@ -1148,4 +1193,14 @@ function iterableToArray<T>(t: Iterable<T>): ReadonlyArray<T> {
 
 function isIterable(t: unknown): t is Iterable<any> {
 	return !!t && typeof (t as any)[Symbol.iterator] === 'function';
+}
+
+function pickProps<T extends {}, K extends keyof T>(obj: T, keys: readonly K[]): Pick<T, K> {
+	const result = {} as Pick<T, K>;
+	for (const key of keys) {
+		if (obj.hasOwnProperty(key)) {
+			result[key] = obj[key];
+		}
+	}
+	return result;
 }
