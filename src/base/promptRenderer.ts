@@ -66,6 +66,7 @@ export interface RenderPromptResult {
 }
 
 export type QueueItem<C, P> = {
+	path: (PromptElementCtor<any, any> | string)[];
 	node: PromptTreeElement;
 	ctor: C;
 	props: P;
@@ -147,8 +148,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 			// Instantiate the prompt part
 			if (!element.ctor) {
+				const loc = atPath(element.path);
 				throw new Error(
-					`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement.`
+					`Invalid ChatMessage child! Child must be a TSX component that extends PromptElement at ${loc}`
 				);
 			}
 
@@ -258,7 +260,9 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 			await Promise.all(
 				promptElements.map(async ({ element, promptElementInstance }, i) => {
-					const state = await promptElementInstance.prepare?.(elementSizings[i], progress, token);
+					const state = await annotateError(element, () =>
+						promptElementInstance.prepare?.(elementSizings[i], progress, token)
+					);
 					element.node.setState(state);
 				})
 			);
@@ -266,11 +270,8 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			const templates = await Promise.all(
 				promptElements.map(async ({ element, promptElementInstance }, i) => {
 					const elementSizing = elementSizings[i];
-					return await promptElementInstance.render(
-						element.node.getState(),
-						elementSizing,
-						progress,
-						token
+					return await annotateError(element, () =>
+						promptElementInstance.render(element.node.getState(), elementSizing, progress, token)
 					);
 				})
 			);
@@ -338,7 +339,15 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	public async renderElementJSON(token?: CancellationToken): Promise<JSONT.PromptElementJSON> {
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
-			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
+			[
+				{
+					node: this._root,
+					ctor: this._ctor,
+					props: this._props,
+					children: [],
+					path: [this._ctor],
+				},
+			],
 			undefined,
 			token
 		);
@@ -361,7 +370,15 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
-			[{ node: this._root, ctor: this._ctor, props: this._props, children: [] }],
+			[
+				{
+					node: this._root,
+					ctor: this._ctor,
+					props: this._props,
+					children: [],
+					path: [this._ctor],
+				},
+			],
 			progress,
 			token
 		);
@@ -521,7 +538,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 			const newConsumed = await this._processPromptRenderPiece(
 				sizing,
-				{ node: tempRoot, ctor: this._ctor, props: {}, children: [] },
+				{ node: tempRoot, ctor: this._ctor, props: {}, children: [], path: [this._ctor] },
 				obj,
 				await obj.render(undefined, {
 					tokenBudget: sizing.tokenBudget,
@@ -589,6 +606,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				ctor: piece.ctor,
 				props: piece.props,
 				children: piece.children,
+				path: [...element.path, piece.ctor],
 			});
 		}
 
@@ -1199,4 +1217,26 @@ function pickProps<T extends {}, K extends keyof T>(obj: T, keys: readonly K[]):
 		}
 	}
 	return result;
+}
+
+function atPath(path: (PromptElementCtor<any, any> | string)[]): string {
+	return path.map(p => (typeof p === 'string' ? p : p ? (p.name || '<anonymous>') : String(p))).join(' > ');
+}
+
+const annotatedErrors = new WeakSet<Error>();
+async function annotateError<T>(q: QueueItem<any, any>, fn: () => T | Promise<T>) {
+	try {
+		return await fn();
+	} catch (e) {
+		// Add a path to errors, except cancellation errors which are generally expected
+		if (
+			e instanceof Error &&
+			!annotatedErrors.has(e) &&
+			e.constructor.name !== 'CancellationError'
+		) {
+			annotatedErrors.add(e);
+			e.message += ` (at tsx element ${atPath(q.path)})`;
+		}
+		throw e;
+	}
 }

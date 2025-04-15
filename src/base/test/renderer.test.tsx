@@ -13,6 +13,7 @@ import {
 	Expandable,
 	IfEmpty,
 	LegacyPrioritization,
+	LogicalWrapper,
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
@@ -2704,6 +2705,48 @@ suite('PromptRenderer', () => {
 					content: 'alternate',
 				},
 			]);
+		});
+	});
+
+	suite('error annotation', () => {
+		test('annotates invalid ctor errors', async () => {
+			try {
+				await renderFragmentWithMaxPromptTokens(
+					Infinity,
+					<UserMessage>
+						<LogicalWrapper>{{}}</LogicalWrapper>
+					</UserMessage>
+				);
+				assert.fail('should have thrown');
+			} catch (e) {
+				assert.strictEqual(
+					(e as Error).message,
+					'Invalid ChatMessage child! Child must be a TSX component that extends PromptElement at <anonymous> > UserMessage > LogicalWrapper > undefined'
+				);
+			}
+		});
+		test('annotates runtime errors', async () => {
+			try {
+				class Throws extends PromptElement {
+					render(): never {
+						throw new Error('test error');
+					}
+				}
+				await renderFragmentWithMaxPromptTokens(
+					Infinity,
+					<UserMessage>
+						<LogicalWrapper>
+							<Throws />
+						</LogicalWrapper>
+					</UserMessage>
+				);
+				assert.fail('should have thrown');
+			} catch (e) {
+				assert.strictEqual(
+					(e as Error).message,
+					'test error (at tsx element <anonymous> > UserMessage > LogicalWrapper > Throws)'
+				);
+			}
 		});
 	});
 });
