@@ -8,9 +8,10 @@ import type {
 	LanguageModelChat,
 	Progress,
 	LanguageModelChatMessage,
+	LanguageModelChatMessage2,
 } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
-import { ChatMessage, ChatRole } from './openai';
+import { ChatCompletionContentPartImage, ChatMessage, ChatRole } from './openai';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
 import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
@@ -76,7 +77,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	token?: CancellationToken,
 	mode?: 'vscode'
 ): Promise<{
-	messages: LanguageModelChatMessage[];
+	messages: Array<LanguageModelChatMessage | LanguageModelChatMessage2>;
 	tokenCount: number;
 	/** @deprecated use {@link metadata} */
 	metadatas: MetadataMap;
@@ -123,7 +124,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	token?: CancellationToken,
 	mode: 'vscode' | 'none' = 'vscode'
 ): Promise<{
-	messages: (ChatMessage | LanguageModelChatMessage)[];
+	messages: (ChatMessage | LanguageModelChatMessage | LanguageModelChatMessage2)[];
 	tokenCount: number;
 	/** @deprecated use {@link metadata} */
 	metadatas: MetadataMap;
@@ -138,7 +139,7 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
 	const { tokenCount, references, metadata } = renderResult;
-	let messages: ChatMessage[] | LanguageModelChatMessage[] = renderResult.messages;
+	let messages: ChatMessage[] | Array<LanguageModelChatMessage | LanguageModelChatMessage2> = renderResult.messages;
 	const usedContext = renderer.getUsedContext();
 
 	if (mode === 'vscode') {
@@ -188,9 +189,9 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 	props: P,
 	budgetInformation:
 		| {
-				tokenBudget: number;
-				countTokens(text: string, token?: CancellationToken): Thenable<number>;
-		  }
+			tokenBudget: number;
+			countTokens(text: string, token?: CancellationToken): Thenable<number>;
+		}
 		| undefined,
 	token?: CancellationToken
 ): Promise<PromptElementJSON> {
@@ -218,12 +219,12 @@ export function renderElementJSON<P extends BasePromptElementProps>(
  * @param messages - The array of {@link ChatMessage} objects to convert.
  * @returns An array of {@link LanguageModelChatMessage VS Code chat messages}.
  */
-export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChatMessage[] {
+export function toVsCodeChatMessages(messages: ChatMessage[]): Array<LanguageModelChatMessage | LanguageModelChatMessage2> {
 	const vscode = require('vscode');
 	return messages.map(m => {
 		switch (m.role) {
 			case ChatRole.Assistant:
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(
+				const message: LanguageModelChatMessage | LanguageModelChatMessage2 = vscode.LanguageModelChatMessage2.Assistant(
 					m.content,
 					m.name
 				);
@@ -245,23 +246,40 @@ export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChat
 				}
 				return message;
 			case ChatRole.User:
-				return vscode.LanguageModelChatMessage.User(m.content, m.name);
+				return vscode.LanguageModelChatMessage2.User(m.content, m.name);
 			case ChatRole.Function: {
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [
-					new vscode.LanguageModelToolResultPart(m.name, [
+				const message: LanguageModelChatMessage2 = vscode.LanguageModelChatMessage2.User('');
+
+				if (Array.isArray(m.content)) {
+					message.content = [new vscode.LanguageModelToolResultPart2(m.content.toString(), [
+						...m.content.map(c => {
+							const image = c as ChatCompletionContentPartImage;
+							const data = new Uint8Array(Buffer.from(image.image_url.url));
+							return new vscode.LanguageModelDataPart({ data: data, mimeType: 'image/png' });
+						}),
+					])];
+				} else {
+					message.content = [new vscode.LanguageModelToolResultPart2(m.content, [
 						new vscode.LanguageModelTextPart(m.content),
-					]),
-				];
+					])];
+				}
 				return message;
 			}
 			case ChatRole.Tool: {
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [
-					new vscode.LanguageModelToolResultPart(m.tool_call_id, [
+				const message: LanguageModelChatMessage2 = vscode.LanguageModelChatMessage2.User('');
+				if (Array.isArray(m.content)) {
+					message.content = [new vscode.LanguageModelToolResultPart2(m.tool_call_id, [
+						...m.content.map(c => {
+							const image = c as ChatCompletionContentPartImage;
+							const data = new Uint8Array(Buffer.from(image.image_url.url));
+							return new vscode.LanguageModelDataPart({ data: data, mimeType: 'image/png' });
+						}),
+					])];
+				} else {
+					message.content = [new vscode.LanguageModelToolResultPart2(m.tool_call_id, [
 						new vscode.LanguageModelTextPart(m.content),
-					]),
-				];
+					])];
+				}
 				return message;
 			}
 			default:

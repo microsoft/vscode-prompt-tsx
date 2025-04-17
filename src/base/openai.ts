@@ -127,7 +127,7 @@ export interface ToolChatMessage {
 	/**
 	 * The content of the chat message.
 	 */
-	content: string;
+	content: string | Array<ChatCompletionContentPartImage>;
 }
 
 /**
