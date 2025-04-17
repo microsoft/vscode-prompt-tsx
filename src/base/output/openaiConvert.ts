@@ -15,11 +15,8 @@ function onlyStringContent(content: Raw.ChatCompletionContentPart[]): string {
 function stringAndImageContent(
 	content: Raw.ChatCompletionContentPart[]
 ): string | OpenAI.ChatCompletionContentPart[] {
-	if (!content.some(part => part.type !== Raw.ChatCompletionContentPartKind.Text)) {
-		return onlyStringContent(content);
-	}
 
-	return content
+	const parts = content
 		.map((part): OpenAI.ChatCompletionContentPart | undefined => {
 			if (part.type === Raw.ChatCompletionContentPartKind.Text) {
 				return {
@@ -39,6 +36,13 @@ function stringAndImageContent(
 			}
 		})
 		.filter(r => !!r);
+
+
+	if (parts.every(part => part.type === 'text')) {
+		return parts.map(p=> (p as OpenAI.ChatCompletionContentPartText).text).join('');
+	}
+
+	return parts;
 }
 
 export function toOpenAiChatMessage(message: Raw.ChatMessage): OpenAI.ChatMessage | undefined {

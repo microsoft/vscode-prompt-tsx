@@ -34,7 +34,8 @@ export type MaterializedNode =
 	| MaterializedChatMessage
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
-	| MaterializedChatMessageOpaque;
+	| MaterializedChatMessageOpaque
+	| MaterializedChatMessageCheckpoint;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -51,7 +52,8 @@ type ContainerType = MaterializedChatMessage | GenericMaterializedContainer;
 type ContentType =
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
-	| MaterializedChatMessageOpaque;
+	| MaterializedChatMessageOpaque
+	| MaterializedChatMessageCheckpoint;
 
 export class GenericMaterializedContainer implements IMaterializedContainer {
 	public readonly children: MaterializedNode[];
@@ -164,6 +166,23 @@ export class GenericMaterializedContainer implements IMaterializedContainer {
 		}
 	}
 
+	async baseMessageTokenCount(tokenizer: ITokenizer): Promise<number> {
+		let sum = 0;
+		await Promise.all(
+			this.children.map(async child => {
+				if (
+					child instanceof MaterializedChatMessage ||
+					child instanceof GenericMaterializedContainer
+				) {
+					const amount = await child.baseMessageTokenCount(tokenizer);
+					sum += amount;
+				}
+			})
+		);
+
+		return sum;
+	}
+
 	/**
 	 * Removes the node in the tree with the lowest priority. Returns the
 	 * list of nodes that were removed.
@@ -236,7 +255,12 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	}
 
 	/** Gets the text this message contains */
-	public get text(): (string | MaterializedChatMessageImage | MaterializedChatMessageOpaque)[] {
+	public get text(): (
+		| string
+		| MaterializedChatMessageImage
+		| MaterializedChatMessageOpaque
+		| MaterializedChatMessageCheckpoint
+	)[] {
 		return this._text();
 	}
 
@@ -288,7 +312,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	});
 
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
-		let total = await this._baseMessageTokenCount(tokenizer);
+		let total = await this.baseMessageTokenCount(tokenizer);
 		await Promise.all(
 			this.children.map(async chunk => {
 				const amt = await chunk.upperBoundTokenCount(tokenizer);
@@ -298,20 +322,45 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		return total;
 	});
 
-	private readonly _baseMessageTokenCount = once((tokenizer: ITokenizer) => {
+	public readonly baseMessageTokenCount = once((tokenizer: ITokenizer) => {
 		const raw = this.toChatMessage();
-		raw.content = [];
+
+		raw.content = raw.content
+			.map(message => {
+				if (message.type === Raw.ChatCompletionContentPartKind.Text) {
+					return { ...message, text: '' };
+				} else if (message.type === Raw.ChatCompletionContentPartKind.Image) {
+					return undefined;
+				} else {
+					return message;
+				}
+			})
+			.filter(r => !!r);
+
 		return tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	});
 
 	private readonly _text = once(() => {
-		let result: (string | MaterializedChatMessageImage | MaterializedChatMessageOpaque)[] = [];
+		let result: (
+			| string
+			| MaterializedChatMessageImage
+			| MaterializedChatMessageOpaque
+			| MaterializedChatMessageCheckpoint
+		)[] = [];
 		for (const { content, isTextSibling } of contentChunks(this)) {
 			if (
 				content instanceof MaterializedChatMessageImage ||
 				content instanceof MaterializedChatMessageOpaque
 			) {
 				result.push(content);
+				continue;
+			}
+			if (content instanceof MaterializedChatMessageCheckpoint) {
+				if (result.at(-1) instanceof MaterializedChatMessageCheckpoint) {
+					result[result.length - 1] = content;
+				} else {
+					result.push(content);
+				}
 				continue;
 			}
 			if (
@@ -343,6 +392,10 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					type: Raw.ChatCompletionContentPartKind.Image, // updated type reference
 					imageUrl: { url: getEncodedBase64(element.src), detail: element.detail },
 				};
+			} else if (element instanceof MaterializedChatMessageOpaque) {
+				return element.value as any;
+			} else if (element instanceof MaterializedChatMessageCheckpoint) {
+				return element.part;
 			} else {
 				throw new Error('Unexpected element type');
 			}
@@ -391,13 +444,14 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 export class MaterializedChatMessageOpaque {
 	public readonly metadata: PromptMetadata[] = [];
+	public readonly priority = Number.MAX_SAFE_INTEGER;
+
+	public get value() {
+		return this.part.value;
+	}
 
 	constructor(
 		public readonly parent: ContainerType | undefined,
-		public readonly id: number,
-		public readonly src: string,
-		public readonly priority: number,
-		public readonly lineBreakBefore: LineBreakBefore,
 		private readonly part: Raw.ChatCompletionContentPartOpaque
 	) {}
 
@@ -406,6 +460,22 @@ export class MaterializedChatMessageOpaque {
 			Raw.ChatCompletionContentPartOpaque.usableIn(this.part, tokenizer.mode)
 			? this.part.tokenUsage
 			: 0;
+	}
+
+	isEmpty: boolean = false;
+}
+
+export class MaterializedChatMessageCheckpoint {
+	public readonly metadata: PromptMetadata[] = [];
+	public readonly priority = Number.MAX_SAFE_INTEGER;
+
+	constructor(
+		public readonly parent: ContainerType | undefined,
+		public readonly part: Raw.ChatCompletionContentPartCacheCheckpoint
+	) {}
+
+	public upperBoundTokenCount(_tokenizer: ITokenizer) {
+		return 0;
 	}
 
 	isEmpty: boolean = false;
@@ -444,7 +514,8 @@ function isContentType(node: MaterializedNode): node is ContentType {
 	return (
 		node instanceof MaterializedChatMessageTextChunk ||
 		node instanceof MaterializedChatMessageImage ||
-		node instanceof MaterializedChatMessageOpaque
+		node instanceof MaterializedChatMessageOpaque ||
+		node instanceof MaterializedChatMessageCheckpoint
 	);
 }
 
@@ -467,7 +538,8 @@ function* contentChunks(
 			isTextSibling = true;
 		} else if (
 			child instanceof MaterializedChatMessageImage ||
-			child instanceof MaterializedChatMessageOpaque
+			child instanceof MaterializedChatMessageOpaque ||
+			child instanceof MaterializedChatMessageCheckpoint
 		) {
 			yield { content: child, isTextSibling: false };
 		} else if (child instanceof MaterializedChatMessageOpaque) {
@@ -510,10 +582,45 @@ function removeLowestPriorityLegacy(root: MaterializedNode, removed: Materialize
 	removeNode(lowest.node, removed);
 }
 
-function removeLowestPriorityChild(
-	node: ContainerType,
-	removed: MaterializedNode[]
-) {
+// Cache points are never removed, so caching this is safe
+const _hasCachePointMemo = new WeakMap<MaterializedNode, boolean>();
+
+function hasCachePoint(node: MaterializedNode) {
+	let known = _hasCachePointMemo.get(node);
+	if (known !== undefined) {
+		return known;
+	}
+
+	let result = false;
+	if (node instanceof MaterializedChatMessageCheckpoint) {
+		result = true;
+	} else if (node instanceof MaterializedChatMessage) {
+		result = node.children.some(c => c instanceof MaterializedChatMessageCheckpoint);
+	} else if (node instanceof GenericMaterializedContainer) {
+		result = node.children.some(hasCachePoint);
+	}
+	_hasCachePointMemo.set(node, result);
+
+	return result;
+}
+
+/**
+ * Returns if removeLowestPriorityChild should check for cache checkpoints in
+ * the node. This is true only if we aren't nested inside a chat message yet.
+ */
+function shouldLookForCachePointInNode(node: ContainerType) {
+	if (node instanceof MaterializedChatMessage) {
+		return true;
+	}
+	for (let p = node.parent; p; p = p.parent) {
+		if (p instanceof MaterializedChatMessage) {
+			return false;
+		}
+	}
+	return true;
+}
+
+function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNode[]) {
 	let lowest:
 		| undefined
 		| {
@@ -523,10 +630,15 @@ function removeLowestPriorityChild(
 				lowestNested?: number;
 		  };
 
-	if (node instanceof GenericMaterializedContainer && node.has(ContainerFlags.IsLegacyPrioritization)) {
+	if (
+		node instanceof GenericMaterializedContainer &&
+		node.has(ContainerFlags.IsLegacyPrioritization)
+	) {
 		removeLowestPriorityLegacy(node, removed);
 		return;
 	}
+
+	const shouldLookForCachePoint = shouldLookForCachePointInNode(node);
 
 	// In *most* cases the chain is always [node], but it can be longer if
 	// the `passPriority` is used. We need to keep track of the chain to
@@ -535,6 +647,16 @@ function removeLowestPriorityChild(
 	for (let i = 0; i < queue.length; i++) {
 		const { chain, index } = queue[i];
 		const child = chain[chain.length - 1].children[index];
+
+		// When a cache point or node containing a cachepoint is encountered, we
+		// should reset the 'lowest' node because we will not prune anything before
+		// that point.
+		if (shouldLookForCachePoint && hasCachePoint(child)) {
+			lowest = undefined;
+			if (child instanceof MaterializedChatMessageCheckpoint) {
+				continue;
+			}
+		}
 
 		if (child instanceof GenericMaterializedContainer && child.has(ContainerFlags.PassPriority)) {
 			const newChain = [...chain, child];
@@ -553,7 +675,7 @@ function removeLowestPriorityChild(
 	}
 
 	if (!lowest) {
-		throw new Error('No lowest priority node found');
+		throw new BudgetExceededError(node);
 	}
 
 	if (
@@ -565,6 +687,21 @@ function removeLowestPriorityChild(
 		removeNode(lowest.value, removed);
 	} else {
 		removeLowestPriorityChild(lowest.value, removed);
+	}
+}
+
+/** Thrown when the TSX budget is exceeded and we can't remove elements to reduce it. */
+export class BudgetExceededError extends Error {
+	constructor(node: ContainerType) {
+		let path = [node];
+		while (path[0].parent) {
+			path.unshift(path[0].parent);
+		}
+
+		const parts = path.map(n =>
+			n instanceof MaterializedChatMessage ? n.role : n.name || '(anonymous)'
+		);
+		super(`No lowest priority node found (path: ${parts.join(' -> ')})`);
 	}
 }
 
