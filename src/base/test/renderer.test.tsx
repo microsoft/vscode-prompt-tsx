@@ -2967,7 +2967,7 @@ suite('PromptRenderer', () => {
 				Infinity,
 				<UserMessage>
 					Hello
-					<cacheCheckpoint type="ephemeral" />
+					<cacheBreakpoint type="ephemeral" />
 					World
 				</UserMessage>
 			);
@@ -2976,7 +2976,7 @@ suite('PromptRenderer', () => {
 					role: Raw.ChatRole.User,
 					content: [
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' },
-						{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'World' },
 					],
 				},
@@ -2989,12 +2989,12 @@ suite('PromptRenderer', () => {
 				<>
 					<UserMessage>
 						Hello
-						<cacheCheckpoint type="ephemeral" />
+						<cacheBreakpoint type="ephemeral" />
 						World
 					</UserMessage>
 					<UserMessage>
 						Another
-						<cacheCheckpoint type="persistent" />
+						<cacheBreakpoint type="persistent" />
 						Message
 					</UserMessage>
 				</>
@@ -3004,7 +3004,7 @@ suite('PromptRenderer', () => {
 					role: Raw.ChatRole.User,
 					content: [
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' },
-						{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'World' },
 					],
 				},
@@ -3012,31 +3012,31 @@ suite('PromptRenderer', () => {
 					role: Raw.ChatRole.User,
 					content: [
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Another' },
-						{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: 'persistent' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'persistent' },
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Message' },
 					],
 				},
 			]);
 		});
 
-		test('content before last checkpoint is never pruned', async () => {
+		test('content before last breakpoint is never pruned', async () => {
 			const res1 = await renderFragmentWithMaxPromptTokens(
 				10, // small budget
 				<UserMessage>
 					<TextChunk priority={1}>Lorem</TextChunk>
 					<TextChunk priority={2}>Ipsum</TextChunk>
-					<cacheCheckpoint type="ephemeral" />
+					<cacheBreakpoint type="ephemeral" />
 					<TextChunk priority={3}>Dolor</TextChunk>
 					<TextChunk priority={4}>Sit</TextChunk>
 				</UserMessage>
 			);
-			// Only C/D may be pruned, A/B and checkpoint must remain
+			// Only C/D may be pruned, A/B and breakpoint must remain
 			assert.deepStrictEqual(res1.messages, [
 				{
 					role: Raw.ChatRole.User,
 					content: [
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
-						{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Sit' },
 					],
 				},
@@ -3047,32 +3047,32 @@ suite('PromptRenderer', () => {
 				<UserMessage>
 					<TextChunk priority={1}>Lorem</TextChunk>
 					<TextChunk priority={2}>Ipsum</TextChunk>
-					<cacheCheckpoint type="ephemeral" />
+					<cacheBreakpoint type="ephemeral" />
 					<TextChunk priority={3}>Dolor</TextChunk>
 					<TextChunk priority={4}>Sit</TextChunk>
 				</UserMessage>
 			);
-			// Only C/D may be pruned, A/B and checkpoint must remain
+			// Only C/D may be pruned, A/B and breakpoint must remain
 			assert.deepStrictEqual(res2.messages, [
 				{
 					role: Raw.ChatRole.User,
 					content: [
 						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
-						{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
 					],
 				},
 			]);
 		});
 
-		test('throws if message cannot be brought within budget after last checkpoint', async () => {
+		test('throws if message cannot be brought within budget after last breakpoint', async () => {
 			let error: any = undefined;
 			try {
 				await renderFragmentWithMaxPromptTokens(
-					1, // too small for even content before checkpoint
+					1, // too small for even content before breakpoint
 					<UserMessage>
 						<TextChunk priority={1}>A</TextChunk>
 						<TextChunk priority={2}>B</TextChunk>
-						<cacheCheckpoint type="ephemeral" />
+						<cacheBreakpoint type="ephemeral" />
 						<TextChunk priority={3}>C</TextChunk>
 					</UserMessage>
 				);

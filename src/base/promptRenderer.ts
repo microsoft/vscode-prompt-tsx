@@ -10,7 +10,7 @@ import {
 	GenericMaterializedContainer,
 	LineBreakBefore,
 	MaterializedChatMessage,
-	MaterializedChatMessageCheckpoint,
+	MaterializedChatMessageBreakpoint,
 	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
 } from './materialized';
@@ -616,23 +616,23 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return this._handleIntrinsicIgnoredFiles(node, props, children);
 			case 'elementJSON':
 				return this._handleIntrinsicElementJSON(node, props.data);
-			case 'cacheCheckpoint':
-				return this._handleIntrinsicCacheCheckpoint(node, props, children, sortIndex);
+			case 'cacheBreakpoint':
+				return this._handleIntrinsicCacheBreakpoint(node, props, children, sortIndex);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
 	}
 
-	private _handleIntrinsicCacheCheckpoint(
+	private _handleIntrinsicCacheBreakpoint(
 		node: PromptTreeElement,
 		props: any,
 		children: ProcessedPromptPiece[],
 		sortIndex?: number
 	) {
 		if (children.length > 0) {
-			throw new Error(`<cacheCheckpoint /> must not have children!`);
+			throw new Error(`<cacheBreakpoint /> must not have children!`);
 		}
 
-		node.addCacheCheckpoint(props, sortIndex);
+		node.addCacheBreakpoint(props, sortIndex);
 	}
 
 	private _handleIntrinsicMeta(
@@ -863,7 +863,7 @@ type ProcessedPromptPiece =
 	| IntrinsicPromptPiece<any>
 	| ExtrinsicPromptPiece<any, any>;
 
-type PromptNode = PromptTreeElement | PromptText | PromptCacheCheckpoint;
+type PromptNode = PromptTreeElement | PromptText | PromptCacheBreakpoint;
 type LeafPromptNode = PromptText;
 
 /**
@@ -1111,14 +1111,14 @@ class PromptTreeElement {
 		this._metadata.push(metadata);
 	}
 
-	public addCacheCheckpoint(checkpoint: { type: string }, sortIndex = this._children.length): void {
+	public addCacheBreakpoint(breakpoint: { type: string }, sortIndex = this._children.length): void {
 		if (!(this._obj instanceof BaseChatMessage)) {
-			throw new Error('Cache checkpoints may only be direct children of chat messages');
+			throw new Error('Cache breakpoints may only be direct children of chat messages');
 		}
 
 		this._children.push(
-			new PromptCacheCheckpoint(
-				{ type: Raw.ChatCompletionContentPartKind.CacheCheckpoint, cacheType: checkpoint.type },
+			new PromptCacheBreakpoint(
+				{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: breakpoint.type },
 				sortIndex
 			)
 		);
@@ -1134,9 +1134,9 @@ class PromptTreeElement {
 	}
 }
 
-class PromptCacheCheckpoint {
+class PromptCacheBreakpoint {
 	constructor(
-		public readonly part: Raw.ChatCompletionContentPartCacheCheckpoint,
+		public readonly part: Raw.ChatCompletionContentPartCacheBreakpoint,
 		public readonly childIndex: number
 	) {}
 
@@ -1145,7 +1145,7 @@ class PromptCacheCheckpoint {
 	}
 
 	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
-		return new MaterializedChatMessageCheckpoint(parent, this.part);
+		return new MaterializedChatMessageBreakpoint(parent, this.part);
 	}
 }
 

@@ -52,13 +52,13 @@ declare global {
 			};
 
 			/**
-			 * Adds a 'cache checkpoint' to the output. This is exclusively valid
+			 * Adds a 'cache breakpoint' to the output. This is exclusively valid
 			 * as a direct child of message types (UserMessage, SystemMessage, etc.)
 			 */
-			cacheCheckpoint: {
+			cacheBreakpoint: {
 				/** Optional implementation-specific cache type */
 				type?: string;
-			}
+			};
 		}
 	}
 }

@@ -20,6 +20,7 @@ import {
 	GenericMaterializedContainer,
 	MaterializedNode,
 	MaterializedChatMessageOpaque,
+	MaterializedChatMessageBreakpoint,
 } from './materialized';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -236,7 +237,10 @@ async function serializeMaterialized(
 			value: materialized.src,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
 		};
-	} else if (materialized instanceof MaterializedChatMessageOpaque) {
+	} else if (
+		materialized instanceof MaterializedChatMessageOpaque ||
+		materialized instanceof MaterializedChatMessageBreakpoint
+	) {
 		// todo: add to visualizer
 		return undefined;
 	} else {

@@ -35,7 +35,7 @@ export type MaterializedNode =
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
 	| MaterializedChatMessageOpaque
-	| MaterializedChatMessageCheckpoint;
+	| MaterializedChatMessageBreakpoint;
 
 export const enum ContainerFlags {
 	/** It's a {@link LegacyPrioritization} instance */
@@ -53,7 +53,7 @@ type ContentType =
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
 	| MaterializedChatMessageOpaque
-	| MaterializedChatMessageCheckpoint;
+	| MaterializedChatMessageBreakpoint;
 
 export class GenericMaterializedContainer implements IMaterializedContainer {
 	public readonly children: MaterializedNode[];
@@ -259,7 +259,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		| string
 		| MaterializedChatMessageImage
 		| MaterializedChatMessageOpaque
-		| MaterializedChatMessageCheckpoint
+		| MaterializedChatMessageBreakpoint
 	)[] {
 		return this._text();
 	}
@@ -345,7 +345,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			| string
 			| MaterializedChatMessageImage
 			| MaterializedChatMessageOpaque
-			| MaterializedChatMessageCheckpoint
+			| MaterializedChatMessageBreakpoint
 		)[] = [];
 		for (const { content, isTextSibling } of contentChunks(this)) {
 			if (
@@ -355,8 +355,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				result.push(content);
 				continue;
 			}
-			if (content instanceof MaterializedChatMessageCheckpoint) {
-				if (result.at(-1) instanceof MaterializedChatMessageCheckpoint) {
+			if (content instanceof MaterializedChatMessageBreakpoint) {
+				if (result.at(-1) instanceof MaterializedChatMessageBreakpoint) {
 					result[result.length - 1] = content;
 				} else {
 					result.push(content);
@@ -394,7 +394,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				};
 			} else if (element instanceof MaterializedChatMessageOpaque) {
 				return element.value as any;
-			} else if (element instanceof MaterializedChatMessageCheckpoint) {
+			} else if (element instanceof MaterializedChatMessageBreakpoint) {
 				return element.part;
 			} else {
 				throw new Error('Unexpected element type');
@@ -465,13 +465,13 @@ export class MaterializedChatMessageOpaque {
 	isEmpty: boolean = false;
 }
 
-export class MaterializedChatMessageCheckpoint {
+export class MaterializedChatMessageBreakpoint {
 	public readonly metadata: PromptMetadata[] = [];
 	public readonly priority = Number.MAX_SAFE_INTEGER;
 
 	constructor(
 		public readonly parent: ContainerType | undefined,
-		public readonly part: Raw.ChatCompletionContentPartCacheCheckpoint
+		public readonly part: Raw.ChatCompletionContentPartCacheBreakpoint
 	) {}
 
 	public upperBoundTokenCount(_tokenizer: ITokenizer) {
@@ -515,7 +515,7 @@ function isContentType(node: MaterializedNode): node is ContentType {
 		node instanceof MaterializedChatMessageTextChunk ||
 		node instanceof MaterializedChatMessageImage ||
 		node instanceof MaterializedChatMessageOpaque ||
-		node instanceof MaterializedChatMessageCheckpoint
+		node instanceof MaterializedChatMessageBreakpoint
 	);
 }
 
@@ -539,7 +539,7 @@ function* contentChunks(
 		} else if (
 			child instanceof MaterializedChatMessageImage ||
 			child instanceof MaterializedChatMessageOpaque ||
-			child instanceof MaterializedChatMessageCheckpoint
+			child instanceof MaterializedChatMessageBreakpoint
 		) {
 			yield { content: child, isTextSibling: false };
 		} else if (child instanceof MaterializedChatMessageOpaque) {
@@ -592,10 +592,10 @@ function hasCachePoint(node: MaterializedNode) {
 	}
 
 	let result = false;
-	if (node instanceof MaterializedChatMessageCheckpoint) {
+	if (node instanceof MaterializedChatMessageBreakpoint) {
 		result = true;
 	} else if (node instanceof MaterializedChatMessage) {
-		result = node.children.some(c => c instanceof MaterializedChatMessageCheckpoint);
+		result = node.children.some(c => c instanceof MaterializedChatMessageBreakpoint);
 	} else if (node instanceof GenericMaterializedContainer) {
 		result = node.children.some(hasCachePoint);
 	}
@@ -605,7 +605,7 @@ function hasCachePoint(node: MaterializedNode) {
 }
 
 /**
- * Returns if removeLowestPriorityChild should check for cache checkpoints in
+ * Returns if removeLowestPriorityChild should check for cache breakpoint in
  * the node. This is true only if we aren't nested inside a chat message yet.
  */
 function shouldLookForCachePointInNode(node: ContainerType) {
@@ -653,7 +653,7 @@ function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNod
 		// that point.
 		if (shouldLookForCachePoint && hasCachePoint(child)) {
 			lowest = undefined;
-			if (child instanceof MaterializedChatMessageCheckpoint) {
+			if (child instanceof MaterializedChatMessageBreakpoint) {
 				continue;
 			}
 		}

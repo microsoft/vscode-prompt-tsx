@@ -69,13 +69,13 @@ export type ChatCompletionContentPart =
 	| ChatCompletionContentPartImage
 	| ChatCompletionContentPartText
 	| ChatCompletionContentPartOpaque
-	| ChatCompletionContentPartCacheCheckpoint;
+	| ChatCompletionContentPartCacheBreakpoint;
 
 export enum ChatCompletionContentPartKind {
 	Image,
 	Text,
 	Opaque,
-	CacheCheckpoint,
+	CacheBreakpoint,
 }
 
 /** An image completion */
@@ -84,15 +84,13 @@ export interface ChatCompletionContentPartImage {
 	type: ChatCompletionContentPartKind.Image;
 }
 
-
-export interface ChatCompletionContentPartCacheCheckpoint {
-	type: ChatCompletionContentPartKind.CacheCheckpoint;
+export interface ChatCompletionContentPartCacheBreakpoint {
+	type: ChatCompletionContentPartKind.CacheBreakpoint;
 	/**
-	 * Optional implementation-specific type of the checkpoint.
+	 * Optional implementation-specific type of the breakpoint.
 	 */
 	cacheType?: string;
 }
-
 
 export interface ImageURLReference {
 	/**
