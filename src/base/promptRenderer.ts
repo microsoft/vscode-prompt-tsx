@@ -14,13 +14,13 @@ import {
 	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
 } from './materialized';
-import { Raw, toMode } from './output/mode';
+import { ModeToChatMessageType, OutputMode, Raw, toMode } from './output/mode';
 import { PromptElement } from './promptElement';
 import {
 	AbstractKeepWith,
 	AssistantMessage,
 	BaseChatMessage,
-	BaseImageMessage,
+	Image,
 	ChatMessagePromptElement,
 	Chunk,
 	Expandable,
@@ -49,8 +49,8 @@ import {
 import { URI } from './util/vs/common/uri';
 import { ChatDocumentContext, ChatResponsePart } from './vscodeTypes';
 
-export interface RenderPromptResult {
-	readonly messages: Raw.ChatMessage[];
+export interface RenderPromptResult<M extends OutputMode = OutputMode.Raw> {
+	readonly messages: ModeToChatMessageType[M][];
 	readonly tokenCount: number;
 	readonly hasIgnoredFiles: boolean;
 	readonly metadata: MetadataMap;
@@ -89,7 +89,7 @@ export namespace MetadataMap {
  *
  * Note: You must create a fresh prompt renderer instance for each prompt element you want to render.
  */
-export class PromptRenderer<P extends BasePromptElementProps> {
+export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMode> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _growables: { initialConsume: number; elem: PromptTreeElement }[] = [];
@@ -107,7 +107,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _endpoint: IChatEndpointInfo,
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
-		private readonly _tokenizer: ITokenizer
+		private readonly _tokenizer: ITokenizer<M>
 	) {}
 
 	public getIgnoredFiles(): URI[] {
@@ -238,7 +238,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 						? e.tokenLimit!
 						: Math.floor((sizing.remainingTokenBudget - constantTokenLimits) * proportion),
 					endpoint: sizing.endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
+					countTokens: (text, cancellation) =>
+						this._tokenizer.tokenLength(
+							typeof text === 'string'
+								? { type: Raw.ChatCompletionContentPartKind.Text, text }
+								: text,
+							cancellation
+						),
 				};
 			});
 
@@ -357,7 +363,19 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	public async render(
 		progress?: Progress<ChatResponsePart>,
 		token?: CancellationToken
-	): Promise<RenderPromptResult> {
+	): Promise<RenderPromptResult<M>> {
+		const result = await this.renderRaw(progress, token);
+		return { ...result, messages: toMode(this._tokenizer.mode, result.messages) };
+	}
+
+	/**
+	 * Renders the prompt element and its children. Similar to {@link render}, but
+	 * returns the original message representation.
+	 */
+	public async renderRaw(
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	): Promise<RenderPromptResult<OutputMode.Raw>> {
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
@@ -527,7 +545,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				await obj.render(undefined, {
 					tokenBudget: sizing.tokenBudget,
 					endpoint: this._endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
+					countTokens: (text, cancellation) =>
+						this._tokenizer.tokenLength(
+							typeof text === 'string'
+								? { type: Raw.ChatCompletionContentPartKind.Text, text }
+								: text,
+							cancellation
+						),
 				}),
 				undefined,
 				token
@@ -933,7 +957,7 @@ class PromptTreeElement {
 				break;
 			}
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage(json.props!);
+				element._obj = new Image(json.props!);
 				break;
 			default:
 				softAssertNever(json);
@@ -1034,7 +1058,7 @@ class PromptTreeElement {
 				json.props,
 				pickProps(this._obj.props, ['role', 'name', 'toolCalls', 'toolCallId'])
 			);
-		} else if (this._obj instanceof BaseImageMessage) {
+		} else if (this._obj instanceof Image) {
 			return {
 				...json,
 				ctor: JSONT.PieceCtorKind.ImageChatMessage,
@@ -1059,7 +1083,7 @@ class PromptTreeElement {
 	): MaterializedChatMessage | GenericMaterializedContainer | MaterializedChatMessageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 
-		if (this._obj instanceof BaseImageMessage) {
+		if (this._obj instanceof Image) {
 			// #region materialize baseimage
 			return new MaterializedChatMessageImage(
 				parent,

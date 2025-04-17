@@ -33,7 +33,7 @@ export interface PromptSizing {
 	/**
 	 * Counts the number of tokens the text consumes.
 	 */
-	countTokens(text: Raw.ChatCompletionContentPart, token?: CancellationToken): Promise<number> | number;
+	countTokens(text: Raw.ChatCompletionContentPart | string, token?: CancellationToken): Promise<number> | number;
 }
 
 export interface BasePromptElementProps {

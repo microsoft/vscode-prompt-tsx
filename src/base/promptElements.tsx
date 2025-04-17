@@ -235,9 +235,13 @@ async function getTextContentBelowBudget(
 	return outputText;
 }
 
-export class BaseImageMessage extends BaseChatMessage<ImageProps> {
+export class Image extends PromptElement<ImageProps> {
 	constructor(props: ImageProps) {
 		super(props);
+	}
+
+	render() {
+		return <>{this.props.children}</>;
 	}
 }
 

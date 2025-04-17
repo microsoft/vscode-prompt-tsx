@@ -10,7 +10,7 @@ import type {
 	Progress,
 } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
-import { ModeToChatMessageType, OutputMode, Raw, toMode } from './output/mode';
+import { ModeToChatMessageType, OutputMode, Raw } from './output/mode';
 import { ChatMessage } from './output/openaiTypes';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
@@ -21,27 +21,12 @@ import { ChatDocumentContext } from './vscodeTypes.d';
 export * from './htmlTracer';
 export * as JSONTree from './jsonTypes';
 export * from './output/mode';
+export * from './promptElements';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
 export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
-
-export {
-	AssistantMessage,
-	Chunk,
-	LegacyPrioritization,
-	PrioritizedList,
-	PrioritizedListProps,
-	SystemMessage,
-	TextChunk,
-	TextChunkProps,
-	ToolCall,
-	ToolMessage,
-	ToolResult,
-	useKeepWith,
-	UserMessage
-} from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
@@ -63,15 +48,13 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer | LanguageModelChat,
+	tokenizerMetadata: ITokenizer<OutputMode.VSCode> | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode?: OutputMode.VSCode
 ): Promise<{
 	messages: LanguageModelChatMessage[];
 	tokenCount: number;
-	/** @deprecated use {@link metadata} */
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
@@ -95,12 +78,10 @@ export async function renderPrompt<P extends BasePromptElementProps, TMode exten
 	endpoint: IChatEndpointInfo,
 	tokenizerMetadata: ITokenizer<TMode>,
 	progress?: Progress<ChatResponsePart>,
-	token?: CancellationToken,
+	token?: CancellationToken
 ): Promise<{
 	messages: ModeToChatMessageType[TMode][];
 	tokenCount: number;
-	/** @deprecated use {@link metadata} */
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
@@ -109,14 +90,13 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer | LanguageModelChat,
+	tokenizerMetadata: ITokenizer<OutputMode.VSCode> | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
 	mode = OutputMode.VSCode
 ): Promise<{
 	messages: (ChatMessage | LanguageModelChatMessage)[];
 	tokenCount: number;
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
@@ -127,11 +107,8 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 			: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
-	const { tokenCount, references, metadata } = renderResult;
-	const messages: any[] = toMode(mode, renderResult.messages);
 	const usedContext = renderer.getUsedContext();
-
-	return { messages, tokenCount, metadatas: metadata, metadata, usedContext, references };
+	return { ...renderResult, usedContext };
 }
 
 /**

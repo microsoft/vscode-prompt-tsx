@@ -9,7 +9,7 @@ import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../output/openai
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
-	BaseImageMessage,
+	Image,
 	Chunk,
 	Expandable,
 	IfEmpty,
@@ -61,18 +61,18 @@ suite('PromptRenderer', () => {
 		maxPromptTokens: number,
 		ctor: PromptElementCtor<P, any>,
 		props: P
-	): Promise<RenderPromptResult> {
+	): Promise<RenderPromptResult<OutputMode.Raw>> {
 		const fakeEndpoint: any = {
 			modelMaxPromptTokens: maxPromptTokens,
 		} satisfies Partial<IChatEndpointInfo>;
 		const inst = new PromptRenderer(fakeEndpoint, ctor, props, tokenizer);
-		return await inst.render(undefined, undefined);
+		return await inst.renderRaw(undefined, undefined);
 	}
 
 	async function renderFragmentWithMaxPromptTokens(
 		maxPromptTokens: number,
 		piece: PromptPieceChild
-	): Promise<RenderPromptResult> {
+	): Promise<RenderPromptResult<OutputMode.Raw>> {
 		const fakeEndpoint: any = {
 			modelMaxPromptTokens: maxPromptTokens,
 		} satisfies Partial<IChatEndpointInfo>;
@@ -86,7 +86,7 @@ suite('PromptRenderer', () => {
 			{},
 			tokenizer
 		);
-		return await inst.render(undefined, undefined);
+		return await inst.renderRaw(undefined, undefined);
 	}
 
 	test('token counting', async () => {
@@ -120,7 +120,7 @@ suite('PromptRenderer', () => {
 		}
 
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
-		const res = await inst.render(undefined, undefined);
+		const res = await inst.renderRaw(undefined, undefined);
 		assert.deepStrictEqual(res.messages, [
 			{
 				role: Raw.ChatRole.System,
@@ -213,7 +213,7 @@ suite('PromptRenderer', () => {
 		for (const promptElement of promptElements) {
 			const inst1 = new PromptRenderer(fakeEndpoint, Prompt3, promptElement.props, tokenizer);
 			const start = Date.now();
-			await inst1.render(undefined, undefined);
+			await inst1.renderRaw(undefined, undefined);
 			sequentialElapsedTime += Date.now() - start;
 		}
 
@@ -221,7 +221,7 @@ suite('PromptRenderer', () => {
 		const inst2 = new PromptRenderer(fakeEndpoint, Prompt2, {}, tokenizer);
 
 		const start = Date.now();
-		const res = await inst2.render(undefined, undefined);
+		const res = await inst2.renderRaw(undefined, undefined);
 		const parallelElapsedTime = Date.now() - start;
 		assert.ok(
 			parallelElapsedTime < sequentialElapsedTime,
@@ -268,7 +268,7 @@ suite('PromptRenderer', () => {
 		}
 
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
-		const res = await inst.render(undefined, undefined);
+		const res = await inst.renderRaw(undefined, undefined);
 		assert.deepStrictEqual(res.messages.length, 1);
 		assert.deepStrictEqual(strFrom(res.messages[0]).replace(/\n/g, ''), 'abcdefghi');
 	});
@@ -296,7 +296,7 @@ suite('PromptRenderer', () => {
 		}
 
 		const inst = new PromptRenderer(fakeEndpoint, Prompt1, {}, tokenizer);
-		const res = await inst.render(undefined, undefined);
+		const res = await inst.renderRaw(undefined, undefined);
 		assert.deepStrictEqual(res.messages, [
 			{
 				role: Raw.ChatRole.Assistant,
@@ -330,7 +330,7 @@ suite('PromptRenderer', () => {
 			},
 			{},
 			tokenizer
-		).render();
+		).renderRaw();
 
 		let tokens = initialRender.tokenCount;
 		let last = '';
@@ -344,7 +344,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			const messages = res.messages
 				.map(m => `${Raw.ChatRole.display(m.role)}: ${strFrom(m)}`)
@@ -1242,7 +1242,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 100 - BaseTokensPerCompletion, // Total allowed tokens
 			} satisfies Partial<IChatEndpointInfo>;
 			const inst = new PromptRenderer(fakeEndpoint, FlexPrompt, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 
 			// Ensure that the prompt received budget based on the flex
 			assert.ok(strFrom(res.messages[0]) > strFrom(res.messages[1]));
@@ -1324,7 +1324,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 8192 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 			const inst1 = new PromptRenderer(largeTokenBudgetEndpoint, PromptWithChunks, {}, tokenizer);
-			const res1 = await inst1.render(undefined, undefined);
+			const res1 = await inst1.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res1.messages, [
 				{
 					role: Raw.ChatRole.System,
@@ -1378,7 +1378,7 @@ suite('PromptRenderer', () => {
 				modelMaxPromptTokens: 140 - BaseTokensPerCompletion,
 			} satisfies Partial<IChatEndpointInfo>;
 			const inst2 = new PromptRenderer(smallTokenBudgetEndpoint, PromptWithChunks, {}, tokenizer);
-			const res2 = await inst2.render(undefined, undefined);
+			const res2 = await inst2.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res2.messages, [
 				{
 					role: Raw.ChatRole.System,
@@ -1455,7 +1455,7 @@ suite('PromptRenderer', () => {
 			} satisfies Partial<IChatEndpointInfo>;
 
 			const inst = new PromptRenderer(endpoint, PromptWithReference, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.equal(res.messages.length, 2);
 			assert.equal(res.references.length, 1);
 			assert.equal(res.references[0].anchor, variableReference);
@@ -1467,7 +1467,7 @@ suite('PromptRenderer', () => {
 			} satisfies Partial<IChatEndpointInfo>;
 
 			const inst = new PromptRenderer(endpoint, PromptWithReference, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.equal(res.messages.length, 1);
 			assert.equal(res.references.length, 0);
 			assert.equal(res.omittedReferences.length, 1);
@@ -1512,7 +1512,7 @@ suite('PromptRenderer', () => {
 			} satisfies Partial<IChatEndpointInfo>;
 
 			const inst = new PromptRenderer(endpoint, PromptWithReferences, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.equal(res.messages.length, 2);
 			assert.equal(res.references.length, 2);
 		});
@@ -1574,7 +1574,7 @@ suite('PromptRenderer', () => {
 				{},
 				new FakeTokenizer()
 			);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, expected);
 		}
 
@@ -1688,7 +1688,7 @@ suite('PromptRenderer', () => {
 				{},
 				new FakeTokenizer()
 			);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -1719,7 +1719,7 @@ suite('PromptRenderer', () => {
 				{},
 				new FakeTokenizer()
 			);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -1751,7 +1751,7 @@ suite('PromptRenderer', () => {
 				{},
 				new FakeTokenizer()
 			);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -1979,7 +1979,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			// if priorities were not scoped, we'd see hello80 here instead of outer70
 			assert.strictEqual(
@@ -2033,7 +2033,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			const actual = await new PromptRenderer(
 				fakeEndpoint,
@@ -2051,7 +2051,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(actual.messages, expected.messages);
 			assert.deepStrictEqual(actual.references, expected.references);
@@ -2091,7 +2091,7 @@ suite('PromptRenderer', () => {
 		}
 
 		const inst = new PromptRenderer(fakeEndpoint, Outer, {}, tokenizer);
-		const res = await inst.render(undefined, undefined);
+		const res = await inst.renderRaw(undefined, undefined);
 		assert.deepStrictEqual(
 			res.messages.map(m => strFrom(m)).join('\n'),
 			['before', 'inbefore', 'wrapped', 'inafter', 'after'].join('\n')
@@ -2120,7 +2120,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
 		});
@@ -2142,7 +2142,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
 		});
@@ -2164,7 +2164,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(res.metadata.get(MyMeta), undefined);
 		});
@@ -2186,7 +2186,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(res.metadata.get(MyMeta), new MyMeta(true));
 		});
@@ -2207,7 +2207,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(res.metadata.getAll(MyMeta), [new MyMeta(true), new MyMeta(false)]);
 		});
@@ -2244,7 +2244,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(sizingInCalls, [23, 43]);
 			assert.strictEqual(res.tokenCount, 50);
@@ -2309,7 +2309,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=33', 'b=26', 'a=30']);
 			assert.deepStrictEqual(res.messages, [
@@ -2366,7 +2366,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
 			assert.deepStrictEqual(res.messages, [
@@ -2413,7 +2413,7 @@ suite('PromptRenderer', () => {
 				},
 				{},
 				tokenizer
-			).render();
+			).renderRaw();
 
 			assert.deepStrictEqual(sizingInCalls, ['b=23', 'a=43', 'b=41']);
 			assert.deepStrictEqual(res.messages, [
@@ -2443,7 +2443,7 @@ suite('PromptRenderer', () => {
 		}
 
 		const inst = new PromptRenderer(fakeEndpoint, Wrapper, {}, tokenizer);
-		const res = await inst.render(undefined, undefined);
+		const res = await inst.renderRaw(undefined, undefined);
 		assert.deepStrictEqual(res.messages.map(strFrom).join(''), 'hello everyone in the world!');
 	});
 
@@ -2467,7 +2467,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2500,7 +2500,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2531,7 +2531,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2568,7 +2568,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2604,7 +2604,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2643,7 +2643,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithLimit, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2664,14 +2664,14 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'/9j/asdfasdfasdf'} detail={'high'} />
+							<Image src={'/9j/asdfasdfasdf'} detail={'high'} />
 						</UserMessage>
 					);
 				}
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2690,14 +2690,14 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+							<Image src={'iVBORasdfasdfasdf'} detail={'high'} />
 						</UserMessage>
 					);
 				}
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2716,14 +2716,14 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'R0lGODasdfasdfasdf'} detail={'low'} />
+							<Image src={'R0lGODasdfasdfasdf'} detail={'low'} />
 						</UserMessage>
 					);
 				}
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2742,14 +2742,14 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'UklGRasdfasdfasdf'} detail={'low'} />
+							<Image src={'UklGRasdfasdfasdf'} detail={'low'} />
 						</UserMessage>
 					);
 				}
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2768,16 +2768,16 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'}>
+							<Image src={'iVBORasdfasdfasdf'} detail={'high'}>
 								Child in Base Image Message
-							</BaseImageMessage>
+							</Image>
 						</UserMessage>
 					);
 				}
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2797,7 +2797,7 @@ suite('PromptRenderer', () => {
 					return (
 						<UserMessage>
 							<TextChunk>some text in a text chunk</TextChunk>
-							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+							<Image src={'iVBORasdfasdfasdf'} detail={'high'} />
 							{/* <TextChunk>some text in a text chunk</TextChunk> */}
 						</UserMessage>
 					);
@@ -2805,7 +2805,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
@@ -2825,7 +2825,7 @@ suite('PromptRenderer', () => {
 				render() {
 					return (
 						<UserMessage>
-							<BaseImageMessage src={'iVBORasdfasdfasdf'} detail={'high'} />
+							<Image src={'iVBORasdfasdfasdf'} detail={'high'} />
 							<TextChunk>some text in a text chunk</TextChunk>
 						</UserMessage>
 					);
@@ -2833,7 +2833,7 @@ suite('PromptRenderer', () => {
 			}
 
 			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
-			const res = await inst.render(undefined, undefined);
+			const res = await inst.renderRaw(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
 					role: Raw.ChatRole.User,
