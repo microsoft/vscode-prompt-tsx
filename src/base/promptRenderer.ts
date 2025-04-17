@@ -10,6 +10,7 @@ import {
 	GenericMaterializedContainer,
 	LineBreakBefore,
 	MaterializedChatMessage,
+	MaterializedChatMessageBreakpoint,
 	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
 } from './materialized';
@@ -32,7 +33,7 @@ import {
 	TokenLimit,
 	TokenLimitProps,
 	ToolMessage,
-	useKeepWith
+	useKeepWith,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -475,13 +476,14 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			// need a single iteration of this.<sup>[citation needed]</sup>
 			let tokenCount = await container.tokenCount(this._tokenizer);
 			while (tokenCount > limit.limit) {
-				while (tokenCount > limit.limit) {
+				const overhead = await container.baseMessageTokenCount(this._tokenizer);
+				do {
 					for (const node of container.removeLowestPriorityChild()) {
 						removed++;
 						const rmCount = node.upperBoundTokenCount(this._tokenizer);
 						tokenCount -= typeof rmCount === 'number' ? rmCount : await rmCount;
 					}
-				}
+				} while (tokenCount - overhead > limit.limit);
 				tokenCount = await container.tokenCount(this._tokenizer);
 			}
 		}
@@ -614,8 +616,23 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return this._handleIntrinsicIgnoredFiles(node, props, children);
 			case 'elementJSON':
 				return this._handleIntrinsicElementJSON(node, props.data);
+			case 'cacheBreakpoint':
+				return this._handleIntrinsicCacheBreakpoint(node, props, children, sortIndex);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
+	}
+
+	private _handleIntrinsicCacheBreakpoint(
+		node: PromptTreeElement,
+		props: any,
+		children: ProcessedPromptPiece[],
+		sortIndex?: number
+	) {
+		if (children.length > 0) {
+			throw new Error(`<cacheBreakpoint /> must not have children!`);
+		}
+
+		node.addCacheBreakpoint(props, sortIndex);
 	}
 
 	private _handleIntrinsicMeta(
@@ -846,7 +863,7 @@ type ProcessedPromptPiece =
 	| IntrinsicPromptPiece<any>
 	| ExtrinsicPromptPiece<any, any>;
 
-type PromptNode = PromptTreeElement | PromptText;
+type PromptNode = PromptTreeElement | PromptText | PromptCacheBreakpoint;
 type LeafPromptNode = PromptText;
 
 /**
@@ -999,7 +1016,8 @@ class PromptTreeElement {
 			children: this._children
 				.slice()
 				.sort((a, b) => a.childIndex - b.childIndex)
-				.map(c => c.toJSON()),
+				.map(c => c.toJSON())
+				.filter(isDefined),
 			props: {},
 			references: this._metadata
 				.filter(m => m instanceof ReferenceMetadata)
@@ -1093,6 +1111,19 @@ class PromptTreeElement {
 		this._metadata.push(metadata);
 	}
 
+	public addCacheBreakpoint(breakpoint: { type: string }, sortIndex = this._children.length): void {
+		if (!(this._obj instanceof BaseChatMessage)) {
+			throw new Error('Cache breakpoints may only be direct children of chat messages');
+		}
+
+		this._children.push(
+			new PromptCacheBreakpoint(
+				{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: breakpoint.type },
+				sortIndex
+			)
+		);
+	}
+
 	public *elements(): Iterable<PromptTreeElement> {
 		yield this;
 		for (const child of this._children) {
@@ -1100,6 +1131,21 @@ class PromptTreeElement {
 				yield* child.elements();
 			}
 		}
+	}
+}
+
+class PromptCacheBreakpoint {
+	constructor(
+		public readonly part: Raw.ChatCompletionContentPartCacheBreakpoint,
+		public readonly childIndex: number
+	) {}
+
+	public toJSON() {
+		return undefined;
+	}
+
+	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
+		return new MaterializedChatMessageBreakpoint(parent, this.part);
 	}
 }
 

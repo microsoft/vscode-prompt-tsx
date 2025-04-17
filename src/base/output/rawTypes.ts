@@ -68,18 +68,28 @@ export interface UserChatMessage extends BaseChatMessage {
 export type ChatCompletionContentPart =
 	| ChatCompletionContentPartImage
 	| ChatCompletionContentPartText
-	| ChatCompletionContentPartOpaque;
+	| ChatCompletionContentPartOpaque
+	| ChatCompletionContentPartCacheBreakpoint;
 
 export enum ChatCompletionContentPartKind {
 	Image,
 	Text,
 	Opaque,
+	CacheBreakpoint,
 }
 
 /** An image completion */
 export interface ChatCompletionContentPartImage {
 	imageUrl: ImageURLReference;
 	type: ChatCompletionContentPartKind.Image;
+}
+
+export interface ChatCompletionContentPartCacheBreakpoint {
+	type: ChatCompletionContentPartKind.CacheBreakpoint;
+	/**
+	 * Optional implementation-specific type of the breakpoint.
+	 */
+	cacheType?: string;
 }
 
 export interface ImageURLReference {

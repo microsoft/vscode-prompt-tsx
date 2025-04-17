@@ -2960,4 +2960,127 @@ suite('PromptRenderer', () => {
 			]);
 		});
 	});
+
+	suite('cachePoint', () => {
+		test('includes in result', async () => {
+			const res2 = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<UserMessage>
+					Hello
+					<cacheBreakpoint type="ephemeral" />
+					World
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res2.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'World' },
+					],
+				},
+			]);
+		});
+
+		test('preserves cache points across multiple messages', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				Infinity,
+				<>
+					<UserMessage>
+						Hello
+						<cacheBreakpoint type="ephemeral" />
+						World
+					</UserMessage>
+					<UserMessage>
+						Another
+						<cacheBreakpoint type="persistent" />
+						Message
+					</UserMessage>
+				</>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Hello' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'World' },
+					],
+				},
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Another' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'persistent' },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Message' },
+					],
+				},
+			]);
+		});
+
+		test('content before last breakpoint is never pruned', async () => {
+			const res1 = await renderFragmentWithMaxPromptTokens(
+				10, // small budget
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<cacheBreakpoint type="ephemeral" />
+					<TextChunk priority={3}>Dolor</TextChunk>
+					<TextChunk priority={4}>Sit</TextChunk>
+				</UserMessage>
+			);
+			// Only C/D may be pruned, A/B and breakpoint must remain
+			assert.deepStrictEqual(res1.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Sit' },
+					],
+				},
+			]);
+
+			const res2 = await renderFragmentWithMaxPromptTokens(
+				8, // small budget
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<cacheBreakpoint type="ephemeral" />
+					<TextChunk priority={3}>Dolor</TextChunk>
+					<TextChunk priority={4}>Sit</TextChunk>
+				</UserMessage>
+			);
+			// Only C/D may be pruned, A/B and breakpoint must remain
+			assert.deepStrictEqual(res2.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
+						{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: 'ephemeral' },
+					],
+				},
+			]);
+		});
+
+		test('throws if message cannot be brought within budget after last breakpoint', async () => {
+			let error: any = undefined;
+			try {
+				await renderFragmentWithMaxPromptTokens(
+					1, // too small for even content before breakpoint
+					<UserMessage>
+						<TextChunk priority={1}>A</TextChunk>
+						<TextChunk priority={2}>B</TextChunk>
+						<cacheBreakpoint type="ephemeral" />
+						<TextChunk priority={3}>C</TextChunk>
+					</UserMessage>
+				);
+			} catch (e) {
+				error = e;
+			}
+			assert.ok(error, 'Expected error to be thrown');
+			assert.match(String(error), /No lowest priority node found/);
+		});
+	});
 });
