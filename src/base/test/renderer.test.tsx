@@ -5,15 +5,16 @@
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
 import { OutputMode, Raw, renderElementJSON } from '..';
-import { BaseTokensPerCompletion, ChatMessage, ChatRole } from '../output/openaiTypes';
+import { BaseTokensPerCompletion } from '../output/openaiTypes';
 import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
-	Image,
 	Chunk,
 	Expandable,
 	IfEmpty,
+	Image,
 	LegacyPrioritization,
+	LogicalWrapper,
 	PrioritizedList,
 	SystemMessage,
 	TextChunk,
@@ -3081,6 +3082,48 @@ suite('PromptRenderer', () => {
 			}
 			assert.ok(error, 'Expected error to be thrown');
 			assert.match(String(error), /No lowest priority node found/);
+		});
+	});
+
+	suite('error annotation', () => {
+		test('annotates invalid ctor errors', async () => {
+			try {
+				await renderFragmentWithMaxPromptTokens(
+					Infinity,
+					<UserMessage>
+						<LogicalWrapper>{{}}</LogicalWrapper>
+					</UserMessage>
+				);
+				assert.fail('should have thrown');
+			} catch (e) {
+				assert.strictEqual(
+					(e as Error).message,
+					'Invalid ChatMessage child! Child must be a TSX component that extends PromptElement at <anonymous> > UserMessage > LogicalWrapper > undefined'
+				);
+			}
+		});
+		test('annotates runtime errors', async () => {
+			try {
+				class Throws extends PromptElement {
+					render(): never {
+						throw new Error('test error');
+					}
+				}
+				await renderFragmentWithMaxPromptTokens(
+					Infinity,
+					<UserMessage>
+						<LogicalWrapper>
+							<Throws />
+						</LogicalWrapper>
+					</UserMessage>
+				);
+				assert.fail('should have thrown');
+			} catch (e) {
+				assert.strictEqual(
+					(e as Error).message,
+					'test error (at tsx element <anonymous> > UserMessage > LogicalWrapper > Throws)'
+				);
+			}
 		});
 	});
 });
