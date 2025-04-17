@@ -6,7 +6,7 @@ import type {
 	CancellationToken,
 	LanguageModelPromptTsxPart,
 	LanguageModelTextPart,
-	LanguageModelToolResult,
+	LanguageModelToolResult2,
 } from 'vscode';
 import { contentType } from '.';
 import { ChatRole } from './openai';
@@ -306,7 +306,7 @@ export interface IToolResultProps extends BasePromptElementProps {
 	/**
 	 * Tool result from VS Code.
 	 */
-	data: LanguageModelToolResult;
+	data: LanguageModelToolResult2;
 }
 
 /**

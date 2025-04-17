@@ -2,7 +2,7 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import type { CancellationToken, LanguageModelChatMessage } from 'vscode';
+import type { CancellationToken, LanguageModelChatMessage, LanguageModelChatMessage2 } from 'vscode';
 import { ChatMessage, ChatRole } from '../openai';
 
 /**
@@ -23,7 +23,7 @@ export interface ITokenizer {
 export class AnyTokenizer implements ITokenizer {
 	constructor(
 		private countTokens: (
-			text: string | LanguageModelChatMessage,
+			text: string | LanguageModelChatMessage | LanguageModelChatMessage2,
 			token?: CancellationToken
 		) => Thenable<number>,
 		mode: 'vscode' | 'none',
