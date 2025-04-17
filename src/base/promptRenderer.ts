@@ -7,33 +7,33 @@ import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
 import {
 	ContainerFlags,
+	GenericMaterializedContainer,
 	LineBreakBefore,
-	MaterializedChatMessageImage,
 	MaterializedChatMessage,
+	MaterializedChatMessageBreakpoint,
+	MaterializedChatMessageImage,
 	MaterializedChatMessageTextChunk,
-	MaterializedContainer,
 } from './materialized';
-import { ChatMessage, ChatRole } from './openai';
+import { ModeToChatMessageType, OutputMode, Raw, toMode } from './output/mode';
 import { PromptElement } from './promptElement';
 import {
+	AbstractKeepWith,
 	AssistantMessage,
 	BaseChatMessage,
+	Image,
 	ChatMessagePromptElement,
 	Chunk,
 	Expandable,
+	IfEmpty,
 	isChatMessagePromptElement,
+	KeepWithCtor,
 	LegacyPrioritization,
+	LogicalWrapper,
 	TextChunk,
 	TokenLimit,
 	TokenLimitProps,
 	ToolMessage,
-	ImageProps,
-	BaseImageMessage,
-	AbstractKeepWith,
-	IfEmpty,
 	useKeepWith,
-	KeepWithCtor,
-	LogicalWrapper,
 } from './promptElements';
 import { PromptMetadata, PromptReference } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
@@ -49,8 +49,8 @@ import {
 import { URI } from './util/vs/common/uri';
 import { ChatDocumentContext, ChatResponsePart } from './vscodeTypes';
 
-export interface RenderPromptResult {
-	readonly messages: ChatMessage[];
+export interface RenderPromptResult<M extends OutputMode = OutputMode.Raw> {
+	readonly messages: ModeToChatMessageType[M][];
 	readonly tokenCount: number;
 	readonly hasIgnoredFiles: boolean;
 	readonly metadata: MetadataMap;
@@ -90,7 +90,7 @@ export namespace MetadataMap {
  *
  * Note: You must create a fresh prompt renderer instance for each prompt element you want to render.
  */
-export class PromptRenderer<P extends BasePromptElementProps> {
+export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMode> {
 	private readonly _usedContext: ChatDocumentContext[] = [];
 	private readonly _ignoredFiles: URI[] = [];
 	private readonly _growables: { initialConsume: number; elem: PromptTreeElement }[] = [];
@@ -108,7 +108,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 		private readonly _endpoint: IChatEndpointInfo,
 		private readonly _ctor: PromptElementCtor<P, any>,
 		private readonly _props: P,
-		private readonly _tokenizer: ITokenizer
+		private readonly _tokenizer: ITokenizer<M>
 	) {}
 
 	public getIgnoredFiles(): URI[] {
@@ -240,7 +240,13 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 						? e.tokenLimit!
 						: Math.floor((sizing.remainingTokenBudget - constantTokenLimits) * proportion),
 					endpoint: sizing.endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
+					countTokens: (text, cancellation) =>
+						this._tokenizer.tokenLength(
+							typeof text === 'string'
+								? { type: Raw.ChatCompletionContentPartKind.Text, text }
+								: text,
+							cancellation
+						),
 				};
 			});
 
@@ -366,7 +372,19 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	public async render(
 		progress?: Progress<ChatResponsePart>,
 		token?: CancellationToken
-	): Promise<RenderPromptResult> {
+	): Promise<RenderPromptResult<M>> {
+		const result = await this.renderRaw(progress, token);
+		return { ...result, messages: toMode(this._tokenizer.mode, result.messages) };
+	}
+
+	/**
+	 * Renders the prompt element and its children. Similar to {@link render}, but
+	 * returns the original message representation.
+	 */
+	public async renderRaw(
+		progress?: Progress<ChatResponsePart>,
+		token?: CancellationToken
+	): Promise<RenderPromptResult<OutputMode.Raw>> {
 		// Convert root prompt element to prompt pieces
 		await this._processPromptPieces(
 			new PromptSizingContext(this._endpoint.modelMaxPromptTokens, this._endpoint),
@@ -455,7 +473,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 	 * around with budgets. It should be side-effect-free.
 	 */
 	private async _getFinalElementTree(tokenBudget: number, token: CancellationToken | undefined) {
-		const root = this._root.materialize() as MaterializedContainer;
+		const root = this._root.materialize() as GenericMaterializedContainer;
 		const allMetadata = [...root.allMetadata()];
 		const limits = [{ limit: tokenBudget, id: this._root.id }, ...this._tokenLimits];
 		let removed = 0;
@@ -493,13 +511,14 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 			// need a single iteration of this.<sup>[citation needed]</sup>
 			let tokenCount = await container.tokenCount(this._tokenizer);
 			while (tokenCount > limit.limit) {
-				while (tokenCount > limit.limit) {
+				const overhead = await container.baseMessageTokenCount(this._tokenizer);
+				do {
 					for (const node of container.removeLowestPriorityChild()) {
 						removed++;
 						const rmCount = node.upperBoundTokenCount(this._tokenizer);
 						tokenCount -= typeof rmCount === 'number' ? rmCount : await rmCount;
 					}
-				}
+				} while (tokenCount - overhead > limit.limit);
 				tokenCount = await container.tokenCount(this._tokenizer);
 			}
 		}
@@ -509,7 +528,7 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 
 	/** Grows all Expandable elements, returns if any changes were made. */
 	private async _grow(
-		tree: MaterializedContainer | MaterializedChatMessage,
+		tree: GenericMaterializedContainer | MaterializedChatMessage,
 		tokensUsed: number,
 		tokenBudget: number,
 		token: CancellationToken | undefined
@@ -543,13 +562,19 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				await obj.render(undefined, {
 					tokenBudget: sizing.tokenBudget,
 					endpoint: this._endpoint,
-					countTokens: (text, cancellation) => this._tokenizer.tokenLength(text, cancellation),
+					countTokens: (text, cancellation) =>
+						this._tokenizer.tokenLength(
+							typeof text === 'string'
+								? { type: Raw.ChatCompletionContentPartKind.Text, text }
+								: text,
+							cancellation
+						),
 				}),
 				undefined,
 				token
 			);
 
-			const newContainer = tempRoot.materialize() as MaterializedContainer;
+			const newContainer = tempRoot.materialize() as GenericMaterializedContainer;
 			const oldContainer = tree.replaceNode(growable.elem.id, newContainer);
 			if (!oldContainer) {
 				throw new Error('unreachable: could not find old element to replace');
@@ -633,8 +658,23 @@ export class PromptRenderer<P extends BasePromptElementProps> {
 				return this._handleIntrinsicIgnoredFiles(node, props, children);
 			case 'elementJSON':
 				return this._handleIntrinsicElementJSON(node, props.data);
+			case 'cacheBreakpoint':
+				return this._handleIntrinsicCacheBreakpoint(node, props, children, sortIndex);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
+	}
+
+	private _handleIntrinsicCacheBreakpoint(
+		node: PromptTreeElement,
+		props: any,
+		children: ProcessedPromptPiece[],
+		sortIndex?: number
+	) {
+		if (children.length > 0) {
+			throw new Error(`<cacheBreakpoint /> must not have children!`);
+		}
+
+		node.addCacheBreakpoint(props, sortIndex);
 	}
 
 	private _handleIntrinsicMeta(
@@ -776,18 +816,23 @@ async function computeTokensConsumedByLiterals(
 	let tokensConsumed = 0;
 
 	if (isChatMessagePromptElement(instance)) {
-		tokensConsumed += await tokenizer.countMessageTokens({
+		const raw: Raw.ChatMessage = {
 			role: element.props.role,
-			content: '',
+			content: [],
 			...(element.props.name ? { name: element.props.name } : undefined),
-			...(element.props.toolCalls ? { tool_calls: element.props.toolCalls } : undefined),
-			...(element.props.toolCallId ? { tool_call_id: element.props.toolCallId } : undefined),
-		});
+			...(element.props.toolCalls ? { toolCalls: element.props.toolCalls } : undefined),
+			...(element.props.toolCallId ? { toolCallId: element.props.toolCallId } : undefined),
+		};
+
+		tokensConsumed += await tokenizer.countMessageTokens(toMode(tokenizer.mode, raw));
 	}
 
 	for (const piece of pieces) {
 		if (piece.kind === 'literal') {
-			tokensConsumed += await tokenizer.tokenLength(piece.value);
+			tokensConsumed += await tokenizer.tokenLength({
+				type: Raw.ChatCompletionContentPartKind.Text,
+				text: piece.value,
+			});
 		}
 	}
 
@@ -860,7 +905,7 @@ type ProcessedPromptPiece =
 	| IntrinsicPromptPiece<any>
 	| ExtrinsicPromptPiece<any, any>;
 
-type PromptNode = PromptTreeElement | PromptText;
+type PromptNode = PromptTreeElement | PromptText | PromptCacheBreakpoint;
 type LeafPromptNode = PromptText;
 
 /**
@@ -930,7 +975,7 @@ class PromptTreeElement {
 				break;
 			}
 			case JSONT.PieceCtorKind.ImageChatMessage:
-				element._obj = new BaseImageMessage(json.props!);
+				element._obj = new Image(json.props!);
 				break;
 			default:
 				softAssertNever(json);
@@ -1013,7 +1058,8 @@ class PromptTreeElement {
 			children: this._children
 				.slice()
 				.sort((a, b) => a.childIndex - b.childIndex)
-				.map(c => c.toJSON()),
+				.map(c => c.toJSON())
+				.filter(isDefined),
 			props: {},
 			references: this._metadata
 				.filter(m => m instanceof ReferenceMetadata)
@@ -1030,7 +1076,7 @@ class PromptTreeElement {
 				json.props,
 				pickProps(this._obj.props, ['role', 'name', 'toolCalls', 'toolCallId'])
 			);
-		} else if (this._obj instanceof BaseImageMessage) {
+		} else if (this._obj instanceof Image) {
 			return {
 				...json,
 				ctor: JSONT.PieceCtorKind.ImageChatMessage,
@@ -1051,15 +1097,15 @@ class PromptTreeElement {
 	}
 
 	public materialize(
-		parent?: MaterializedChatMessage | MaterializedContainer
-	): MaterializedChatMessage | MaterializedContainer | MaterializedChatMessageImage {
+		parent?: MaterializedChatMessage | GenericMaterializedContainer
+	): MaterializedChatMessage | GenericMaterializedContainer | MaterializedChatMessageImage {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 
-		if (this._obj instanceof BaseImageMessage) {
+		if (this._obj instanceof Image) {
 			// #region materialize baseimage
 			return new MaterializedChatMessageImage(
 				parent,
-				1,
+				this.id,
 				this._obj.props.src,
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
@@ -1069,7 +1115,7 @@ class PromptTreeElement {
 		}
 
 		if (this._obj instanceof BaseChatMessage) {
-			if (!this._obj.props.role) {
+			if (this._obj.props.role === undefined || typeof this._obj.props.role !== 'number') {
 				throw new Error(`Invalid ChatMessage!`);
 			}
 
@@ -1085,7 +1131,7 @@ class PromptTreeElement {
 				parent => this._children.map(child => child.materialize(parent))
 			);
 		} else {
-			const container = new MaterializedContainer(
+			const container = new GenericMaterializedContainer(
 				parent,
 				this.id,
 				this._obj?.constructor.name,
@@ -1107,6 +1153,19 @@ class PromptTreeElement {
 		this._metadata.push(metadata);
 	}
 
+	public addCacheBreakpoint(breakpoint: { type: string }, sortIndex = this._children.length): void {
+		if (!(this._obj instanceof BaseChatMessage)) {
+			throw new Error('Cache breakpoints may only be direct children of chat messages');
+		}
+
+		this._children.push(
+			new PromptCacheBreakpoint(
+				{ type: Raw.ChatCompletionContentPartKind.CacheBreakpoint, cacheType: breakpoint.type },
+				sortIndex
+			)
+		);
+	}
+
 	public *elements(): Iterable<PromptTreeElement> {
 		yield this;
 		for (const child of this._children) {
@@ -1114,6 +1173,21 @@ class PromptTreeElement {
 				yield* child.elements();
 			}
 		}
+	}
+}
+
+class PromptCacheBreakpoint {
+	constructor(
+		public readonly part: Raw.ChatCompletionContentPartCacheBreakpoint,
+		public readonly childIndex: number
+	) {}
+
+	public toJSON() {
+		return undefined;
+	}
+
+	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
+		return new MaterializedChatMessageBreakpoint(parent, this.part);
 	}
 }
 
@@ -1148,7 +1222,7 @@ class PromptText {
 		result.push(this);
 	}
 
-	public materialize(parent: MaterializedChatMessage | MaterializedContainer) {
+	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
 		const lineBreak = this.lineBreakBefore
 			? LineBreakBefore.Always
 			: this.childIndex === 0

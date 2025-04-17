@@ -6,50 +6,27 @@ import type {
 	CancellationToken,
 	ChatResponsePart,
 	LanguageModelChat,
-	Progress,
 	LanguageModelChatMessage,
+	Progress,
 } from 'vscode';
 import { PromptElementJSON } from './jsonTypes';
-import { ChatMessage, ChatRole } from './openai';
+import { ModeToChatMessageType, OutputMode, Raw } from './output/mode';
+import { ChatMessage } from './output/openaiTypes';
 import { MetadataMap, PromptRenderer } from './promptRenderer';
 import { PromptReference } from './results';
-import { AnyTokenizer, ITokenizer } from './tokenizer/tokenizer';
+import { ITokenizer, VSCodeTokenizer } from './tokenizer/tokenizer';
 import { BasePromptElementProps, IChatEndpointInfo, PromptElementCtor } from './types';
 import { ChatDocumentContext } from './vscodeTypes.d';
 
 export * from './htmlTracer';
 export * as JSONTree from './jsonTypes';
-export {
-	AssistantChatMessage,
-	ChatMessage,
-	ChatRole,
-	FunctionChatMessage,
-	SystemChatMessage,
-	ToolChatMessage,
-	UserChatMessage,
-} from './openai';
+export * from './output/mode';
+export * from './promptElements';
 export * from './results';
 export { ITokenizer } from './tokenizer/tokenizer';
 export * from './tracer';
 export * from './tsx-globals';
 export * from './types';
-
-export {
-	AssistantMessage,
-	Chunk,
-	FunctionMessage,
-	LegacyPrioritization,
-	PrioritizedList,
-	PrioritizedListProps,
-	SystemMessage,
-	TextChunk,
-	TextChunkProps,
-	ToolCall,
-	ToolMessage,
-	UserMessage,
-	ToolResult,
-	useKeepWith,
-} from './promptElements';
 
 export { PromptElement } from './promptElement';
 export { MetadataMap, PromptRenderer, QueueItem, RenderPromptResult } from './promptRenderer';
@@ -71,15 +48,13 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer | LanguageModelChat,
+	tokenizerMetadata: ITokenizer<OutputMode.VSCode> | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
-	mode?: 'vscode'
+	mode?: OutputMode.VSCode
 ): Promise<{
 	messages: LanguageModelChatMessage[];
 	tokenCount: number;
-	/** @deprecated use {@link metadata} */
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
@@ -97,19 +72,16 @@ export async function renderPrompt<P extends BasePromptElementProps>(
  * @param mode - The mode to render the chat messages in.
  * @returns A promise that resolves to an object containing the rendered {@link ChatMessage chat messages}, token count, metadatas, used context, and references.
  */
-export async function renderPrompt<P extends BasePromptElementProps>(
+export async function renderPrompt<P extends BasePromptElementProps, TMode extends OutputMode>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer,
+	tokenizerMetadata: ITokenizer<TMode>,
 	progress?: Progress<ChatResponsePart>,
-	token?: CancellationToken,
-	mode?: 'none'
+	token?: CancellationToken
 ): Promise<{
-	messages: ChatMessage[];
+	messages: ModeToChatMessageType[TMode][];
 	tokenCount: number;
-	/** @deprecated use {@link metadata} */
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
@@ -118,34 +90,25 @@ export async function renderPrompt<P extends BasePromptElementProps>(
 	ctor: PromptElementCtor<P, any>,
 	props: P,
 	endpoint: IChatEndpointInfo,
-	tokenizerMetadata: ITokenizer | LanguageModelChat,
+	tokenizerMetadata: ITokenizer<OutputMode.VSCode> | LanguageModelChat,
 	progress?: Progress<ChatResponsePart>,
 	token?: CancellationToken,
-	mode: 'vscode' | 'none' = 'vscode'
+	mode = OutputMode.VSCode
 ): Promise<{
 	messages: (ChatMessage | LanguageModelChatMessage)[];
 	tokenCount: number;
-	/** @deprecated use {@link metadata} */
-	metadatas: MetadataMap;
 	metadata: MetadataMap;
 	usedContext: ChatDocumentContext[];
 	references: PromptReference[];
 }> {
 	let tokenizer =
 		'countTokens' in tokenizerMetadata
-			? new AnyTokenizer((text, token) => tokenizerMetadata.countTokens(text, token), mode)
+			? new VSCodeTokenizer((text, token) => tokenizerMetadata.countTokens(text, token), mode)
 			: tokenizerMetadata;
 	const renderer = new PromptRenderer(endpoint, ctor, props, tokenizer);
 	const renderResult = await renderer.render(progress, token);
-	const { tokenCount, references, metadata } = renderResult;
-	let messages: ChatMessage[] | LanguageModelChatMessage[] = renderResult.messages;
 	const usedContext = renderer.getUsedContext();
-
-	if (mode === 'vscode') {
-		messages = toVsCodeChatMessages(messages);
-	}
-
-	return { messages, tokenCount, metadatas: metadata, metadata, usedContext, references };
+	return { ...renderResult, usedContext };
 }
 
 /**
@@ -201,73 +164,20 @@ export function renderElementJSON<P extends BasePromptElementProps>(
 		// note: if tokenBudget is given, countTokens is also give and vise-versa.
 		// `1` is used only as a dummy fallback to avoid errors if no/unlimited budget is provided.
 		{
+			mode: OutputMode.Raw,
 			countMessageTokens(message) {
 				throw new Error('Tools may only return text, not messages.'); // for now...
 			},
-			tokenLength(text, token) {
-				return Promise.resolve(budgetInformation?.countTokens(text, token) ?? Promise.resolve(1));
+			tokenLength(part, token) {
+				if (part.type === Raw.ChatCompletionContentPartKind.Text) {
+					return Promise.resolve(
+						budgetInformation?.countTokens(part.text, token) ?? Promise.resolve(1)
+					);
+				}
+				return Promise.resolve(1);
 			},
 		}
 	);
 
 	return renderer.renderElementJSON(token);
-}
-
-/**
- * Converts an array of {@link ChatMessage} objects to an array of corresponding {@link LanguageModelChatMessage VS Code chat messages}.
- * @param messages - The array of {@link ChatMessage} objects to convert.
- * @returns An array of {@link LanguageModelChatMessage VS Code chat messages}.
- */
-export function toVsCodeChatMessages(messages: ChatMessage[]): LanguageModelChatMessage[] {
-	const vscode = require('vscode');
-	return messages.map(m => {
-		switch (m.role) {
-			case ChatRole.Assistant:
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.Assistant(
-					m.content,
-					m.name
-				);
-				if (m.tool_calls) {
-					message.content = [
-						new vscode.LanguageModelTextPart(m.content),
-						...m.tool_calls.map(tc => {
-							// prompt-tsx got args passed as a string, here we assume they are JSON because the vscode-type wants an object
-							let parsedArgs: object;
-							try {
-								parsedArgs = JSON.parse(tc.function.arguments);
-							} catch (err) {
-								throw new Error('Invalid JSON in tool call arguments for tool call: ' + tc.id);
-							}
-
-							return new vscode.LanguageModelToolCallPart(tc.id, tc.function.name, parsedArgs);
-						}),
-					];
-				}
-				return message;
-			case ChatRole.User:
-				return vscode.LanguageModelChatMessage.User(m.content, m.name);
-			case ChatRole.Function: {
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [
-					new vscode.LanguageModelToolResultPart(m.name, [
-						new vscode.LanguageModelTextPart(m.content),
-					]),
-				];
-				return message;
-			}
-			case ChatRole.Tool: {
-				const message: LanguageModelChatMessage = vscode.LanguageModelChatMessage.User('');
-				message.content = [
-					new vscode.LanguageModelToolResultPart(m.tool_call_id, [
-						new vscode.LanguageModelTextPart(m.content),
-					]),
-				];
-				return message;
-			}
-			default:
-				throw new Error(
-					`Converting chat message with role ${m.role} to VS Code chat message is not supported.`
-				);
-		}
-	});
 }

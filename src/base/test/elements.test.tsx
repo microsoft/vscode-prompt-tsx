@@ -3,26 +3,39 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ChatMessage, ChatRole } from '../openai';
 import { PromptElement } from '../promptElement';
 import { TextChunk, UserMessage } from '../promptElements';
 import { PromptRenderer } from '../promptRenderer';
 import { ITokenizer } from '../tokenizer/tokenizer';
 import { IChatEndpointInfo } from '../types';
+import { OutputMode, Raw } from '../output/mode';
 
 suite('PromptElements', () => {
 	suite('TextChunk', () => {
-		const tokenizer = new (class TokenPerWordTokenizer implements ITokenizer {
+		const tokenizer = new (class TokenPerWordTokenizer implements ITokenizer<OutputMode.Raw> {
+			readonly mode = OutputMode.Raw;
 			baseTokensPerMessage = 0;
 			baseTokensPerName = 0;
 			baseTokensPerCompletion = 0;
 
-			tokenLength(text: string): number {
-				return text.trim() === '' ? 1 : text.split(/\s+/g).length;
+			tokenLength(part: Raw.ChatCompletionContentPart): number {
+				if (part.type !== Raw.ChatCompletionContentPartKind.Text) {
+					return 0;
+				}
+				return this.strToken(part.text);
 			}
 
-			countMessageTokens(message: ChatMessage): number {
-				return this.tokenLength(message.content as string);
+			countMessageTokens(message: Raw.ChatMessage): number {
+				return this.strToken(
+					message.content
+						.filter(p => p.type === Raw.ChatCompletionContentPartKind.Text)
+						.map(p => p.text)
+						.join('')
+				);
+			}
+
+			private strToken(s: string) {
+				return s.trim() === '' ? 1 : s.split(/\s+/g).length;
 			}
 		})();
 
@@ -62,8 +75,11 @@ suite('PromptElements', () => {
 			const res = await inst.render(undefined, undefined);
 			assert.deepStrictEqual(res.messages, [
 				{
-					content: '1a\n1b 1c 1d 1e\n2a 2b 2c 2d 2e',
-					role: ChatRole.User,
+					content: [{
+						type: Raw.ChatCompletionContentPartKind.Text,
+						text: '1a\n1b 1c 1d 1e\n2a 2b 2c 2d 2e',
+					}],
+					role: Raw.ChatRole.User,
 				},
 			]);
 		});

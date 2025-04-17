@@ -17,12 +17,15 @@ import {
 	MaterializedChatMessageImage,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
-	MaterializedContainer,
+	GenericMaterializedContainer,
 	MaterializedNode,
+	MaterializedChatMessageOpaque,
+	MaterializedChatMessageBreakpoint,
 } from './materialized';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 import { IElementEpochData, ITraceData, ITraceEpoch, ITracer, ITraceRenderData } from './tracer';
+import { Raw } from './output/mode';
 
 /**
  * Handler that can trace rendering internals into an HTML summary.
@@ -89,7 +92,7 @@ interface IServerOpts {
 class RequestRouter implements IHTMLRouter {
 	private serverToken = crypto.randomUUID();
 
-	constructor(private readonly opts: IServerOpts) { }
+	constructor(private readonly opts: IServerOpts) {}
 
 	public route(httpIncomingMessage: unknown, httpOutgoingMessage: unknown): boolean {
 		const req = httpIncomingMessage as IncomingMessage;
@@ -123,8 +126,8 @@ class RequestRouter implements IHTMLRouter {
 				const DEFAULT_TOKENS = ${JSON.stringify(traceData.budget)};
 				const EPOCHS = ${JSON.stringify(epochs satisfies HTMLTraceEpoch[])};
 				const DEFAULT_MODEL = ${JSON.stringify(
-			await serializeRenderData(traceData.tokenizer, traceData.renderedTree)
-		)};
+					await serializeRenderData(traceData.tokenizer, traceData.renderedTree)
+				)};
 				const SERVER_ADDRESS = ${JSON.stringify(this.opts.baseAddress + '/' + this.serverToken + '/')};
 				${tracerSrc}
 			</script>
@@ -212,7 +215,7 @@ async function serializeMaterialized(
 	tokenizer: ITokenizer,
 	materialized: MaterializedNode,
 	inChatMessage: boolean
-): Promise<ITraceMaterializedNode> {
+): Promise<ITraceMaterializedNode | undefined> {
 	const common = {
 		metadata: materialized.metadata.map(serializeMetadata),
 		priority: materialized.priority,
@@ -233,27 +236,35 @@ async function serializeMaterialized(
 			type: TraceMaterializedNodeType.Image,
 			value: materialized.src,
 			tokens: await materialized.upperBoundTokenCount(tokenizer),
-		}
+		};
+	} else if (
+		materialized instanceof MaterializedChatMessageOpaque ||
+		materialized instanceof MaterializedChatMessageBreakpoint
+	) {
+		// todo: add to visualizer
+		return undefined;
 	} else {
 		const containerCommon = {
 			...common,
 			id: materialized.id,
 			name: materialized.name,
-			children: await Promise.all(
-				materialized.children.map(c =>
-					serializeMaterialized(
-						tokenizer,
-						c,
-						inChatMessage || materialized instanceof MaterializedChatMessage
+			children: (
+				await Promise.all(
+					materialized.children.map(c =>
+						serializeMaterialized(
+							tokenizer,
+							c,
+							inChatMessage || materialized instanceof MaterializedChatMessage
+						)
 					)
 				)
-			),
+			).filter(r => !!r),
 			tokens: inChatMessage
 				? await materialized.upperBoundTokenCount(tokenizer)
 				: await materialized.tokenCount(tokenizer),
 		};
 
-		if (materialized instanceof MaterializedContainer) {
+		if (materialized instanceof GenericMaterializedContainer) {
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.Container,
@@ -261,11 +272,12 @@ async function serializeMaterialized(
 		} else if (materialized instanceof MaterializedChatMessage) {
 			const content = materialized.text
 				.filter(element => typeof element === 'string')
-				.join('').trim();
+				.join('')
+				.trim();
 			return {
 				...containerCommon,
 				type: TraceMaterializedNodeType.ChatMessage,
-				role: materialized.role,
+				role: Raw.ChatRole.display(materialized.role),
 				text: content,
 			};
 		}

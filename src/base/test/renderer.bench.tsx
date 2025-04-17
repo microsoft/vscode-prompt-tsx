@@ -21,7 +21,7 @@ const sampleText = readFileSync(`${__dirname}/renderer.test.tsx`, 'utf-8');
 const sampleTextLines = readFileSync(`${__dirname}/renderer.test.tsx`, 'utf-8').split('\n');
 const tokenizer = new Cl100KBaseTokenizer();
 const bench = new Bench({
-	name: `trim ${tokenizer.tokenLength(sampleText) * numberOfRepeats}->1k tokens`,
+	name: `trim ${tokenizer.tokenLength({ type: 1, text: sampleText }) * numberOfRepeats}->1k tokens`,
 	time: 100,
 });
 

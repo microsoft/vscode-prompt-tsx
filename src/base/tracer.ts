@@ -2,12 +2,12 @@
  *  Copyright (c) Microsoft Corporation and GitHub. All rights reserved.
  *--------------------------------------------------------------------------------------------*/
 
-import { MaterializedContainer } from './materialized';
+import { GenericMaterializedContainer } from './materialized';
 import { ITokenizer } from './tokenizer/tokenizer';
 
 export interface ITraceRenderData {
 	budget: number;
-	container: MaterializedContainer;
+	container: GenericMaterializedContainer;
 	removed: number;
 }
 

@@ -9,21 +9,22 @@ import {
 	TikTokenizer,
 } from '@microsoft/tiktokenizer';
 import { join } from 'path';
-import { BaseTokensPerMessage, BaseTokensPerName, ChatMessage } from '../openai';
 import { ITokenizer } from './tokenizer';
+import { OutputMode, Raw, OpenAI } from '../output/mode';
 
 /**
  * The Cl100K BPE tokenizer for the `gpt-4`, `gpt-3.5-turbo`, and `text-embedding-ada-002` models.
  *
  * See https://github.com/microsoft/Tokenizer
  */
-export class Cl100KBaseTokenizer implements ITokenizer {
+export class Cl100KBaseTokenizer implements ITokenizer<OutputMode.OpenAI> {
 	private _cl100kTokenizer: TikTokenizer | undefined;
 
+	public readonly mode = OutputMode.OpenAI;
 	public readonly models = ['gpt-4', 'gpt-3.5-turbo', 'text-embedding-ada-002'];
 
-	private readonly baseTokensPerMessage = BaseTokensPerMessage;
-	private readonly baseTokensPerName = BaseTokensPerName;
+	private readonly baseTokensPerMessage = OpenAI.BaseTokensPerMessage;
+	private readonly baseTokensPerName = OpenAI.BaseTokensPerName;
 
 	constructor() {}
 
@@ -44,11 +45,12 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	 * @param text The text to calculate the token length for.
 	 * @returns The number of tokens in the text.
 	 */
-	tokenLength(text: string): number {
-		if (!text) {
-			return 0;
+	tokenLength(part: Raw.ChatCompletionContentPart): number {
+		if (part.type === Raw.ChatCompletionContentPartKind.Text) {
+			return part.text ? this.tokenize(part.text).length : 0;
 		}
-		return this.tokenize(text).length;
+
+		return 0;
 	}
 
 	/**
@@ -58,7 +60,7 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 	 *
 	 * **Note**: The result does not include base tokens for the completion itself.
 	 */
-	countMessageTokens(message: ChatMessage): number {
+	countMessageTokens(message: OpenAI.ChatMessage): number {
 		return this.baseTokensPerMessage + this.countObjectTokens(message);
 	}
 
@@ -70,7 +72,7 @@ export class Cl100KBaseTokenizer implements ITokenizer {
 			}
 
 			if (typeof value === 'string') {
-				numTokens += this.tokenLength(value);
+				numTokens += this.tokenize(value).length;
 			} else if (value) {
 				// TODO@roblourens - count tokens for tool_calls correctly
 				// TODO@roblourens - tool_call_id is always 1 token
