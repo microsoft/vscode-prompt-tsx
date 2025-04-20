@@ -741,6 +741,22 @@ suite('PromptRenderer', () => {
 			);
 		});
 
+		test('does not fail pruning with empty passPriority', async () => {
+			await assertPruningOrder(
+				<>
+					<UserMessage priority={1}>
+						<TextChunk priority={1}>a</TextChunk>
+						<SimpleWrapper priority={2}>
+							<SimpleWrapper passPriority></SimpleWrapper>
+						</SimpleWrapper>
+						<TextChunk priority={3}>b</TextChunk>
+					</UserMessage>
+					<UserMessage priority={2}>c</UserMessage>
+				</>,
+				['a', 'b', 'c']
+			);
+		});
+
 		test('passes priority with tool', async () => {
 			class MyElement extends PromptElement {
 				render() {

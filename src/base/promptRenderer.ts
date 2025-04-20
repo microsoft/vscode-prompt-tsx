@@ -516,7 +516,8 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 					for (const node of container.removeLowestPriorityChild()) {
 						removed++;
 						const rmCount = node.upperBoundTokenCount(this._tokenizer);
-						tokenCount -= typeof rmCount === 'number' ? rmCount : await rmCount;
+						// buffer an extra 25% to roughly account for any potential undercount
+						tokenCount -= (typeof rmCount === 'number' ? rmCount : await rmCount) * 1.25;
 					}
 				} while (tokenCount - overhead > limit.limit);
 				tokenCount = await container.tokenCount(this._tokenizer);
