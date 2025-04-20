@@ -658,7 +658,7 @@ function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNod
 			}
 		}
 
-		if (child instanceof GenericMaterializedContainer && child.has(ContainerFlags.PassPriority)) {
+		if (child instanceof GenericMaterializedContainer && child.has(ContainerFlags.PassPriority) && child.children.length) {
 			const newChain = [...chain, child];
 			queue.splice(i + 1, 0, ...child.children.map((_, i) => ({ chain: newChain, index: i })));
 		} else if (!lowest || child.priority < lowest.value.priority) {
