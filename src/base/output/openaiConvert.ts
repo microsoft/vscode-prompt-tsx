@@ -73,7 +73,7 @@ export function toOpenAiChatMessage(message: Raw.ChatMessage): OpenAI.ChatMessag
 		case Raw.ChatRole.Tool:
 			return {
 				role: OpenAI.ChatRole.Tool,
-				content: onlyStringContent(message.content),
+				content: stringAndImageContent(message.content),
 				tool_call_id: message.toolCallId,
 			};
 		default:
