@@ -37,6 +37,7 @@ import {
 	PromptSizing,
 } from '../types';
 import { strFrom } from './testUtils';
+import { BudgetExceededError } from '../materialized';
 
 class LanguageModelTextPart implements vscode.LanguageModelTextPart {
 	constructor(public value: string) {}
@@ -3082,6 +3083,13 @@ suite('PromptRenderer', () => {
 		});
 
 		test('throws if message cannot be brought within budget after last breakpoint', async () => {
+		class MyMeta extends PromptMetadata {
+			constructor(public cool: boolean) {
+				super();
+			}
+		}
+
+
 			let error: any = undefined;
 			try {
 				await renderFragmentWithMaxPromptTokens(
@@ -3089,6 +3097,7 @@ suite('PromptRenderer', () => {
 					<UserMessage>
 						<TextChunk priority={1}>A</TextChunk>
 						<TextChunk priority={2}>B</TextChunk>
+						<meta value={new MyMeta(true)} />
 						<cacheBreakpoint type="ephemeral" />
 						<TextChunk priority={3}>C</TextChunk>
 					</UserMessage>
@@ -3098,6 +3107,7 @@ suite('PromptRenderer', () => {
 			}
 			assert.ok(error, 'Expected error to be thrown');
 			assert.match(String(error), /No lowest priority node found/);
+			assert.deepStrictEqual((error as BudgetExceededError).metadata.getAll(MyMeta), [new MyMeta(true)]);
 		});
 	});
 

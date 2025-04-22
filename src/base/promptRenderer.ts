@@ -6,6 +6,7 @@ import type { CancellationToken, Progress } from 'vscode';
 import * as JSONT from './jsonTypes';
 import { PromptNodeType } from './jsonTypes';
 import {
+	BudgetExceededError,
 	ContainerFlags,
 	GenericMaterializedContainer,
 	LineBreakBefore,
@@ -82,6 +83,13 @@ export namespace MetadataMap {
 	export const empty: MetadataMap = {
 		get: () => undefined,
 		getAll: () => [],
+	};
+
+	export const from = (metadata: PromptMetadata[]): MetadataMap => {
+		return {
+			get: ctor => metadata.find(m => m instanceof ctor) as any,
+			getAll: ctor => metadata.filter(m => m instanceof ctor) as any,
+		};
 	};
 }
 
@@ -456,10 +464,7 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 			.filter(isDefined);
 
 		return {
-			metadata: {
-				get: ctor => remainingMetadata.find(m => m instanceof ctor) as any,
-				getAll: ctor => remainingMetadata.filter(m => m instanceof ctor) as any,
-			},
+			metadata: MetadataMap.from(remainingMetadata),
 			messages: messageResult,
 			hasIgnoredFiles: this._ignoredFiles.length > 0,
 			tokenCount,
@@ -509,18 +514,25 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 			// "upper bound" usage from the count until it's <= the budget. We then
 			// repeat this and refine as necessary, though most of the time we only
 			// need a single iteration of this.<sup>[citation needed]</sup>
-			let tokenCount = await container.tokenCount(this._tokenizer);
-			while (tokenCount > limit.limit) {
-				const overhead = await container.baseMessageTokenCount(this._tokenizer);
-				do {
-					for (const node of container.removeLowestPriorityChild()) {
-						removed++;
-						const rmCount = node.upperBoundTokenCount(this._tokenizer);
-						// buffer an extra 25% to roughly account for any potential undercount
-						tokenCount -= (typeof rmCount === 'number' ? rmCount : await rmCount) * 1.25;
-					}
-				} while (tokenCount - overhead > limit.limit);
-				tokenCount = await container.tokenCount(this._tokenizer);
+			try {
+				let tokenCount = await container.tokenCount(this._tokenizer);
+				while (tokenCount > limit.limit) {
+					const overhead = await container.baseMessageTokenCount(this._tokenizer);
+					do {
+						for (const node of container.removeLowestPriorityChild()) {
+							removed++;
+							const rmCount = node.upperBoundTokenCount(this._tokenizer);
+							// buffer an extra 25% to roughly account for any potential undercount
+							tokenCount -= (typeof rmCount === 'number' ? rmCount : await rmCount) * 1.25;
+						}
+					} while (tokenCount - overhead > limit.limit);
+					tokenCount = await container.tokenCount(this._tokenizer);
+				}
+			} catch (e) {
+				if (e instanceof BudgetExceededError) {
+					e.metadata = MetadataMap.from([...root.allMetadata()]);
+				}
+				throw e;
 			}
 		}
 
@@ -1295,7 +1307,9 @@ function pickProps<T extends {}, K extends keyof T>(obj: T, keys: readonly K[]):
 }
 
 function atPath(path: (PromptElementCtor<any, any> | string)[]): string {
-	return path.map(p => (typeof p === 'string' ? p : p ? (p.name || '<anonymous>') : String(p))).join(' > ');
+	return path
+		.map(p => (typeof p === 'string' ? p : p ? p.name || '<anonymous>' : String(p)))
+		.join(' > ');
 }
 
 const annotatedErrors = new WeakSet<Error>();
