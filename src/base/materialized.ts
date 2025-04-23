@@ -5,6 +5,7 @@
 import { once } from './once';
 import { Raw, toMode } from './output/mode';
 import { ToolCall } from './promptElements';
+import { MetadataMap } from './promptRenderer';
 import { PromptMetadata } from './results';
 import { ITokenizer } from './tokenizer/tokenizer';
 
@@ -658,7 +659,11 @@ function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNod
 			}
 		}
 
-		if (child instanceof GenericMaterializedContainer && child.has(ContainerFlags.PassPriority) && child.children.length) {
+		if (
+			child instanceof GenericMaterializedContainer &&
+			child.has(ContainerFlags.PassPriority) &&
+			child.children.length
+		) {
 			const newChain = [...chain, child];
 			queue.splice(i + 1, 0, ...child.children.map((_, i) => ({ chain: newChain, index: i })));
 		} else if (!lowest || child.priority < lowest.value.priority) {
@@ -692,6 +697,8 @@ function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNod
 
 /** Thrown when the TSX budget is exceeded and we can't remove elements to reduce it. */
 export class BudgetExceededError extends Error {
+	public metadata!: MetadataMap;
+
 	constructor(node: ContainerType) {
 		let path = [node];
 		while (path[0].parent) {
