@@ -32,7 +32,7 @@ function stringAndImageContent(
 				part.type === Raw.ChatCompletionContentPartKind.Opaque &&
 				Raw.ChatCompletionContentPartOpaque.usableIn(part, OutputMode.OpenAI)
 			) {
-				return part as any;
+				return part.value as any;
 			}
 		})
 		.filter(r => !!r);
