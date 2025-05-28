@@ -13,6 +13,7 @@ import {
 	MaterializedChatMessage,
 	MaterializedChatMessageBreakpoint,
 	MaterializedChatMessageImage,
+	MaterializedChatMessageOpaque,
 	MaterializedChatMessageTextChunk,
 } from './materialized';
 import { ModeToChatMessageType, OutputMode, Raw, toMode } from './output/mode';
@@ -673,6 +674,8 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 				return this._handleIntrinsicElementJSON(node, props.data);
 			case 'cacheBreakpoint':
 				return this._handleIntrinsicCacheBreakpoint(node, props, children, sortIndex);
+			case 'opaque':
+				return this._handleIntrinsicOpaque(node, props, sortIndex);
 		}
 		throw new Error(`Unknown intrinsic element ${name}!`);
 	}
@@ -717,6 +720,14 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 			throw new Error(`<br /> must not have children!`);
 		}
 		node.appendLineBreak(inheritedPriority ?? Number.MAX_SAFE_INTEGER, sortIndex);
+	}
+
+	private _handleIntrinsicOpaque(
+		node: PromptTreeElement,
+		props: JSX.IntrinsicElements['opaque'],
+		sortIndex?: number
+	) {
+		node.appendOpaque(props.value, props.tokenUsage, props.priority, sortIndex);
 	}
 
 	private _handleIntrinsicElementJSON(node: PromptTreeElement, data: JSONT.PromptElementJSON) {
@@ -918,8 +929,48 @@ type ProcessedPromptPiece =
 	| IntrinsicPromptPiece<any>
 	| ExtrinsicPromptPiece<any, any>;
 
-type PromptNode = PromptTreeElement | PromptText | PromptCacheBreakpoint;
-type LeafPromptNode = PromptText;
+type PromptNode = PromptTreeElement | PromptText | PromptCacheBreakpoint | PromptOpaque;
+
+class PromptOpaque {
+	public static fromJSON(
+		parent: PromptTreeElement,
+		index: number,
+		json: JSONT.OpaqueJSON
+	): PromptOpaque {
+		return new PromptOpaque(parent, index, json.value, json.tokenUsage, json.priority);
+	}
+
+	public readonly kind = PromptNodeType.Text;
+
+	constructor(
+		public readonly parent: PromptTreeElement,
+		public readonly childIndex: number,
+		public readonly value: unknown,
+		public readonly tokenUsage?: number,
+		public readonly priority?: number
+	) {}
+
+	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
+		return new MaterializedChatMessageOpaque(
+			parent,
+			{
+				type: Raw.ChatCompletionContentPartKind.Opaque,
+				value: this.value,
+				tokenUsage: this.tokenUsage,
+			},
+			this.priority
+		);
+	}
+
+	public toJSON(): JSONT.OpaqueJSON {
+		return {
+			type: JSONT.PromptNodeType.Opaque,
+			value: this.value,
+			tokenUsage: this.tokenUsage,
+			priority: this.priority,
+		};
+	}
+}
 
 /**
  * A shared instance given to each PromptTreeElement that contains information
@@ -962,6 +1013,8 @@ class PromptTreeElement {
 						return PromptTreeElement.fromJSON(i, childJson, keepWithMap);
 					case JSONT.PromptNodeType.Text:
 						return PromptText.fromJSON(element, i, childJson);
+					case JSONT.PromptNodeType.Opaque:
+						return PromptOpaque.fromJSON(element, i, childJson);
 					default:
 						softAssertNever(childJson);
 				}
@@ -1061,6 +1114,15 @@ class PromptTreeElement {
 
 	public appendLineBreak(priority?: number, sortIndex = this._children.length): void {
 		this._children.push(new PromptText(this, sortIndex, '\n', priority));
+	}
+
+	public appendOpaque(
+		value: unknown,
+		tokenUsage?: number,
+		priority?: number,
+		sortIndex = this._children.length
+	): void {
+		this._children.push(new PromptOpaque(this, sortIndex, value, tokenUsage, priority));
 	}
 
 	public toJSON(): JSONT.PieceJSON {
@@ -1230,10 +1292,6 @@ class PromptText {
 		public readonly metadata?: PromptMetadata[],
 		public readonly lineBreakBefore = false
 	) {}
-
-	public collectLeafs(result: LeafPromptNode[]) {
-		result.push(this);
-	}
 
 	public materialize(parent: MaterializedChatMessage | GenericMaterializedContainer) {
 		const lineBreak = this.lineBreakBefore

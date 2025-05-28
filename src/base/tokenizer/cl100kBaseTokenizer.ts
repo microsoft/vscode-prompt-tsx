@@ -64,7 +64,7 @@ export class Cl100KBaseTokenizer implements ITokenizer<OutputMode.OpenAI> {
 		return this.baseTokensPerMessage + this.countObjectTokens(message);
 	}
 
-	private countObjectTokens(obj: any): number {
+	protected countObjectTokens(obj: any): number {
 		let numTokens = 0;
 		for (const [key, value] of Object.entries(obj)) {
 			if (!value) {

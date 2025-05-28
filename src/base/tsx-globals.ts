@@ -52,6 +52,24 @@ declare global {
 			};
 
 			/**
+			 * A data object that is emitted directly in the output. You as the
+			 * consumer are responsible for ensuring this data works. This element
+			 * has SHARP EDGES and should be used with great care.
+			 */
+			opaque: {
+				/** Value to be inserted in the output */
+				value: unknown;
+				/**
+				 * The number of tokens consumed by this fragment. This must be AT
+				 * LEAST the number of tokens this part represents in your tokenizer's
+				 * `countMessageTokens` method, or you will get obscure errors.
+				 */
+				tokenUsage?: number;
+				/** Usual priority value. */
+				priority?: number;
+			};
+
+			/**
 			 * Adds a 'cache breakpoint' to the output. This is exclusively valid
 			 * as a direct child of message types (UserMessage, SystemMessage, etc.)
 			 */

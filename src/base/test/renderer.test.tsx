@@ -4,7 +4,7 @@
 
 import * as assert from 'assert';
 import type * as vscode from 'vscode';
-import { OutputMode, Raw, renderElementJSON } from '..';
+import { OutputMode, Raw, renderElementJSON, toMode } from '..';
 import { BaseTokensPerCompletion } from '../output/openaiTypes';
 import { PromptElement } from '../promptElement';
 import {
@@ -73,7 +73,8 @@ suite('PromptRenderer', () => {
 
 	async function renderFragmentWithMaxPromptTokens(
 		maxPromptTokens: number,
-		piece: PromptPieceChild
+		piece: PromptPieceChild,
+		thisTokenizer = tokenizer
 	): Promise<RenderPromptResult<OutputMode.Raw>> {
 		const fakeEndpoint: any = {
 			modelMaxPromptTokens: maxPromptTokens,
@@ -86,7 +87,7 @@ suite('PromptRenderer', () => {
 				}
 			},
 			{},
-			tokenizer
+			thisTokenizer
 		);
 		return await inst.renderRaw(undefined, undefined);
 	}
@@ -3083,12 +3084,11 @@ suite('PromptRenderer', () => {
 		});
 
 		test('throws if message cannot be brought within budget after last breakpoint', async () => {
-		class MyMeta extends PromptMetadata {
-			constructor(public cool: boolean) {
-				super();
+			class MyMeta extends PromptMetadata {
+				constructor(public cool: boolean) {
+					super();
+				}
 			}
-		}
-
 
 			let error: any = undefined;
 			try {
@@ -3107,7 +3107,9 @@ suite('PromptRenderer', () => {
 			}
 			assert.ok(error, 'Expected error to be thrown');
 			assert.match(String(error), /No lowest priority node found/);
-			assert.deepStrictEqual((error as BudgetExceededError).metadata.getAll(MyMeta), [new MyMeta(true)]);
+			assert.deepStrictEqual((error as BudgetExceededError).metadata.getAll(MyMeta), [
+				new MyMeta(true),
+			]);
 		});
 	});
 
@@ -3150,6 +3152,116 @@ suite('PromptRenderer', () => {
 					'test error (at tsx element <anonymous> > UserMessage > LogicalWrapper > Throws)'
 				);
 			}
+		});
+	});
+
+	suite('opaque', () => {
+		test('preserves fragments in raw', async () => {
+			const res = await renderFragmentWithMaxPromptTokens(
+				100,
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<opaque value={{ cool: true }} />
+					<TextChunk priority={3}>Dolor</TextChunk>
+					<TextChunk priority={4}>Sit</TextChunk>
+				</UserMessage>
+			);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
+						{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { cool: true } },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' },
+					],
+				},
+			]);
+
+			assert.deepStrictEqual(toMode(OutputMode.OpenAI, res.messages), [
+				{
+					role: 'user',
+					name: undefined,
+					content: [
+						{ type: 'text', text: 'Lorem\nIpsum' },
+						{ cool: true },
+						{ type: 'text', text: 'Dolor\nSit' },
+					],
+				},
+			]);
+		});
+		test('prunes and priotizes normally', async () => {
+			const tokenizer = new (class extends Cl100KBaseTokenizer {
+				protected override countObjectTokens(obj: any): number {
+					if (obj && obj.cool) {
+						return 30;
+					}
+					return super.countObjectTokens(obj);
+				}
+			})();
+
+			const res1 = await renderFragmentWithMaxPromptTokens(
+				100,
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<opaque value={{ cool: true }} tokenUsage={30} priority={3} />
+					<TextChunk priority={4}>Dolor</TextChunk>
+					<TextChunk priority={5}>Sit</TextChunk>
+				</UserMessage>,
+				tokenizer
+			);
+			assert.deepStrictEqual(res1.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Lorem\nIpsum' },
+						{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { cool: true } },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' },
+					],
+				},
+			]);
+
+			const res2 = await renderFragmentWithMaxPromptTokens(
+				40,
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<opaque value={{ cool: true }} tokenUsage={30} priority={3} />
+					<TextChunk priority={4}>Dolor</TextChunk>
+					<TextChunk priority={5}>Sit</TextChunk>
+				</UserMessage>,
+				tokenizer
+			);
+			assert.deepStrictEqual(res2.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Opaque, value: { cool: true } },
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' },
+					],
+				},
+			]);
+
+			const res3 = await renderFragmentWithMaxPromptTokens(
+				35,
+				<UserMessage>
+					<TextChunk priority={1}>Lorem</TextChunk>
+					<TextChunk priority={2}>Ipsum</TextChunk>
+					<opaque value={{ cool: true }} tokenUsage={30} priority={3} />
+					<TextChunk priority={4}>Dolor</TextChunk>
+					<TextChunk priority={5}>Sit</TextChunk>
+				</UserMessage>,
+				tokenizer
+			);
+			assert.deepStrictEqual(res3.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' },
+					],
+				},
+			]);
 		});
 	});
 });

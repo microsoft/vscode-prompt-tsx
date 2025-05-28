@@ -394,7 +394,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					imageUrl: { url: getEncodedBase64(element.src), detail: element.detail },
 				};
 			} else if (element instanceof MaterializedChatMessageOpaque) {
-				return element.value as any;
+				return { type: Raw.ChatCompletionContentPartKind.Opaque, value: element.value };
 			} else if (element instanceof MaterializedChatMessageBreakpoint) {
 				return element.part;
 			} else {
@@ -445,7 +445,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 
 export class MaterializedChatMessageOpaque {
 	public readonly metadata: PromptMetadata[] = [];
-	public readonly priority = Number.MAX_SAFE_INTEGER;
 
 	public get value() {
 		return this.part.value;
@@ -453,7 +452,8 @@ export class MaterializedChatMessageOpaque {
 
 	constructor(
 		public readonly parent: ContainerType | undefined,
-		private readonly part: Raw.ChatCompletionContentPartOpaque
+		private readonly part: Raw.ChatCompletionContentPartOpaque,
+		public readonly priority = Number.MAX_SAFE_INTEGER
 	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {

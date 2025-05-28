@@ -19,6 +19,7 @@ import { BasePromptElementProps, PromptElementProps } from './types';
 export const enum PromptNodeType {
 	Piece = 1,
 	Text = 2,
+	Opaque = 3,
 }
 
 export interface TextJSON {
@@ -70,9 +71,16 @@ export interface ImageChatMessagePieceJSON {
 	};
 }
 
+export interface OpaqueJSON {
+	type: PromptNodeType.Opaque;
+	tokenUsage?: number;
+	value: unknown;
+	priority?: number;
+}
+
 export type PieceJSON = BasePieceJSON | ImageChatMessagePieceJSON;
 
-export type PromptNodeJSON = PieceJSON | TextJSON;
+export type PromptNodeJSON = PieceJSON | TextJSON | OpaqueJSON;
 
 export type UriOrLocationJSON = UriComponents | { uri: UriComponents; range: Range };
 
