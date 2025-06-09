@@ -698,6 +698,7 @@ function removeLowestPriorityChild(node: ContainerType, removed: MaterializedNod
 /** Thrown when the TSX budget is exceeded and we can't remove elements to reduce it. */
 export class BudgetExceededError extends Error {
 	public metadata!: MetadataMap;
+	public messages!: readonly Raw.ChatMessage[];
 
 	constructor(node: ContainerType) {
 		let path = [node];
