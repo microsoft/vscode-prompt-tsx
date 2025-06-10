@@ -480,6 +480,7 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 	 */
 	private async _getFinalElementTree(tokenBudget: number, token: CancellationToken | undefined) {
 		const root = this._root.materialize() as GenericMaterializedContainer;
+		const originalMessages = [...root.toChatMessages()];
 		const allMetadata = [...root.allMetadata()];
 		const limits = [{ limit: tokenBudget, id: this._root.id }, ...this._tokenLimits];
 		let removed = 0;
@@ -532,6 +533,7 @@ export class PromptRenderer<P extends BasePromptElementProps, M extends OutputMo
 			} catch (e) {
 				if (e instanceof BudgetExceededError) {
 					e.metadata = MetadataMap.from([...root.allMetadata()]);
+					e.messages = originalMessages;
 				}
 				throw e;
 			}
