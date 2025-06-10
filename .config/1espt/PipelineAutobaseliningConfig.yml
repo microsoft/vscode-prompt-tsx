@@ -14,6 +14,8 @@ pipelines:
           lastModifiedDate: 2024-09-12
         policheck:
           lastModifiedDate: 2024-12-01
+        accessibilityinsights:
+          lastModifiedDate: 2025-06-10
       binary:
         credscan:
           lastModifiedDate: 2025-01-29
