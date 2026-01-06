@@ -19,7 +19,6 @@ import {
 	PromptSizing,
 } from './types';
 import { PromptElementJSON } from './jsonTypes';
-import { ImageMediaType } from './output/rawTypes';
 
 export type ChatMessagePromptElement = SystemMessage | UserMessage | AssistantMessage;
 
@@ -142,7 +141,7 @@ export interface TextChunkProps extends BasePromptElementProps {
 export interface ImageProps extends BasePromptElementProps {
 	src: string;
 	detail?: 'low' | 'high' | 'auto';
-	mimeType?: ImageMediaType;
+	mimeType?: string;
 }
 
 /**

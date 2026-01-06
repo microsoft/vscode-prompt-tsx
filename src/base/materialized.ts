@@ -4,7 +4,6 @@
 
 import { once } from './once';
 import { Raw, toMode } from './output/mode';
-import { ImageMediaType } from './output/rawTypes';
 import { ToolCall } from './promptElements';
 import { MetadataMap } from './promptRenderer';
 import { PromptMetadata } from './results';
@@ -395,7 +394,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					imageUrl: {
 						url: getEncodedBase64(element.src),
 						detail: element.detail,
-						media_type: element.mimeType,
+						mediaType: element.mimeType,
 					},
 				};
 			} else if (element instanceof MaterializedChatMessageOpaque) {
@@ -496,7 +495,7 @@ export class MaterializedChatMessageImage {
 		public readonly metadata: PromptMetadata[] = [],
 		public readonly lineBreakBefore: LineBreakBefore,
 		public readonly detail?: 'low' | 'high' | 'auto',
-		public readonly mimeType?: ImageMediaType
+		public readonly mimeType?: string
 	) {}
 
 	public upperBoundTokenCount(tokenizer: ITokenizer) {
@@ -506,7 +505,7 @@ export class MaterializedChatMessageImage {
 	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
 		return tokenizer.tokenLength({
 			type: Raw.ChatCompletionContentPartKind.Image,
-			imageUrl: { url: getEncodedBase64(this.src), detail: this.detail, media_type: this.mimeType },
+			imageUrl: { url: getEncodedBase64(this.src), detail: this.detail, mediaType: this.mimeType },
 		});
 	});
 

@@ -101,7 +101,7 @@ export interface ImageURLReference {
 	/**
 	 * CAPI only. The media type of the image.
 	 */
-	media_type?: ImageMediaType;
+	mediaType?: string;
 
 	/**
 	 * Specifies the detail level of the image. Learn more in the
@@ -109,19 +109,6 @@ export interface ImageURLReference {
 	 */
 	detail?: 'low' | 'high' | 'auto';
 }
-
-/**
- * Taken from https://github.com/github/copilot-api/blob/3066ef0307dd78d1069758886fe0d6f53b0a7b3e/docs/api/schema.yaml#L1150
- * The media types of images that can be used in chat completions using CAPI.
- * Different models may support different media types.
- */
-export type ImageMediaType =
-	| 'image/jpeg'
-	| 'image/png'
-	| 'image/webp'
-	| 'image/gif'
-	| 'image/heic'
-	| 'image/heif';
 
 export interface ChatCompletionContentPartText {
 	/**
