@@ -2782,6 +2782,36 @@ suite('PromptRenderer', () => {
 			]);
 		});
 
+		test('renders image with mediaType', async () => {
+			class PromptWithImage extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Image src={'iVBORasdfasdfasdf'} detail={'high'} mimeType="image/png" />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithImage, {}, tokenizer);
+			const res = await inst.renderRaw(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Image,
+							imageUrl: {
+								url: 'data:image/png;base64,iVBORasdfasdfasdf',
+								detail: 'high',
+								mediaType: 'image/png',
+							},
+						},
+					],
+				},
+			]);
+		});
+
 		test('ensure children in image elements are dropped', async () => {
 			class PromptWithImage extends PromptElement {
 				render() {
@@ -3257,9 +3287,7 @@ suite('PromptRenderer', () => {
 			assert.deepStrictEqual(res3.messages, [
 				{
 					role: Raw.ChatRole.User,
-					content: [
-						{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' },
-					],
+					content: [{ type: Raw.ChatCompletionContentPartKind.Text, text: 'Dolor\nSit' }],
 				},
 			]);
 		});

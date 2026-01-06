@@ -394,7 +394,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					imageUrl: {
 						url: getEncodedBase64(element.src),
 						detail: element.detail,
-						mediaType: element.mimeType,
+						...(element.mimeType ? { mediaType: element.mimeType } : {}),
 					},
 				};
 			} else if (element instanceof MaterializedChatMessageOpaque) {
