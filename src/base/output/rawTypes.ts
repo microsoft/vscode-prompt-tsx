@@ -111,8 +111,8 @@ export interface ImageURLReference {
 }
 
 /**
- * Supported image media types for OpenAI API.
- * The media types of images that can be used in chat completions.
+ * Taken from https://github.com/github/copilot-api/blob/3066ef0307dd78d1069758886fe0d6f53b0a7b3e/docs/api/schema.yaml#L1150
+ * The media types of images that can be used in chat completions using CAPI.
  * Different models may support different media types.
  */
 export type ImageMediaType =
