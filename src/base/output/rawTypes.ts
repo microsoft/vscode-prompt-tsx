@@ -99,11 +99,29 @@ export interface ImageURLReference {
 	url: string;
 
 	/**
-	 * Specifies the detail level of the image. Learn more in the
-	 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+	 * CAPI only. The media type of the image.
 	 */
-	detail?: 'low' | 'high';
+	media_type?: ImageMediaType;
+
+	/**
+	 * Specifies the detail level of the image. Learn more in the
+	 * [Vision guide](https://platform.openai.com/docs/guides/images-vision#specify-image-input-detail-level).
+	 */
+	detail?: 'low' | 'high' | 'auto';
 }
+
+/**
+ * Supported image media types for OpenAI API.
+ * The media types of images that can be used in chat completions.
+ * Different models may support different media types.
+ */
+export type ImageMediaType =
+	| 'image/jpeg'
+	| 'image/png'
+	| 'image/webp'
+	| 'image/gif'
+	| 'image/heic'
+	| 'image/heif';
 
 export interface ChatCompletionContentPartText {
 	/**

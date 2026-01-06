@@ -1159,7 +1159,7 @@ class PromptTreeElement {
 				ctor: JSONT.PieceCtorKind.ImageChatMessage,
 				props: {
 					...json.props,
-					...pickProps(this._obj.props, ['src', 'detail']),
+					...pickProps(this._obj.props, ['src', 'detail', 'mimeType']),
 				},
 			};
 		} else if (this._obj instanceof AbstractKeepWith) {
@@ -1187,7 +1187,8 @@ class PromptTreeElement {
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
 				this._metadata,
 				LineBreakBefore.None,
-				this._obj.props.detail ?? undefined
+				this._obj.props.detail ?? undefined,
+				this._obj.props.mimeType ?? undefined
 			);
 		}
 
