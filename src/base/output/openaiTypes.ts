@@ -42,7 +42,9 @@ export interface UserChatMessage {
 	name?: string;
 }
 
-export type ChatCompletionContentPart = ChatCompletionContentPartImage | ChatCompletionContentPartText;
+export type ChatCompletionContentPart =
+	| ChatCompletionContentPartImage
+	| ChatCompletionContentPartText;
 
 export interface ChatCompletionContentPartImage {
 	image_url: ChatCompletionContentPartImage.ImageURL;
@@ -62,9 +64,9 @@ export namespace ChatCompletionContentPartImage {
 
 		/**
 		 * Specifies the detail level of the image. Learn more in the
-		 * [Vision guide](https://platform.openai.com/docs/guides/vision/low-or-high-fidelity-image-understanding).
+		 * [Vision guide](https://platform.openai.com/docs/guides/images-vision#specify-image-input-detail-level).
 		 */
-		detail?: 'low' | 'high';
+		detail?: 'low' | 'high' | 'auto';
 	}
 }
 

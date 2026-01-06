@@ -67,7 +67,7 @@ export interface ImageChatMessagePieceJSON {
 	references: PromptReferenceJSON[] | undefined;
 	props: {
 		src: string;
-		detail?: 'low' | 'high';
+		detail?: 'low' | 'high' | 'auto';
 	};
 }
 

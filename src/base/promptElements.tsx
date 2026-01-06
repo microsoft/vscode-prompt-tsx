@@ -135,11 +135,13 @@ export interface TextChunkProps extends BasePromptElementProps {
 
 /**
  * @property {string} src - The source of the image. This should be a raw base64 string.
- * @property {'low' | 'high'} [detail] - Optional. The detail level of the image. Can be either 'low' or 'high'. If not specified, `high` is used.
+ * @property {'low' | 'high' | 'auto'} [detail] - Optional. The detail level of the image. Can be either 'low', 'high' or 'auto'. If not specified, `auto` is used.
+ * @property {ImageMediaType} [mimeType] - Optional. The MIME type of the image. Only used for non-base64 URLs.
  */
 export interface ImageProps extends BasePromptElementProps {
 	src: string;
-	detail?: 'low' | 'high';
+	detail?: 'low' | 'high' | 'auto';
+	mimeType?: string;
 }
 
 /**
