@@ -22,9 +22,9 @@ parameters:
 extends:
   template: azure-pipelines/npm-package/pipeline.yml@templates
   parameters:
+    cgIgnoreDirectories: '.vscode-test'
     npmPackages:
       - name: prompt-tsx
-        cgIgnoreDirectories: '.vscode-test'
 
         buildSteps:
           - script: npm ci
