@@ -24,6 +24,7 @@ extends:
   parameters:
     npmPackages:
       - name: prompt-tsx
+        cgIgnoreDirectories: '.vscode-test'
 
         buildSteps:
           - script: npm ci
