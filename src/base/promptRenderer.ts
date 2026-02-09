@@ -846,6 +846,9 @@ async function computeTokensConsumedByLiterals(
 			role: element.props.role,
 			content: [],
 			...(element.props.name ? { name: element.props.name } : undefined),
+			...(instance instanceof AssistantMessage && element.props.phase
+				? { phase: element.props.phase }
+				: undefined),
 			...(element.props.toolCalls ? { toolCalls: element.props.toolCalls } : undefined),
 			...(element.props.toolCallId ? { toolCallId: element.props.toolCallId } : undefined),
 		};
@@ -1151,7 +1154,7 @@ class PromptTreeElement {
 			json.ctor = JSONT.PieceCtorKind.BaseChatMessage;
 			Object.assign(
 				json.props,
-				pickProps(this._obj.props, ['role', 'name', 'toolCalls', 'toolCallId'])
+				pickProps(this._obj.props, ['role', 'name', 'phase', 'toolCalls', 'toolCallId'])
 			);
 		} else if (this._obj instanceof Image) {
 			return {
@@ -1202,6 +1205,7 @@ class PromptTreeElement {
 				this.id,
 				this._obj.props.role,
 				this._obj.props.name,
+				this._obj instanceof AssistantMessage ? this._obj.props.phase : undefined,
 				this._obj instanceof AssistantMessage ? this._obj.props.toolCalls : undefined,
 				this._obj instanceof ToolMessage ? this._obj.props.toolCallId : undefined,
 				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,

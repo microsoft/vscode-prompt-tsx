@@ -1,6 +1,6 @@
 {
 	"name": "@vscode/prompt-tsx",
-	"version": "0.4.0-alpha.6",
+	"version": "0.4.0-alpha.7",
 	"description": "Declare LLM prompts with TSX",
 	"main": "./dist/base/index.js",
 	"types": "./dist/base/index.d.ts",

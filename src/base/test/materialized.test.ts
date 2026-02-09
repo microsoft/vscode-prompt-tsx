@@ -38,6 +38,7 @@ suite('Materialized', () => {
 					'user',
 					undefined,
 					undefined,
+					undefined,
 					1,
 					[],
 					parent => [
@@ -68,6 +69,7 @@ suite('Materialized', () => {
 					0,
 					Raw.ChatRole.User,
 					'user',
+					undefined,
 					undefined,
 					undefined,
 					1,

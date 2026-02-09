@@ -64,6 +64,7 @@ export function toOpenAiChatMessage(message: Raw.ChatMessage): OpenAI.ChatMessag
 				role: OpenAI.ChatRole.Assistant,
 				content: onlyStringContent(message.content),
 				name: message.name,
+				...(message.phase ? { phase: message.phase } : undefined),
 				tool_calls: message.toolCalls?.map(toolCall => ({
 					id: toolCall.id,
 					function: toolCall.function,
