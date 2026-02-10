@@ -85,10 +85,6 @@ export interface ToolFunction {
 }
 
 export interface AssistantMessageProps extends ChatMessageProps {
-	/**
-	 * Optional OpenAI response phase indicator for assistant output.
-	 */
-	phase?: 'commentary' | 'final_answer';
 	toolCalls?: ToolCall[];
 }
 
