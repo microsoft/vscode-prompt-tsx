@@ -236,7 +236,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		public readonly id: number,
 		public readonly role: Raw.ChatRole,
 		public readonly name: string | undefined,
-		public readonly phase: 'commentary' | 'final_answer' | undefined,
 		public toolCalls: readonly ToolCall[] | undefined,
 		public readonly toolCallId: string | undefined,
 		public readonly priority: number,
@@ -417,9 +416,6 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			const msg: Raw.AssistantChatMessage = { role: this.role, content };
 			if (this.name) {
 				msg.name = this.name;
-			}
-			if (this.phase) {
-				msg.phase = this.phase;
 			}
 			if (this.toolCalls?.length) {
 				msg.toolCalls = this.toolCalls.map(tc => ({
