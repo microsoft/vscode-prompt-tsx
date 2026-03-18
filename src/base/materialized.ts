@@ -35,6 +35,7 @@ export type MaterializedNode =
 	| MaterializedChatMessage
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
+	| MaterializedChatMessageDocument
 	| MaterializedChatMessageOpaque
 	| MaterializedChatMessageBreakpoint;
 
@@ -53,6 +54,7 @@ type ContainerType = MaterializedChatMessage | GenericMaterializedContainer;
 type ContentType =
 	| MaterializedChatMessageTextChunk
 	| MaterializedChatMessageImage
+	| MaterializedChatMessageDocument
 	| MaterializedChatMessageOpaque
 	| MaterializedChatMessageBreakpoint;
 
@@ -259,6 +261,7 @@ export class MaterializedChatMessage implements IMaterializedNode {
 	public get text(): (
 		| string
 		| MaterializedChatMessageImage
+		| MaterializedChatMessageDocument
 		| MaterializedChatMessageOpaque
 		| MaterializedChatMessageBreakpoint
 	)[] {
@@ -332,6 +335,8 @@ export class MaterializedChatMessage implements IMaterializedNode {
 					return { ...message, text: '' };
 				} else if (message.type === Raw.ChatCompletionContentPartKind.Image) {
 					return undefined;
+				} else if (message.type === Raw.ChatCompletionContentPartKind.Document) {
+					return undefined;
 				} else {
 					return message;
 				}
@@ -345,12 +350,14 @@ export class MaterializedChatMessage implements IMaterializedNode {
 		let result: (
 			| string
 			| MaterializedChatMessageImage
+			| MaterializedChatMessageDocument
 			| MaterializedChatMessageOpaque
 			| MaterializedChatMessageBreakpoint
 		)[] = [];
 		for (const { content, isTextSibling } of contentChunks(this)) {
 			if (
 				content instanceof MaterializedChatMessageImage ||
+				content instanceof MaterializedChatMessageDocument ||
 				content instanceof MaterializedChatMessageOpaque
 			) {
 				result.push(content);
@@ -395,6 +402,14 @@ export class MaterializedChatMessage implements IMaterializedNode {
 						url: getEncodedBase64(element.src),
 						detail: element.detail,
 						...(element.mimeType ? { mediaType: element.mimeType } : {}),
+					},
+				};
+			} else if (element instanceof MaterializedChatMessageDocument) {
+				return {
+					type: Raw.ChatCompletionContentPartKind.Document,
+					documentData: {
+						data: element.data,
+						mediaType: element.mediaType,
 					},
 				};
 			} else if (element instanceof MaterializedChatMessageOpaque) {
@@ -512,6 +527,31 @@ export class MaterializedChatMessageImage {
 	isEmpty: boolean = false;
 }
 
+export class MaterializedChatMessageDocument {
+	constructor(
+		public readonly parent: ContainerType | undefined,
+		public readonly id: number,
+		public readonly data: string,
+		public readonly mediaType: string,
+		public readonly priority: number,
+		public readonly metadata: PromptMetadata[] = [],
+		public readonly lineBreakBefore: LineBreakBefore,
+	) {}
+
+	public upperBoundTokenCount(tokenizer: ITokenizer) {
+		return this._upperBound(tokenizer);
+	}
+
+	private readonly _upperBound = once(async (tokenizer: ITokenizer) => {
+		return tokenizer.tokenLength({
+			type: Raw.ChatCompletionContentPartKind.Document,
+			documentData: { data: this.data, mediaType: this.mediaType },
+		});
+	});
+
+	isEmpty: boolean = false;
+}
+
 function isContainerType(node: MaterializedNode): node is ContainerType {
 	return node instanceof GenericMaterializedContainer || node instanceof MaterializedChatMessage;
 }
@@ -520,6 +560,7 @@ function isContentType(node: MaterializedNode): node is ContentType {
 	return (
 		node instanceof MaterializedChatMessageTextChunk ||
 		node instanceof MaterializedChatMessageImage ||
+		node instanceof MaterializedChatMessageDocument ||
 		node instanceof MaterializedChatMessageOpaque ||
 		node instanceof MaterializedChatMessageBreakpoint
 	);
@@ -544,6 +585,7 @@ function* contentChunks(
 			isTextSibling = true;
 		} else if (
 			child instanceof MaterializedChatMessageImage ||
+			child instanceof MaterializedChatMessageDocument ||
 			child instanceof MaterializedChatMessageOpaque ||
 			child instanceof MaterializedChatMessageBreakpoint
 		) {

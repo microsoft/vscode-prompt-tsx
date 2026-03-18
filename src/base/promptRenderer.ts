@@ -12,6 +12,7 @@ import {
 	LineBreakBefore,
 	MaterializedChatMessage,
 	MaterializedChatMessageBreakpoint,
+	MaterializedChatMessageDocument,
 	MaterializedChatMessageImage,
 	MaterializedChatMessageOpaque,
 	MaterializedChatMessageTextChunk,
@@ -22,6 +23,7 @@ import {
 	AbstractKeepWith,
 	AssistantMessage,
 	BaseChatMessage,
+	Document,
 	Image,
 	ChatMessagePromptElement,
 	Chunk,
@@ -1045,6 +1047,9 @@ class PromptTreeElement {
 			case JSONT.PieceCtorKind.ImageChatMessage:
 				element._obj = new Image(json.props!);
 				break;
+			case JSONT.PieceCtorKind.DocumentChatMessage:
+				element._obj = new Document(json.props!);
+				break;
 			default:
 				softAssertNever(json);
 		}
@@ -1162,6 +1167,15 @@ class PromptTreeElement {
 					...pickProps(this._obj.props, ['src', 'detail', 'mimeType']),
 				},
 			};
+		} else if (this._obj instanceof Document) {
+			return {
+				...json,
+				ctor: JSONT.PieceCtorKind.DocumentChatMessage,
+				props: {
+					...json.props,
+					...pickProps(this._obj.props, ['data', 'mediaType']),
+				},
+			};
 		} else if (this._obj instanceof AbstractKeepWith) {
 			json.keepWithId = this._obj.id;
 		}
@@ -1175,7 +1189,7 @@ class PromptTreeElement {
 
 	public materialize(
 		parent?: MaterializedChatMessage | GenericMaterializedContainer
-	): MaterializedChatMessage | GenericMaterializedContainer | MaterializedChatMessageImage {
+	): MaterializedChatMessage | GenericMaterializedContainer | MaterializedChatMessageImage | MaterializedChatMessageDocument {
 		this._children.sort((a, b) => a.childIndex - b.childIndex);
 
 		if (this._obj instanceof Image) {
@@ -1189,6 +1203,18 @@ class PromptTreeElement {
 				LineBreakBefore.None,
 				this._obj.props.detail ?? undefined,
 				this._obj.props.mimeType ?? undefined
+			);
+		}
+
+		if (this._obj instanceof Document) {
+			return new MaterializedChatMessageDocument(
+				parent,
+				this.id,
+				this._obj.props.data,
+				this._obj.props.mediaType,
+				this._obj.props.priority ?? Number.MAX_SAFE_INTEGER,
+				this._metadata,
+				LineBreakBefore.None,
 			);
 		}
 

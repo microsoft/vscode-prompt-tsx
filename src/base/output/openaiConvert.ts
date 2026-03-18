@@ -28,6 +28,9 @@ function stringAndImageContent(
 					image_url: part.imageUrl,
 					type: 'image_url',
 				};
+			} else if (part.type === Raw.ChatCompletionContentPartKind.Document) {
+				// OpenAI does not support document content parts; skip
+				return undefined;
 			} else if (
 				part.type === Raw.ChatCompletionContentPartKind.Opaque &&
 				Raw.ChatCompletionContentPartOpaque.usableIn(part, OutputMode.OpenAI)

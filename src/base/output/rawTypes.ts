@@ -69,13 +69,15 @@ export type ChatCompletionContentPart =
 	| ChatCompletionContentPartImage
 	| ChatCompletionContentPartText
 	| ChatCompletionContentPartOpaque
-	| ChatCompletionContentPartCacheBreakpoint;
+	| ChatCompletionContentPartCacheBreakpoint
+	| ChatCompletionContentPartDocument;
 
 export enum ChatCompletionContentPartKind {
 	Image,
 	Text,
 	Opaque,
 	CacheBreakpoint,
+	Document,
 }
 
 /** An image completion */
@@ -151,6 +153,19 @@ export namespace ChatCompletionContentPartOpaque {
 	export function usableIn(part: ChatCompletionContentPartOpaque, mode: OutputMode) {
 		return !part.scope || (part.scope & mode) !== 0;
 	}
+}
+
+/** A document content part (e.g. PDF). */
+export interface ChatCompletionContentPartDocument {
+	type: ChatCompletionContentPartKind.Document;
+	documentData: DocumentDataReference;
+}
+
+export interface DocumentDataReference {
+	/** Base64-encoded document data. */
+	data: string;
+	/** MIME type of the document (e.g. 'application/pdf'). */
+	mediaType: string;
 }
 
 export interface ChatMessageToolCall {
