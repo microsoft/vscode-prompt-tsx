@@ -39,6 +39,7 @@ export const enum PieceCtorKind {
 	BaseChatMessage = 1,
 	Other = 2,
 	ImageChatMessage = 3,
+	DocumentChatMessage = 4,
 }
 
 export const jsonRetainedProps = Object.keys({
@@ -78,7 +79,18 @@ export interface OpaqueJSON {
 	priority?: number;
 }
 
-export type PieceJSON = BasePieceJSON | ImageChatMessagePieceJSON;
+export type PieceJSON = BasePieceJSON | ImageChatMessagePieceJSON | DocumentChatMessagePieceJSON;
+
+export interface DocumentChatMessagePieceJSON {
+	type: PromptNodeType.Piece;
+	ctor: PieceCtorKind.DocumentChatMessage;
+	children: PromptNodeJSON[];
+	references: PromptReferenceJSON[] | undefined;
+	props: {
+		data: string;
+		mediaType: string;
+	};
+}
 
 export type PromptNodeJSON = PieceJSON | TextJSON | OpaqueJSON;
 

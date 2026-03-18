@@ -247,6 +247,28 @@ export class Image extends PromptElement<ImageProps> {
 	}
 }
 
+/**
+ * @property {string} data - Base64-encoded document data.
+ * @property {string} mediaType - MIME type of the document (e.g. 'application/pdf').
+ */
+export interface DocumentProps extends BasePromptElementProps {
+	data: string;
+	mediaType: string;
+}
+
+/**
+ * A document content part (e.g. PDF) that is a direct child of a {@link ChatMessagePromptElement}.
+ */
+export class Document extends PromptElement<DocumentProps> {
+	constructor(props: DocumentProps) {
+		super(props);
+	}
+
+	render() {
+		return <>{this.props.children}</>;
+	}
+}
+
 export interface PrioritizedListProps extends BasePromptElementProps {
 	/**
 	 * Priority of the list element.

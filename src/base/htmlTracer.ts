@@ -15,6 +15,7 @@ import {
 } from './htmlTracerTypes';
 import {
 	MaterializedChatMessageImage,
+	MaterializedChatMessageDocument,
 	MaterializedChatMessage,
 	MaterializedChatMessageTextChunk,
 	GenericMaterializedContainer,
@@ -239,7 +240,8 @@ async function serializeMaterialized(
 		};
 	} else if (
 		materialized instanceof MaterializedChatMessageOpaque ||
-		materialized instanceof MaterializedChatMessageBreakpoint
+		materialized instanceof MaterializedChatMessageBreakpoint ||
+		materialized instanceof MaterializedChatMessageDocument
 	) {
 		// todo: add to visualizer
 		return undefined;

@@ -10,6 +10,7 @@ import { PromptElement } from '../promptElement';
 import {
 	AssistantMessage,
 	Chunk,
+	Document,
 	Expandable,
 	IfEmpty,
 	Image,
@@ -2893,6 +2894,115 @@ suite('PromptRenderer', () => {
 						},
 						{ text: 'some text in a text chunk', type: Raw.ChatCompletionContentPartKind.Text },
 					],
+				},
+			]);
+		});
+	});
+
+	suite('Document', () => {
+		test('renders document', async () => {
+			class PromptWithDocument extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Document data={'JVBERi0xLjQK'} mediaType={'application/pdf'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithDocument, {}, tokenizer);
+			const res = await inst.renderRaw(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Document,
+							documentData: { data: 'JVBERi0xLjQK', mediaType: 'application/pdf' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('ensure children in document elements are dropped', async () => {
+			class PromptWithDocument extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<Document data={'JVBERi0xLjQK'} mediaType={'application/pdf'}>
+								Child in Document
+							</Document>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithDocument, {}, tokenizer);
+			const res = await inst.renderRaw(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{
+							type: Raw.ChatCompletionContentPartKind.Document,
+							documentData: { data: 'JVBERi0xLjQK', mediaType: 'application/pdf' },
+						},
+					],
+				},
+			]);
+		});
+
+		test('text and document together', async () => {
+			class PromptWithDocument extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TextChunk>some text before</TextChunk>
+							<Document data={'JVBERi0xLjQK'} mediaType={'application/pdf'} />
+							<TextChunk>some text after</TextChunk>
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithDocument, {}, tokenizer);
+			const res = await inst.renderRaw(undefined, undefined);
+			assert.deepStrictEqual(res.messages, [
+				{
+					role: Raw.ChatRole.User,
+					content: [
+						{ text: 'some text before', type: Raw.ChatCompletionContentPartKind.Text },
+						{
+							type: Raw.ChatCompletionContentPartKind.Document,
+							documentData: { data: 'JVBERi0xLjQK', mediaType: 'application/pdf' },
+						},
+						{ text: 'some text after', type: Raw.ChatCompletionContentPartKind.Text },
+					],
+				},
+			]);
+		});
+
+		test('document is skipped in OpenAI output', async () => {
+			class PromptWithDocument extends PromptElement {
+				render() {
+					return (
+						<UserMessage>
+							<TextChunk>some text</TextChunk>
+							<Document data={'JVBERi0xLjQK'} mediaType={'application/pdf'} />
+						</UserMessage>
+					);
+				}
+			}
+
+			const inst = new PromptRenderer(fakeEndpoint, PromptWithDocument, {}, tokenizer);
+			const res = await inst.renderRaw(undefined, undefined);
+			assert.deepStrictEqual(toMode(OutputMode.OpenAI, res.messages), [
+				{
+					role: 'user',
+					name: undefined,
+					content: 'some text',
 				},
 			]);
 		});
