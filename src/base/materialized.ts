@@ -354,16 +354,44 @@ export class MaterializedChatMessage implements IMaterializedNode {
 			| MaterializedChatMessageOpaque
 			| MaterializedChatMessageBreakpoint
 		)[] = [];
+		// Pieces of the text run that will become the next string element. They are
+		// joined once when the run ends: appending to one string and calling
+		// endsWith on it would flatten the growing string on every chunk (#205).
+		let run: string[] | undefined;
+		let runIsEmpty = true;
+		let runEndsWithNewline = false;
+		const endRun = () => {
+			if (run) {
+				result.push(run.join(''));
+				run = undefined;
+			}
+		};
+		const appendToRun = (text: string) => {
+			if (run) {
+				run.push(text);
+			} else {
+				run = [text];
+				runIsEmpty = true;
+				runEndsWithNewline = false;
+			}
+			if (text) {
+				runIsEmpty = false;
+				runEndsWithNewline = text.endsWith('\n');
+			}
+		};
+
 		for (const { content, isTextSibling } of contentChunks(this)) {
 			if (
 				content instanceof MaterializedChatMessageImage ||
 				content instanceof MaterializedChatMessageDocument ||
 				content instanceof MaterializedChatMessageOpaque
 			) {
+				endRun();
 				result.push(content);
 				continue;
 			}
 			if (content instanceof MaterializedChatMessageBreakpoint) {
+				endRun();
 				if (result.at(-1) instanceof MaterializedChatMessageBreakpoint) {
 					result[result.length - 1] = content;
 				} else {
@@ -372,21 +400,18 @@ export class MaterializedChatMessage implements IMaterializedNode {
 				continue;
 			}
 			if (
-				content.lineBreakBefore === LineBreakBefore.Always ||
-				(content.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling)
+				run &&
+				!runIsEmpty &&
+				!runEndsWithNewline &&
+				(content.lineBreakBefore === LineBreakBefore.Always ||
+					(content.lineBreakBefore === LineBreakBefore.IfNotTextSibling && !isTextSibling))
 			) {
-				let prev = result[result.length - 1];
-				if (typeof prev === 'string' && prev && !prev.endsWith('\n')) {
-					result[result.length - 1] = prev + '\n';
-				}
+				appendToRun('\n');
 			}
 
-			if (typeof result[result.length - 1] === 'string') {
-				result[result.length - 1] += content.text;
-			} else {
-				result.push(content.text);
-			}
+			appendToRun(content.text);
 		}
+		endRun();
 
 		return result;
 	});
